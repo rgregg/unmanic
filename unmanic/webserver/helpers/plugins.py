@@ -218,11 +218,6 @@ def get_plugin_settings(plugin_id: str, library_id=None):
     """
     settings = []
 
-    # Fetch level from session
-    from unmanic.libs.session import Session
-    s = Session()
-    s.register_unmanic()
-
     # Check plugin for settings
     plugin_executor = PluginExecutor()
     plugin_settings, plugin_settings_meta = plugin_executor.get_plugin_settings(plugin_id, library_id=library_id)
@@ -279,11 +274,8 @@ def get_plugin_settings(plugin_id: str, library_id=None):
             # Set input description text
             form_input['description'] = plugin_setting_meta.get('description', '')
 
-            # Usability level
-            req_lev = plugin_setting_meta.get('req_lev', 0)
-            if s.level < req_lev:
-                form_input['display'] = "disabled"
-                form_input['description'] += " (This option is reserved for supporters of the project)"
+            # Local fork: no per-setting supporter gating. Upstream
+            # disabled inputs whose req_lev exceeded the session level.
 
             # Set input tooltip text
             form_input['tooltip'] = plugin_setting_meta.get('tooltip', '')
