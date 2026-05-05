@@ -74,7 +74,11 @@ chance of upstream acceptance, branch from `staging` and cherry-pick.
 Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
 
 - **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)** — replace the unmanic.app `installation_data/list` mechanism (already stubbed) with `_unmanic._tcp.local` mDNS service advertisement so workers discover each other on the LAN. Fork-only feature.
-- **[#2 Remove footer bar](https://github.com/rgregg/unmanic/issues/2)** — get rid of the persistent copyright/version footer on every page. Trivial CSS override or frontend submodule fork.
+- **[#2 Remove footer bar](https://github.com/rgregg/unmanic/issues/2)** — get rid of the persistent copyright/version footer on every page.
+- **[#3 Remove sign-in / sign-out UI](https://github.com/rgregg/unmanic/issues/3)** — the backend auth flow is fully stubbed; the frontend buttons lead to dead unmanic.app links.
+- **[#4 Remove Unmanic Central link / page](https://github.com/rgregg/unmanic/issues/4)** — central-API features are stubbed; the nav entry leads to a blank/dead page.
+
+(#2/#3/#4 are all frontend strips; once we accumulate enough we should fork the `Unmanic/unmanic-frontend` submodule rather than maintain CSS hacks.)
 
 Untracked but noted:
 
