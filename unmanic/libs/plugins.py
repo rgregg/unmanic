@@ -133,7 +133,25 @@ class PluginsHandler(object, metaclass=SingletonType):
         return True
 
     def fetch_remote_repo_data(self, repo_path):
-        # Fetch remote JSON file
+        # Try a direct fetch from the catalog URL first. The official
+        # Unmanic/unmanic-plugins repo publishes its catalog publicly on the
+        # `repo` branch with `repo_data_directory` set, so the existing URL
+        # builder in `get_plugins_in_repo_data` can resolve plugin zip URLs
+        # straight from GitHub. This avoids the api.unmanic.app proxy and
+        # makes plugin discovery work without registration / supporter level.
+        direct_url = self._resolve_direct_repo_url(repo_path)
+        if direct_url:
+            data = self._fetch_repo_data_directly(direct_url)
+            if data is not None:
+                return data
+            self.logger.debug(
+                "Direct fetch of plugin repo '%s' failed; falling back to proxy",
+                direct_url,
+            )
+
+        # Fall back to the api.unmanic.app proxy. Used when the repo_path is
+        # a shortname the proxy resolves server-side, or when direct fetch
+        # of a URL repo fails (network blip, GitHub outage, etc.).
         session = Session()
         uuid = session.get_installation_uuid()
         level = session.get_supporter_level()
@@ -156,6 +174,47 @@ class PluginsHandler(object, metaclass=SingletonType):
         if status_code >= 500:
             self.logger.debug(f"Failed to fetch plugin repo from '{api_path}'. Code:{status_code}")
         return data
+
+    @staticmethod
+    def _resolve_direct_repo_url(repo_path):
+        """
+        Return a public catalog URL for ``repo_path`` if one is available,
+        otherwise None. The "default" shortname maps to the official public
+        catalog (overridable via the ``UNMANIC_DEFAULT_PLUGIN_REPO_URL``
+        environment variable for self-hosted mirrors). Any path that already
+        looks like an http(s) URL is returned as-is.
+        """
+        if repo_path == PluginsHandler.get_default_repo():
+            return os.environ.get(
+                'UNMANIC_DEFAULT_PLUGIN_REPO_URL',
+                'https://raw.githubusercontent.com/Unmanic/unmanic-plugins/repo/repo.json',
+            )
+        if isinstance(repo_path, str) and (
+                repo_path.startswith('http://') or repo_path.startswith('https://')):
+            return repo_path
+        return None
+
+    def _fetch_repo_data_directly(self, url):
+        """
+        Fetch ``url`` and return the parsed JSON body, or None on any failure.
+        Failures are logged at debug level so the caller can fall back without
+        flooding the log when the direct path is unreachable.
+        """
+        try:
+            r = requests.get(url, timeout=10, allow_redirects=True)
+        except requests.exceptions.RequestException as e:
+            self.logger.debug("Direct fetch of plugin repo '%s' raised %s", url, e)
+            return None
+        if r.status_code != 200:
+            self.logger.debug(
+                "Direct fetch of plugin repo '%s' returned HTTP %s", url, r.status_code)
+            return None
+        try:
+            return r.json()
+        except ValueError as e:
+            self.logger.debug(
+                "Direct fetch of plugin repo '%s' returned non-JSON: %s", url, e)
+            return None
 
     def update_plugin_repos(self):
         """
