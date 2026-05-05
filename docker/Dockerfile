@@ -142,8 +142,13 @@ RUN \
 
 # Install commonly used command line tools
 ARG JELLYFIN_FFMPEG_VERSION="7"
-ARG BTBN_FFMPEG_RELEASE="autobuild-2026-03-19-13-03"
-ARG BTBN_FFMPEG_VERSION="8.0"
+# Local fork: bumped from upstream's autobuild-2026-03-19-13-03 / version 8.0,
+# which BtbN has since pruned (404 on the release). Their autobuild release
+# tags get garbage-collected after a few weeks, so this needs occasional
+# bumps. Newer 8.1 builds are stable; if/when BtbN moves to 8.2, update both
+# values together (the URL filter inside the RUN below uses the version).
+ARG BTBN_FFMPEG_RELEASE="autobuild-2026-05-04-17-29"
+ARG BTBN_FFMPEG_VERSION="8.1"
 ARG NODE_MAJOR="22"
 RUN \
     echo "**** Configure APT ****" \
