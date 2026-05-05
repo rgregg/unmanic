@@ -71,6 +71,13 @@ chance of upstream acceptance, branch from `staging` and cherry-pick.
 
 ## Possible follow-ups
 
+Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
+
+- **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)** — replace the unmanic.app `installation_data/list` mechanism (already stubbed) with `_unmanic._tcp.local` mDNS service advertisement so workers discover each other on the LAN. Fork-only feature.
+- **[#2 Remove footer bar](https://github.com/rgregg/unmanic/issues/2)** — get rid of the persistent copyright/version footer on every page. Trivial CSS override or frontend submodule fork.
+
+Untracked but noted:
+
 - **`fix/scheduler-completed-tasks-dict-bug`** — `manage_completed_tasks` at `scheduler.py:198` does `historic_task.id` on what is actually a dict, so `'dict' object has no attribute 'id'` fires at startup. Visible in container logs. Upstreamable; could become `fix/*` against `staging`.
 
 ## Maintenance workflow
