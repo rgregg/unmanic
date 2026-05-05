@@ -6,6 +6,40 @@ upstream maintainer is solo and currently closes outside PRs targeting
 of patches that aren't shipping upstream (yet, or ever) and build our own
 Docker image from them.
 
+## Goals
+
+This fork aims to be a **fully self-hosted, no-phone-home, no-license-tier**
+build of Unmanic that exercises the rights granted by upstream's GPLv3
+license:
+
+- **No `api.unmanic.app` dependency.** Plugin discovery, plugin downloads,
+  registration, token refresh, and "linked installation" sync are all
+  removed or stubbed. The app runs end-to-end against the local network
+  and the public GitHub-hosted plugin catalogs.
+- **No telemetry.** No registration heartbeat, no plugin-install reporting,
+  no "user info" lookups, no remote installation address sync.
+- **No supporter level gates.** Library count limits, linked-installation
+  count limits, and per-plugin `req_lev` setting restrictions are removed.
+  Every feature in the codebase is available to every installation, which
+  matches the freedoms granted by GPLv3.
+
+The fork does not fork the public plugin catalog at
+`Unmanic/unmanic-plugins`; that repo is GPLv3 and openly published, and
+plugin zips are pulled directly from it via raw.githubusercontent.com. If
+upstream ever takes the catalog private, point
+`UNMANIC_DEFAULT_PLUGIN_REPO_URL` at a mirror.
+
+### Status
+
+| Goal | State |
+|---|---|
+| Plugin catalog fetched directly from public GitHub (no proxy) | Done — `feat/direct-plugin-repo-fetch` is on `local` |
+| Plugin zip downloads go straight to GitHub when using direct catalogs | Done (consequence of the above — `repo_data_directory` is preserved) |
+| Registration / heartbeat / `verify_token` / `fetch_user_data` calls stubbed | **Not yet** — see "Local-only patches not yet implemented" below |
+| 60-minute scheduler heartbeat removed | **Not yet** |
+| Supporter-level feature gates removed | **Not yet** |
+| Plugin install telemetry call removed | **Not yet** |
+
 ## Branch layout
 
 | Branch | Purpose |
