@@ -33,12 +33,13 @@ upstream ever takes the catalog private, point
 
 | Goal | State |
 |---|---|
-| Plugin catalog fetched directly from public GitHub (no proxy) | Done — `feat/direct-plugin-repo-fetch` is on `local` |
+| Plugin catalog fetched directly from public GitHub (no proxy) | Done — `feat/direct-plugin-repo-fetch` |
 | Plugin zip downloads go straight to GitHub when using direct catalogs | Done (consequence of the above — `repo_data_directory` is preserved) |
-| Registration / heartbeat / `verify_token` / `fetch_user_data` calls stubbed | **Not yet** — see "Local-only patches not yet implemented" below |
-| 60-minute scheduler heartbeat removed | **Not yet** |
-| Supporter-level feature gates removed | **Not yet** |
-| Plugin install telemetry call removed | **Not yet** |
+| Registration / heartbeat / `verify_token` / `fetch_user_data` calls stubbed | Done — "Stub api.unmanic.app dependencies for self-hosted operation" |
+| 60-minute scheduler heartbeat removed | Done (same commit) |
+| Plugin install telemetry call removed | Done (same commit) |
+| Community-forks endpoint short-circuited | Done (same commit) |
+| Supporter-level feature gates removed | Done — "Remove supporter-level feature gates" |
 
 ## Branch layout
 
@@ -59,19 +60,18 @@ In application order on top of `upstream/staging`:
 | 2 | `fix/no-shell-true-exec-command` | PR #618 (open against staging) | Security: removes `shell=True` from plugin string exec path; normalises plugin commands to argv via `_coerce_exec_command_to_argv`. Two commits (the second is a Windows-safe shlex.split fix). |
 | 3 | `fix/postprocessor-remote-data-loss` | PR #619 (open against staging) | Correctness: `post_process_remote_file` was deleting the source before attempting copy; fix attempts copy first and tracks `__copy_file`'s return so listeners see real outcome. |
 | 4 | `feat/direct-plugin-repo-fetch` | **Not submitted upstream.** | Bypasses `api.unmanic.app` for plugin catalog fetches. Not upstreamable — undermines the supporter-gating mechanism. Fully local. |
+| 5 | (in-place commit on `local`) | **Not submitted upstream.** | "Stub api.unmanic.app dependencies for self-hosted operation". Turns `register_unmanic` / `verify_token` / `fetch_user_data` / `auth_*` / device-flow / `notify_site_of_plugin_install` / community-forks endpoint / scheduler heartbeat / log-forwarding endpoint lookup into no-ops. Pins session level to `LOCAL_SESSION_LEVEL` (default 7, override via `UNMANIC_LOCAL_SESSION_LEVEL`). |
+| 6 | (in-place commit on `local`) | **Not submitted upstream.** | "Remove supporter-level feature gates". Strips library count cap, linked-installation count cap, and per-setting `req_lev` enforcement (both save-time and form-render-time). |
 
 PR #614/#615/#616 are the originals (closed) targeting `master`; #617/#618/#619 are the resubmissions targeting `staging`.
 
-## Local-only patches not yet implemented
+Patches 5 and 6 were committed directly on `local` rather than via topic
+branches because they will never be upstreamed. If a future change has any
+chance of upstream acceptance, branch from `staging` and cherry-pick.
 
-These are planned but not yet on `local`. Keep them as separate commits when added.
+## Possible follow-ups
 
-- **`local/remove-supporter-level-gates`** — strip `s.level <= 1` / `s.level > 1` checks at `library.py:158`, `installation_link.py:838,860`, and the `req_lev` enforcement at `executor.py:505-509`. Hardcoding the level (or removing the gate calls) makes feature limits irrelevant.
-- **`local/stub-unmanic-app-calls`** — turn `register_unmanic`, `verify_token`, `fetch_user_data` into no-ops that succeed silently. Lets the app run with no internet route to `api.unmanic.app`.
-- **`local/disable-heartbeat-scheduler`** — drop the every-60-min `register_unmanic` job in `scheduler.py:69`.
-- **`fix/scheduler-completed-tasks-dict-bug`** — `manage_completed_tasks` at `scheduler.py:198` does `historic_task.id` on what is actually a dict, so `'dict' object has no attribute 'id'` fires every 12h. Visible in container logs at startup. Probably upstreamable, but fix locally first.
-
-When implementing, target the same model: each topic branch off `staging`, focused change, then cherry-pick onto `local` (or merge if you prefer).
+- **`fix/scheduler-completed-tasks-dict-bug`** — `manage_completed_tasks` at `scheduler.py:198` does `historic_task.id` on what is actually a dict, so `'dict' object has no attribute 'id'` fires at startup. Visible in container logs. Upstreamable; could become `fix/*` against `staging`.
 
 ## Maintenance workflow
 
