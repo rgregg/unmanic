@@ -126,3 +126,45 @@ So we can:
 Docker image is built from `local`. The official `josh5/unmanic:latest` is
 **not** what runs in production on media-server — see deployment notes in
 `home-docs/home-lab/apps/unmanic.md`.
+
+### Build pipeline
+
+`.github/workflows/build_local.yml` builds and pushes on every push to
+`local` (and on `workflow_dispatch`). Output:
+
+| Tag | Mutability | When to use |
+|---|---|---|
+| `ghcr.io/rgregg/unmanic:local` | rolling — moves with each push | Komodo deployment for "always latest local" |
+| `ghcr.io/rgregg/unmanic:local-<sha7>` | immutable | Pinning a specific build in Komodo if you want to control rollouts |
+| `ghcr.io/rgregg/unmanic:local-<py-version>` | follows the python `setup.py` version | Useful when bumping versions intentionally |
+
+The workflow is intentionally **separate** from upstream's
+`integration_test_and_build_all_packages_ci.yml`. That workflow:
+- Builds on `master` / `staging` / `dev-*` / tags only (does not recognize `local`)
+- Hard-codes `docker.io/josh5/unmanic` and refuses to push for other owners
+- Runs the integration test suite first (heavy; needs test videos)
+
+Our workflow builds the wheel directly (skipping integration tests since
+this fork's CI step for them is disabled upstream anyway, and our changes
+are syntactically validated locally), then builds and pushes a single
+amd64 image to GHCR using the existing `docker/Dockerfile` unchanged.
+
+Add `linux/arm64` to the `platforms:` line in the workflow if a Pi worker
+ever needs the same image.
+
+### First build
+
+The workflow will trigger automatically on the next push to `local`.
+To trigger a build manually now: `gh workflow run "Build local fork image" --ref local`
+or click "Run workflow" in the Actions tab on GitHub.
+
+### Deploying
+
+In Komodo, point the `unmanic` container's image at
+`ghcr.io/rgregg/unmanic:local` (rolling) or a specific
+`ghcr.io/rgregg/unmanic:local-<sha7>` (pinned). Bind mounts and env stay
+the same — see `home-docs/home-lab/apps/unmanic.md`.
+
+GHCR images for public repos are public by default. If `rgregg/unmanic`
+is private, the image will also be private and you'll need to either make
+the package public via GHCR's UI or configure Komodo with a pull token.
