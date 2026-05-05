@@ -65,8 +65,9 @@ class ScheduledTasksManager(threading.Thread):
         self.logger.info("Starting ScheduledTasks Monitor loop")
 
         # Create scheduled tasks
-        # Check the session every 60 minutes
-        self.scheduler.every(60).minutes.do(self.register_unmanic)
+        # Local fork: no scheduled session check-in. The upstream heartbeat
+        # called api.unmanic.app every 60 minutes; here register_unmanic
+        # is a local-only no-op stub, so a recurring schedule has no value.
         # Run the plugin repo update every 3 hours
         self.scheduler.every(3).hours.do(self.plugin_repo_update)
         # Run the remote installation link update every 10 seconds

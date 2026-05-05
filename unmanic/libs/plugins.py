@@ -393,30 +393,13 @@ class PluginsHandler(object, metaclass=SingletonType):
 
     def notify_site_of_plugin_install(self, plugin):
         """
-        Notify the unmanic.app site API of the installation.
-        This is used for metric stats so that we can get a count of plugin downloads.
+        Local fork: no telemetry. The upstream call posted plugin install
+        counts to api.unmanic.app/unmanic-api/v1/plugin_repos/record_install.
 
         :param plugin:
         :return:
         """
-        # Post
-        session = Session()
-        uuid = session.get_installation_uuid()
-        level = session.get_supporter_level()
-        post_data = {
-            "uuid":      uuid,
-            "level":     level,
-            "plugin_id": plugin.get("plugin_id"),
-            "author":    plugin.get("author"),
-            "version":   plugin.get("version"),
-        }
-        try:
-            repo_data, status_code = session.api_post('unmanic-api', 1, 'plugin_repos/record_install', post_data)
-            if not repo_data.get('success'):
-                session.register_unmanic()
-        except Exception as e:
-            self.logger.debug("Exception while logging plugin install. %s", str(e))
-            return False
+        return
 
     def install_plugin_by_id(self, plugin_id, repo_id=None):
         """

@@ -43,6 +43,13 @@ from unmanic.libs.logs import UnmanicLogging
 from unmanic.libs.singleton import SingletonType
 from unmanic.libs.unmodels import Installation
 
+# Local fork: every install runs at the highest supporter tier. This pin
+# replaces the remote level lookup that used to come from
+# api.unmanic.app/support-auth-api/v2/user_info/get and removes the only
+# reason the application had to phone home on a schedule. Override with
+# UNMANIC_LOCAL_SESSION_LEVEL if a different level is needed for testing.
+LOCAL_SESSION_LEVEL = int(os.environ.get("UNMANIC_LOCAL_SESSION_LEVEL", "7"))
+
 
 class RemoteApiException(Exception):
     """
@@ -338,131 +345,25 @@ class Session(object, metaclass=SingletonType):
         refresh_thread.start()
 
     def __configure_log_forwarding(self, session_valid=False):
+        # Local fork: never forward logs to a remote datastore. The endpoint
+        # lookup used to call api.unmanic.app's central_config service; an
+        # explicit UNMANIC_REMOTE_LOGGING_ENDPOINT env var still works for
+        # users who want to point at their own log sink.
         settings = config.Config()
         log_buffer_retention = settings.get_log_buffer_retention()
         if session_valid:
-            # Import endpoint from env vars
             endpoint = os.environ.get("UNMANIC_REMOTE_LOGGING_ENDPOINT", "")
-            # If not set in env vars, fetch endpoint from unmanic-api
-            if not endpoint or not endpoint.startswith("http"):
-                endpoint = None
-                try:
-                    # Fetch endpoint from Unmanic site API
-                    response, status_code = self.api_get("unmanic-api", 1, "central_config/get_datastore_endpoint")
-                    if status_code in [200] and response.get("success"):
-                        endpoint = response.get("data").get("endpoint")
-                except Exception as e:
-                    self.logger.debug("Exception while fetching Unmanic Central Datastore endpoint - %s", e)
-            if endpoint:
+            if endpoint and endpoint.startswith("http"):
                 UnmanicLogging.enable_remote_logging(endpoint, self.uuid, log_buffer_retention)
                 return
         UnmanicLogging.disable_remote_logging(log_buffer_retention)
 
     def __sync_remote_installation_addresses(self):
         """
-        Fetch list of installations if supporter and sync addresses
+        Local fork: no phone-home. Linked installation addresses are managed
+        locally only.
         """
-        settings = config.Config()
-        installations_response, status_code = self.api_get("unmanic-api", 1, "installation_data/list")
-        installations = installations_response.get("data", {}).get("installations", [])
-
-        if status_code in [200, 201, 202] and installations_response.get("success") and installations:
-            from unmanic.libs.installation_link import Links
-
-            links = Links()
-
-            # Create a dictionary of the received installations keyed by name, overwriting duplicates (so last one wins)
-            received_insts_by_name = {}
-            for inst in installations:
-                name = inst.get("installation_name")
-                address = inst.get("installation_public_address")
-                if name and address:
-                    parsed_address = urlparse(address)
-                    if parsed_address.scheme not in ("http", "https") or not parsed_address.hostname:
-                        self.logger.info("Skipping installation '%s' with invalid public address '%s'", name, address)
-                        continue
-                    received_insts_by_name[name] = address
-
-            # Now iterate our local links and update if name matches
-            current_remote_installations = settings.get_remote_installations()
-            current_remote_installation_addresses = {
-                local_link.get("address") for local_link in current_remote_installations if local_link.get("address")
-            }
-            local_installation_name = settings.get_installation_name()
-
-            # Update any links that have a name but no address (may cause some overwriting of UUID)
-            for local_link in current_remote_installations:
-                local_name = local_link.get("name")
-                if local_name in received_insts_by_name:
-                    new_address = received_insts_by_name[local_name]
-                    current_address = local_link.get("address", "")
-
-                    # Only update if current address is invalid
-                    is_invalid = (
-                        not current_address
-                        or current_address == "???"
-                        or not current_address.lower().startswith("http")
-                    )
-
-                    if is_invalid and local_link.get("address") != new_address:
-                        # Update it
-                        self.logger.info(
-                            "Syncing remote installation address for '%s' from '%s' to '%s'",
-                            local_name,
-                            current_address,
-                            new_address,
-                        )
-                        local_link["address"] = new_address
-                        links.update_single_remote_installation_link_config(local_link)
-
-            # Add any new links that do not yet exist by the address list received from the Unmanic API
-            for name, address in received_insts_by_name.items():
-                if name == local_installation_name:
-                    continue
-                if address in current_remote_installation_addresses:
-                    continue
-                try:
-                    validation = links.validate_remote_installation(address)
-                except Exception as e:
-                    self.logger.info(
-                        "Skipping creation of link config for '%s' at '%s' due to validation error: %s",
-                        name,
-                        address,
-                        e,
-                    )
-                    continue
-                if not validation:
-                    self.logger.info(
-                        "Skipping creation of link config for '%s' at '%s' because it is unreachable", name, address
-                    )
-                    continue
-                remote_uuid = validation.get("session", {}).get("uuid")
-                if not remote_uuid:
-                    self.logger.info(
-                        "Skipping creation of link config for '%s' at '%s' because no remote UUID was returned",
-                        name,
-                        address,
-                    )
-                    continue
-                new_link_config = {
-                    "uuid": remote_uuid,
-                    "name": name,
-                    "address": address,
-                    "auth": "None",
-                    "username": "",
-                    "password": "",
-                }
-                self.logger.info("Creating remote installation link config for '%s' with address '%s'", name, address)
-                links.update_single_remote_installation_link_config(new_link_config)
-            if not received_insts_by_name:
-                self.logger.info("No valid installation name/address pairs returned from Unmanic Central.")
-        else:
-            self.logger.info(
-                "Skipping remote installation address sync; status=%s success=%s installations=%s",
-                status_code,
-                installations_response.get("success"),
-                len(installations) if installations else 0,
-            )
+        return
 
     def __reset_session_installation_data(self):
         """
@@ -609,266 +510,53 @@ class Session(object, metaclass=SingletonType):
         return r.json(), r.status_code
 
     def get_access_token(self):
-        if not self.application_token:
-            # No application token set
-            return False
-        d = {"applicationToken": self.application_token, "uuid": self.get_installation_uuid()}
-        u = self.set_full_api_url("support-auth-api", 2, "app_auth/get_token")
-        r = self.requests_session.post(u, json=d, timeout=self.timeout)
-        if r.status_code in [200, 201, 202]:
-            # Token refreshed
-            # Store the updated access token
-            response = r.json()
-            self.__update_session_auth(access_token=response.get("data", {}).get("accessToken"))
-            self.__store_installation_data()
-            self.__configure_log_forwarding(session_valid=True)
-            return True
-        elif r.status_code > 403:
-            # Issue was with server... Just carry on with current access token can't fix that here.
-            raise RemoteApiException(f"Token refresh request failed for {u}", r.status_code)
-        elif r.status_code in [403]:
-            # The app token is no longer valid/authorised. This is a definitive
-            # auth failure and requires re-auth to obtain a new app token.
-            self.logger.info("Failed to get access token due to invalid application token.")
-            response = r.json()
-            for message in response.get("messages", []):
-                self.logger.info("Remote Message: %s", message)
-            raise InvalidApplicationTokenException(f"Application token unauthorized for {u}", r.status_code)
-        elif 400 <= r.status_code < 500:
-            # For this endpoint, 400 indicates a malformed request (eg missing
-            # fields) rather than an invalid app token. Do not force sign-out.
-            self.logger.warning("Access token refresh request was rejected. Code=%s", r.status_code)
-            response = r.json()
-            for message in response.get("messages", []):
-                self.logger.info("Remote Message: %s", message)
-        return False
+        # Local fork: no phone-home. Always succeeds, no token needed.
+        return True
 
     def verify_token(self):
-        if not self.user_access_token:
-            if self.get_access_token():
-                # Successfully refreshed access token
-                return True
-            # No valid tokens exist
-            return False
-        # Check if access token is valid
-        u = self.set_full_api_url("support-auth-api", 1, "user_auth/verify_token")
-        r = self.requests_session.get(u, timeout=self.timeout)
-        if r.status_code in [200, 201, 202]:
-            # Token is valid
-            return True
-        elif r.status_code > 403:
-            # Issue with server... Just carry on with current access token can't fix that here.
-            raise RemoteApiException(f"Token verification request failed for {u}", r.status_code)
-
-        # Access token is not valid. Refresh it.
-        self.logger.debug("Unable to verify access token. Refreshing...")
-        if self.get_access_token():
-            # Successfully refreshed access token
-            return True
-        return False
+        # Local fork: no phone-home. Tokens are never validated remotely.
+        return True
 
     def fetch_user_data(self):
-        response, status_code = self.api_get("support-auth-api", 2, "user_info/get")
-        if status_code == 401:
-            # Preserve existing local session state on auth fetch failures.
-            self.logger.warning("User data endpoint returned 401. Preserving current session state.")
-            return
-        if status_code > 403:
-            # Failed to fetch data from server. Ignore this for now. Will try again later.
-            raise RemoteApiException("Failed to fetch user info from user_info/get", status_code)
-        if status_code in [200, 201, 202] and response.get("success"):
-            # Get user data from response data
-            user_data = response.get("data", {}).get("user")
-            if user_data:
-                previous_level = self.level
-                # Set name from user data
-                self.name = user_data.get("name", "Valued Supporter")
-                # Set avatar from user data
-                self.picture_uri = user_data.get("picture_uri", "/assets/global/img/avatar/avatar_placeholder.png")
-                # Set email from user data
-                self.email = user_data.get("email", "")
-                # Update level from response data (default back to 0)
-                self.level = int(user_data.get("supporter_level", 0))
-                if previous_level != self.level:
-                    # JWT scope is embedded in the access token, so a level change
-                    # requires a fresh token before making further privileged requests.
-                    self.revoke_access_token(
-                        reason=f"supporter level changed {previous_level} -> {self.level}"
-                    )
-                else:
-                    self.__store_installation_data()
-                self.__trigger_plugin_repo_refresh_for_level_change(previous_level, self.level, "fetch_user_data")
+        # Local fork: no phone-home. User identity stays at whatever is in
+        # the local DB; supporter level is held at LOCAL_SESSION_LEVEL by
+        # register_unmanic so all features stay unlocked.
+        return
 
     def auth_user_account(self, force_checkin=False):
-        # Don't bother if the user has never logged in
-        if not self.user_access_token and not force_checkin:
-            self.logger.debug("The user access token is not set add we are not being forced to refresh for one.")
-            return False
-
-        try:
-            # Start by verifying the token
-            token_verified = self.verify_token()
-        except InvalidApplicationTokenException as e:
-            self.logger.warning("Application token is unauthorized. Signing out local session. %s", e)
-            self.sign_out(remote=False)
-            return False
-
-        # If that token verification failed but we are not being forced to check in, then just ignore it.
-        if not token_verified and not force_checkin:
-            self.logger.debug("The user access token is not valid but we are not being forced to refresh for one.")
-            return False
-
-        # If the token was verified and is valid, fetch user info
-        if token_verified:
-            self.fetch_user_data()
-            return True
-
-        # Add warning logs when auth validation cannot complete right now (e.g. remote service outages).
-        self.logger.warning("Unable to verify user account during forced check-in. Preserving local session state.")
-        return False
+        # Local fork: no phone-home. Auth always succeeds.
+        return True
 
     def auth_trial_account(self):
-        # Check if access token is valid
-        d = {"uuid": self.get_installation_uuid()}
-        u = self.set_full_api_url("support-auth-api", 1, "user_auth/trial_token")
-        r = self.requests_session.post(u, json=d, timeout=self.timeout)
-        if r.status_code in [200, 201, 202]:
-            # Token refreshed
-            # Store the updated access token
-            response = r.json()
-            self.logger.debug("Updating session with trial token")
-            self.__update_session_auth(access_token=response.get("data", {}).get("accessToken"))
-            # Fetch user data
-            self.fetch_user_data()
-            # Store the updated session cookies
-            self.__store_installation_data()
-            self.__configure_log_forwarding(session_valid=True)  # TODO: Remove from here. It wont work with trials.
-            return True
-        elif r.status_code > 403:
-            # Issue with server... Just carry on with current access token can't fix that here.
-            raise RemoteApiException(f"Trial token verification request failed for {u}", r.status_code)
+        # Local fork: no phone-home. Trial flow is unused.
+        return True
 
     def register_unmanic(self, force=False):
         """
-        Register Unmanic with site.
-        This sends information about the system that Unmanic is running on.
-        It also sends a unique ID.
-
-        Based on the return information, this will set the session level.
-
-        Return success status.
-
-        :param force:
-        :return:
+        Local fork: no-op stub for the upstream registration call. Loads the
+        local installation row from the DB, pins the session level to
+        LOCAL_SESSION_LEVEL so every feature stays unlocked, and refreshes
+        the timestamp so __check_session_valid() never expires.
         """
-        # First check if the current session is still valid
-        if not force and self.__check_session_valid():
-            return True
-
-        # Set now as the last time this was run (before it was actually run
         self.last_check = time.time()
-
-        # Update the session
-        settings = config.Config()
-        # Fetch the installation data prior to running a session update
         self.__fetch_installation_data()
-
-        try:
-            # Build post data
-            from unmanic.libs.system import System
-
-            system = System()
-            system_info = system.info()
-            platform_info = system_info.get("platform", None)
-            if platform_info:
-                platform_info = " * ".join(platform_info)
-            post_data = {
-                "uuid": self.get_installation_uuid(),
-                "installation_name": settings.get_installation_name(),
-                "installation_public_address": settings.get_installation_public_address(),
-                "version": settings.read_version(),
-                "python_version": system_info.get("python", ""),
-                "system": {
-                    "platform": platform_info,
-                    "devices": system_info.get("devices", {}),
-                },
-            }
-
-            # Refresh user auth
-            result = self.auth_user_account(force_checkin=force)
-            # Fetch a trial token for clean installs even when this check-in is
-            # not forced. This keeps first-run behavior while still requiring
-            # the remote API to issue a valid trial token.
-            should_attempt_trial = force or (
-                self.level < 2 and not self.user_access_token and not self.application_token
-            )
-            if not result and should_attempt_trial:
-                result = self.auth_trial_account()
-
-            # Register Unmanic
-            registration_response, status_code = self.api_post(
-                "unmanic-api", 1, "installation_auth/register", post_data
-            )
-
-            # Save data
-            if status_code in [200, 201, 202] and registration_response.get("success"):
-                self.__update_created_timestamp()
-                # Persist session in DB
-                self.__store_installation_data()
-                self.__configure_log_forwarding(session_valid=True)
-
-                # Fetch list of installations if supporter
-                if self.level in [2, 3, 4, 5, 6, 7]:
-                    self.__sync_remote_installation_addresses()
-                else:
-                    self.logger.info("Skipping remote installation address sync; supporter level too low")
-
-                return True
-            elif status_code > 403:
-                raise RemoteApiException("Failed to register installation to installation_auth/register", status_code)
-
-            # Allow an extension for the session for 7 days without an internet connection
-            # We will get here if we received a 403 from the unmanic-api. We should just ignore that for a few days
-            if self.__created_older_than_x_days(days=7):
-                # Reset the session - Unmanic should phone home once every 7 days
-                self.__reset_session_installation_data()
-            else:
-                self.logger.debug("Allowing session extension")
-            return False
-        except RemoteApiException as e:
-            self.logger.error("Exception while registering Unmanic with remote API: %s", e)
-            self.logger.warning(
-                "Remote API unavailable during registration. Preserving current session level=%s", self.level
-            )
-        except Exception as e:
-            self.logger.debug("Exception while registering Unmanic: %s", e, exc_info=True)
-            if self.__check_session_valid():
-                # If the session is still valid, just return true. Perhaps the internet is down and it timed out?
-                return True
-            return False
-        return False
+        previous_level = self.level
+        self.level = LOCAL_SESSION_LEVEL
+        if not self.created:
+            self.__update_created_timestamp()
+        self.__store_installation_data()
+        self.__configure_log_forwarding(session_valid=True)
+        if previous_level != self.level:
+            self.__trigger_plugin_repo_refresh_for_level_change(
+                previous_level, self.level, "self_hosted_init")
+        return True
 
     def sign_out(self, remote=True):
         """
-        Remove any user auth
-
-        :return:
+        Remove any user auth. Local fork: never calls the remote logout
+        endpoint; the local DB row is wiped and register_unmanic will
+        re-pin the level on the next call.
         """
-        try:
-            if remote:
-                post_data = {
-                    "uuid": self.get_installation_uuid(),
-                }
-                response, status_code = self.api_post(
-                    "unmanic-api", 1, "installation_auth/remove_installation_registration", post_data
-                )
-                # The only way we can now log out is if the auth server response with true
-                # Save data
-                self.logger.debug("Remote registry logout response - Code: %s, Body: %s", status_code, response)
-        except RemoteApiException:
-            self.logger.warning(
-                "Failed to reach remote server to request a logout. This is fine, we can continue to logout the app locally."
-            )
         self.__reset_session_installation_data()
         return True
 
@@ -882,81 +570,16 @@ class Session(object, metaclass=SingletonType):
 
     def init_device_auth_flow(self):
         """
-        Starts the device authentication flow to obtain an application token.
-        It sends a POST request for a device code and then polls until the app token is available.
-
-        It then logs the verification URL and user code for the user to enter, and finally
-        calls poll_for_app_token() to retrieve the app token.
+        Local fork: device-flow login is unused. The session is pinned to
+        LOCAL_SESSION_LEVEL via register_unmanic, so there is nothing to
+        log into. Returning False keeps any UI button no-op without
+        contacting api.unmanic.app.
         """
-        # Try to fetch token if this was the initial login
-        post_data = {"uuid": self.get_installation_uuid()}
-        response, status_code = self.api_post("support-auth-api", 2, "app_auth/request_pin", post_data)
-        if status_code >= 400:
-            self.logger.error(
-                "The remote service returned an error (HTTP %s). We are unable to proceed at this time. Please try again later.",
-                status_code,
-            )
-            return False
-
-        if status_code != 200:
-            raise Exception(f"Unexpected response status: {status_code}")
-
-        if not response.get("success"):
-            raise Exception("Device auth request was unsuccessful: " + str(response.get("messages")))
-
-        data = response.get("data", {})
-        user_code = data.get("user_code")
-        device_code = data.get("device_code")
-        verification_uri = data.get("verification_uri")
-        verification_uri_complete = data.get("verification_uri_complete")
-        interval = data.get("interval")
-        expires_in = data.get("expires_in")
-
-        self.logger.info("Visit %s and enter the code: %s", verification_uri, user_code)
-
-        # Begin polling for the application token using the device code, interval, and expiry
-        return {
-            "user_code": user_code,
-            "device_code": device_code,
-            "interval": interval,
-            "expires_in": expires_in,
-            "verification_uri": verification_uri,
-            "verification_uri_complete": verification_uri_complete,
-        }
+        self.logger.info("Local fork: device-flow login is disabled. Session level is pinned locally.")
+        return False
 
     def poll_for_app_token(self, device_code, interval, expires_in):
-        """
-        Polls the remote API for the application token.
-        This function is intended to run in a background thread.
-        It runs for a maximum of "expires_in" seconds.
-        """
-        start_time = time.time()
-        self.logger.info("Polling for app token")
-        while time.time() - start_time < expires_in:
-            time.sleep(interval)
-
-            # Try to fetch token if this was the initial login
-            post_data = {
-                "uuid": self.get_installation_uuid(),
-                "device_code": device_code,
-            }
-            response, status_code = self.api_post("support-auth-api", 2, "app_auth/retrieve_app_token", post_data)
-            if status_code > 403:
-                # Issue with server... Just carry on with current access token can't fix that here.
-                raise RemoteApiException("App token retrieval request failed for %s", status_code)
-            elif status_code in [200] and response.get("data", {}).get("applicationToken"):
-                time.sleep(interval)  # Wait for {interval} before we use this new app token
-                # Store the updated access token
-                self.logger.info("Application linked to account")
-                # Store the updated refresh token
-                self.application_token = response.get("data", {}).get("applicationToken")
-                self.get_access_token()
-                token_verified = self.verify_token()
-                self.logger.info("Application auth token verified: %s", token_verified)
-                self.register_unmanic(force=True)
-                return token_verified
-
-        self.logger.info("Polling for app token timed out after %s seconds.", expires_in)
+        # Local fork: device-flow login is unused. See init_device_auth_flow.
         return None
 
     def get_patreon_login_url(self):
@@ -984,30 +607,12 @@ class Session(object, metaclass=SingletonType):
         return "{0}/support-auth-api/v1/login_discord/login".format(self.get_site_url())
 
     def get_patreon_sponsor_page(self):
-        """
-        Fetch the Patreon sponsor page
-
-        :return:
-        """
-        try:
-            # Fetch Patreon sponsorship URL from Unmanic site API
-            response, status_code = self.api_get("unmanic-api", 1, "links/unmanic_patreon_sponsor_page")
-            if status_code in [200, 201, 202] and response.get("success"):
-                response_data = response.get("data")
-                return response_data
-        except Exception as e:
-            self.logger.debug("Exception while fetching Patreon sponsor page - %s", e)
+        # Local fork: no phone-home. The upstream Patreon link still works
+        # if the user wants to support upstream — they can find it on
+        # unmanic.app — but this app does not fetch it.
         return False
 
     def get_credit_portal_funding_proposals(self):
-        """
-        Fetch credit portal funding proposals from support-auth-api.
-
-        :return:
-        """
-        try:
-            response, status_code = self.api_get("support-auth-api", 2, "credit_portal/funding_proposals")
-            return response, status_code
-        except Exception as e:
-            self.logger.debug("Exception while fetching credit portal funding proposals - %s", e)
-        return None, 500
+        # Local fork: no phone-home. Funding proposals were a supporter-tier
+        # feature on api.unmanic.app; not applicable here.
+        return None, 200

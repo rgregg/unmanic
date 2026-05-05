@@ -1147,44 +1147,12 @@ class ApiPluginsHandler(BaseApiHandler):
                 description: Internal error; Check `error` for exception
         """
         try:
-            cache_ttl_seconds = 2 * 60 * 60
-            cache_root = unmanic_config.Config().get_plugins_path()
-            os.makedirs(cache_root, exist_ok=True)
-            cache_path = os.path.join(cache_root, 'community-repos-cache.json')
-
-            if not self.settings.get("serve_traceback"):
-                if os.path.exists(cache_path):
-                    try:
-                        with open(cache_path) as f:
-                            cached = json.load(f)
-                        cached_at = cached.get('cached_at', 0)
-                        cached_response = cached.get('response')
-                        repos = cached_response.get('repos') if cached_response else None
-                        if repos:
-                            # Validate cached schema (repo_* keys) to avoid serving stale/old-format data.
-                            if not isinstance(repos, list) or not repos or not repos[0].get('repo_id'):
-                                repos = None
-                        if cached_response and repos and (time.time() - cached_at) < cache_ttl_seconds:
-                            self.write_success(cached_response)
-                            return
-                    except Exception:
-                        tornado.log.app_log.warning("Failed to read community repos cache", exc_info=True)
-
-            uuid = self.session.get_installation_uuid()
-            level = self.session.get_supporter_level()
-            api_path = f'plugin_repos/community_forks/uuid/{uuid}/level/{level}'
-            response, status_code = self.session.api_get('unmanic-api', 2, api_path)
-            if status_code != 200:
-                self.set_status(status_code)
-                self.finish(response)
-                return
-            if not self.settings.get("serve_traceback"):
-                try:
-                    with open(cache_path, 'w') as f:
-                        json.dump({'cached_at': time.time(), 'response': response}, f)
-                except Exception:
-                    tornado.log.app_log.warning("Failed to write community repos cache", exc_info=True)
-            self.write_success(response)
+            # Local fork: no phone-home. The upstream "community forks"
+            # endpoint discovered third-party plugin repos via
+            # api.unmanic.app/unmanic-api/v2/plugin_repos/community_forks
+            # and was used by the plugin browser UI. Return an empty list
+            # so the UI renders cleanly with "no community repos".
+            self.write_success({'repos': []})
             return
         except BaseApiError as bae:
             tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
