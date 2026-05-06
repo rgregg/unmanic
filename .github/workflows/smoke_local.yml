@@ -98,7 +98,7 @@ jobs:
           echo "version/read: $VER"
           echo "$VER" | python3 -c 'import json,sys; d=json.load(sys.stdin); v=d.get("version") or d.get("data",{}).get("version"); assert v, "no version field"; print(f"version: {v}")'
 
-      - name: Check container logs for api.unmanic.app traffic
+      - name: Check container logs for regressions
         run: |
           # The fork stubs out every phone-home path. If any layer still
           # reaches out (a plugin schedule, a missed call site, a frontend
@@ -108,11 +108,34 @@ jobs:
           echo "--- container log tail ---"
           tail -80 "$LOGS"
           echo "--- end container log ---"
+
+          fail=0
+
+          # 1. No outbound calls to api.unmanic.app or its sub-services.
           if grep -E "(api\.unmanic\.app|support-auth-api|unmanic-api/v[0-9])" "$LOGS"; then
             echo "::error::Found api.unmanic.app references in container logs"
+            fail=1
+          fi
+
+          # 2. The scheduler dict-vs-model bug must not return. It killed
+          # the ScheduledTasksManager thread at startup in upstream and
+          # silently disabled completed-task cleanup. We patched it; this
+          # check ensures a future rebase doesn't reintroduce it.
+          if grep -E "AttributeError.*'dict' object has no attribute 'id'" "$LOGS"; then
+            echo "::error::ScheduledTasksManager AttributeError regression — see scheduler.py"
+            fail=1
+          fi
+
+          # 3. The ScheduledTasksManager thread should not have crashed.
+          if grep -E "Exception in thread ScheduledTasksManager" "$LOGS"; then
+            echo "::error::ScheduledTasksManager thread crashed — see container log artifact"
+            fail=1
+          fi
+
+          if [[ "$fail" -ne 0 ]]; then
             exit 1
           fi
-          echo "No api.unmanic.app references in container logs."
+          echo "All log regression checks passed."
 
       - name: Healthcheck status
         run: |
