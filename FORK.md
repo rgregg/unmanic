@@ -76,6 +76,22 @@ historical reference; future patches just commit directly.
 | 9 | Build pipeline for `ghcr.io/rgregg/unmanic:local` | `.github/workflows/build_local.yml`. |
 | 10 | Test pipeline + coverage for `local` | `.github/workflows/test_local.yml`, `pytest.ini` rewrite, `pytest-cov` dep. |
 
+## Audit notes
+
+### `/library` mount scope (2026-05-06)
+
+Investigated whether the `/library` bind could be tightened from RW to
+something narrower for blast-radius reduction. **Conclusion: no.** The
+configured operating model writes back to source paths in place:
+
+- `unmanic/libs/postprocessor.py:411` and `:275`: `os.remove(source_data.get('abspath'))`
+- `unmanic/libs/postprocessor.py:475/487`: `shutil.move` / `shutil.copyfile` to the destination, which is under `/library`
+- `unmanic/libs/workers.py:879`: `os.remove(file_in)` for runner-pass cleanup
+
+So full RW on `/library → /mnt/movie-archive` is required. A different
+operating model (write to a separate output dir, manual deletion) could
+narrow it but isn't worth the workflow change.
+
 ## Possible follow-ups
 
 Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
@@ -84,6 +100,7 @@ Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
 - **[#2 Remove footer bar](https://github.com/rgregg/unmanic/issues/2)** — get rid of the persistent copyright/version footer on every page.
 - **[#3 Remove sign-in / sign-out UI](https://github.com/rgregg/unmanic/issues/3)** — the backend auth flow is fully stubbed; the frontend buttons lead to dead unmanic.app links.
 - **[#4 Remove Unmanic Central link / page](https://github.com/rgregg/unmanic/issues/4)** — central-API features are stubbed; the nav entry leads to a blank/dead page.
+- **[#5 Multi-stage Dockerfile](https://github.com/rgregg/unmanic/issues/5)** — split the build-time toolchain (build-essential, *-dev packages, node) from runtime to shrink image size and speed cold builds. Not landed yet because identifying every runtime soname needed by jellyfin-ffmpeg / BtbN takes iteration.
 
 (#2/#3/#4 are all frontend strips; once we accumulate enough we should fork the `Unmanic/unmanic-frontend` submodule rather than maintain CSS hacks.)
 
