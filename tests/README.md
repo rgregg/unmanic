@@ -1,8 +1,44 @@
 # Unit Testing
 
+> **Local fork note:** This file is mostly upstream-inherited. The fork
+> adds a much faster path under `tests/unit/` (no docker, no test-video
+> downloads, no ffmpeg required). For day-to-day work on the fork, use
+> the [Quick start](#quick-start-fork-only) section below. The
+> docker-compose test env and `setup_tests.sh` flow are upstream-only and
+> not used in CI here.
+
+## Quick start (fork only)
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+.venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
+```
+
+CI runs the same command on every push to `local` and every PR targeting
+`local` via `.github/workflows/test_local.yml`. Coverage HTML, coverage
+XML, and JUnit results are uploaded as workflow artifacts.
+
+To run a single test file:
+```bash
+.venv/bin/pytest tests/unit/test_session_stubs.py -v
+```
+
+To run a single test:
+```bash
+.venv/bin/pytest tests/unit/test_session_stubs.py::TestRegisterUnmanicPinsLevel::test_pins_level_to_local_session_level -v
+```
+
+When adding new patches on `local`, add a regression test alongside.
+The pattern in `test_session_stubs.py` and `test_supporter_gates_removed.py`
+shows how to test fork patches without a full DB / config bootstrap:
+construct the singleton bare via `__new__`, mock the logger and any
+collaborators, then assert behaviour.
 
 
-## Setup
+-----------------------------------------------------------
+
+## Setup (upstream)
 
 Before any tests can be run, you need to execute
 ```
