@@ -1,0 +1,124 @@
+name: Watch BtbN FFmpeg release pin
+
+# The Dockerfile pins to a specific BtbN/FFmpeg-Builds release tag
+# (BTBN_FFMPEG_RELEASE). BtbN garbage-collects autobuild release tags
+# after a few weeks, so the pin will start 404'ing roughly every 4-6
+# weeks. When that happens the docker build fails on the curl, the
+# image stops getting fresh layers, and we don't notice until we push
+# something else.
+#
+# This workflow runs on a weekly schedule, extracts the pinned tag
+# from the Dockerfile, and checks whether the GitHub release still
+# exists. If not, it opens an issue with the proposed bump.
+
+on:
+  schedule:
+    - cron: "30 11 * * 1"  # Mondays 11:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check BTBN_FFMPEG_RELEASE pin
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract pinned values from Dockerfile
+        id: pin
+        run: |
+          REL=$(grep -E '^ARG BTBN_FFMPEG_RELEASE=' docker/Dockerfile | sed -E 's/.*"([^"]+)".*/\1/')
+          VER=$(grep -E '^ARG BTBN_FFMPEG_VERSION=' docker/Dockerfile | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "release=$REL" >> "$GITHUB_OUTPUT"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "Pinned release: $REL"
+          echo "Pinned version: $VER"
+
+      - name: Check release exists
+        id: check
+        env:
+          REL: ${{ steps.pin.outputs.release }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STATUS=$(gh api -i "repos/BtbN/FFmpeg-Builds/releases/tags/${REL}" --jq '.message // "ok"' 2>&1 | head -1 || true)
+          HTTP=$(gh api "repos/BtbN/FFmpeg-Builds/releases/tags/${REL}" >/dev/null 2>&1 && echo "200" || echo "404")
+          echo "http=${HTTP}" >> "$GITHUB_OUTPUT"
+          if [[ "${HTTP}" == "200" ]]; then
+            echo "Pin still valid."
+          else
+            echo "::warning::Pinned BtbN release ${REL} no longer exists."
+          fi
+
+      - name: Find a current candidate
+        id: candidate
+        if: steps.check.outputs.http != '200'
+        env:
+          VER: ${{ steps.pin.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Walk recent autobuild releases newest-first; pick the first one
+          # that contains a tarball matching ffmpeg-n${VER}*-linux64-gpl-${VER}.tar.xz.
+          # Falls back to the major-only tag latest=8.1 if 8.0 is gone entirely.
+          CANDIDATE=""
+          PROPOSED_VER="${VER}"
+          for tag in $(gh api "repos/BtbN/FFmpeg-Builds/releases?per_page=20" \
+                       --jq '.[] | select(.tag_name | startswith("autobuild-")) | .tag_name'); do
+              if gh api "repos/BtbN/FFmpeg-Builds/releases/tags/${tag}" --jq '.assets[].name' 2>/dev/null \
+                  | grep -qE "ffmpeg-n${VER}.*-linux64-gpl-${VER}\.tar\.xz"; then
+                  CANDIDATE="$tag"
+                  break
+              fi
+          done
+          if [[ -z "$CANDIDATE" ]]; then
+              # Same version no longer published; find the latest version that is.
+              for tag in $(gh api "repos/BtbN/FFmpeg-Builds/releases?per_page=10" \
+                           --jq '.[] | select(.tag_name | startswith("autobuild-")) | .tag_name'); do
+                  NEW_VER=$(gh api "repos/BtbN/FFmpeg-Builds/releases/tags/${tag}" --jq '.assets[].name' 2>/dev/null \
+                            | grep -oE 'ffmpeg-n[0-9.]+(-[^-]+)?-linux64-gpl-[0-9.]+\.tar\.xz' \
+                            | sed -E 's/.*-linux64-gpl-([0-9.]+)\.tar\.xz/\1/' | sort -uV | tail -1)
+                  if [[ -n "$NEW_VER" ]]; then
+                      CANDIDATE="$tag"
+                      PROPOSED_VER="$NEW_VER"
+                      break
+                  fi
+              done
+          fi
+          echo "candidate=$CANDIDATE" >> "$GITHUB_OUTPUT"
+          echo "proposed_version=$PROPOSED_VER" >> "$GITHUB_OUTPUT"
+          echo "Candidate: $CANDIDATE (version $PROPOSED_VER)"
+
+      - name: Open or update tracking issue
+        if: steps.check.outputs.http != '200'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OLD_REL: ${{ steps.pin.outputs.release }}
+          OLD_VER: ${{ steps.pin.outputs.version }}
+          NEW_REL: ${{ steps.candidate.outputs.candidate }}
+          NEW_VER: ${{ steps.candidate.outputs.proposed_version }}
+        run: |
+          TITLE="BtbN FFmpeg pin needs bump (release ${OLD_REL} returns 404)"
+          BODY="The Dockerfile's pinned BtbN/FFmpeg-Builds release \`${OLD_REL}\` no longer exists on GitHub. Builds on \`local\` will fail at the \`curl\` step that resolves the asset URL.
+
+          Current pin:
+          - \`BTBN_FFMPEG_RELEASE=\"${OLD_REL}\"\`
+          - \`BTBN_FFMPEG_VERSION=\"${OLD_VER}\"\`
+
+          Suggested replacement based on what BtbN currently publishes:
+          - \`BTBN_FFMPEG_RELEASE=\"${NEW_REL}\"\`
+          - \`BTBN_FFMPEG_VERSION=\"${NEW_VER}\"\`
+
+          Edit \`docker/Dockerfile\` and push to \`local\`. The build workflow will
+          rebuild and the smoke test will validate the new image."
+          # Idempotent: if an open issue with the same title exists, comment instead.
+          EXISTING=$(gh issue list --state open --search "in:title \"BtbN FFmpeg pin needs bump\"" --json number --jq '.[0].number' || echo "")
+          if [[ -n "$EXISTING" ]]; then
+              gh issue comment "$EXISTING" --body "Re-checked $(date -u +"%Y-%m-%dT%H:%M:%SZ"): pin still 404. Latest candidate: \`${NEW_REL}\` (version \`${NEW_VER}\`)."
+              echo "Commented on existing issue #$EXISTING"
+          else
+              gh issue create --title "$TITLE" --body "$BODY"
+          fi
