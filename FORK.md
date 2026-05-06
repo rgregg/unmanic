@@ -46,28 +46,35 @@ upstream ever takes the catalog private, point
 | Branch | Purpose |
 |---|---|
 | `master` | Mirror of `upstream/master`. Never commit here. |
-| `staging` | Mirror of `upstream/staging`. Never commit here. Most upstream-bound work branches from here. |
-| `local` | **Integration branch.** Sits on top of `upstream/staging` with all carried patches applied. The Docker image is built from this branch. Force-pushed after each rebase. |
-| `fix/*`, `feat/*` | Topic branches off `staging`, intended for upstream PRs against `staging`. Each is one focused change. |
+| `staging` | Mirror of `upstream/staging`. Never commit here. |
+| `local` | **The working branch.** All fork changes commit here directly. Docker image is built from this branch. Force-pushed after each rebase onto `upstream/staging`. |
+| `feat/*` (optional) | Short-lived feature branches off `local` for in-progress work too large to land in one commit. Merge back into `local` and delete. |
+
+We don't carry topic branches off `staging` for upstream PRs anymore.
+The maintainer's track record is closing outside PRs; the existing PRs
+(#617/#618/#619) are kept open as a record but treated as unlikely to
+land. If a single patch ever turns out to be worth submitting, extract
+it: `git cherry-pick <sha>` onto a fresh branch off `staging` and PR
+from there. One command, no ongoing overhead.
 
 ## Carried patches on `local`
 
-In application order on top of `upstream/staging`:
+In application order on top of `upstream/staging`. Each is a single
+commit on `local` with the topic branch (where one existed) listed for
+historical reference; future patches just commit directly.
 
-| # | Topic branch | Status upstream | Why we carry it |
-|---|---|---|---|
-| 1 | `fix/zip-slip-plugin-install` | PR #617 (open against staging) | Security: rejects zip-slip / symlink / absolute-path entries before plugin extract. Stable patch — keep on `local` even if upstream merges, drop on next rebase only after the merge lands. |
-| 2 | `fix/no-shell-true-exec-command` | PR #618 (open against staging) | Security: removes `shell=True` from plugin string exec path; normalises plugin commands to argv via `_coerce_exec_command_to_argv`. Two commits (the second is a Windows-safe shlex.split fix). |
-| 3 | `fix/postprocessor-remote-data-loss` | PR #619 (open against staging) | Correctness: `post_process_remote_file` was deleting the source before attempting copy; fix attempts copy first and tracks `__copy_file`'s return so listeners see real outcome. |
-| 4 | `feat/direct-plugin-repo-fetch` | **Not submitted upstream.** | Bypasses `api.unmanic.app` for plugin catalog fetches. Not upstreamable — undermines the supporter-gating mechanism. Fully local. |
-| 5 | (in-place commit on `local`) | **Not submitted upstream.** | "Stub api.unmanic.app dependencies for self-hosted operation". Turns `register_unmanic` / `verify_token` / `fetch_user_data` / `auth_*` / device-flow / `notify_site_of_plugin_install` / community-forks endpoint / scheduler heartbeat / log-forwarding endpoint lookup into no-ops. Pins session level to `LOCAL_SESSION_LEVEL` (default 7, override via `UNMANIC_LOCAL_SESSION_LEVEL`). |
-| 6 | (in-place commit on `local`) | **Not submitted upstream.** | "Remove supporter-level feature gates". Strips library count cap, linked-installation count cap, and per-setting `req_lev` enforcement (both save-time and form-render-time). |
-
-PR #614/#615/#616 are the originals (closed) targeting `master`; #617/#618/#619 are the resubmissions targeting `staging`.
-
-Patches 5 and 6 were committed directly on `local` rather than via topic
-branches because they will never be upstreamed. If a future change has any
-chance of upstream acceptance, branch from `staging` and cherry-pick.
+| # | Subject | Notes |
+|---|---|---|
+| 1 | Validate plugin zip members before extraction (zip-slip) | Security. Was `fix/zip-slip-plugin-install` (PR #617, ignored upstream). |
+| 2 | Stop running plugin string exec_command with `shell=True` | Security. Was `fix/no-shell-true-exec-command` (PR #618, ignored upstream). |
+| 3 | Use Windows-safe `shlex.split` for deprecated string exec_command | Companion to #2. |
+| 4 | Defer source removal in `post_process_remote_file` until delivery succeeds | Correctness. Was `fix/postprocessor-remote-data-loss` (PR #619, ignored upstream). |
+| 5 | Fetch plugin repo catalogs directly from public URLs | Was `feat/direct-plugin-repo-fetch`. Bypasses `api.unmanic.app` for plugin catalog fetches. Comes with 15 unit tests. |
+| 6 | Stub `api.unmanic.app` dependencies for self-hosted operation | Turns `register_unmanic` / `verify_token` / `fetch_user_data` / `auth_*` / device-flow / `notify_site_of_plugin_install` / community-forks endpoint / scheduler heartbeat / log-forwarding endpoint lookup into no-ops. Pins session level to `LOCAL_SESSION_LEVEL` (default 7, override via `UNMANIC_LOCAL_SESSION_LEVEL`). |
+| 7 | Remove supporter-level feature gates | Strips library count cap, linked-installation count cap, and per-setting `req_lev` enforcement (both save-time and form-render-time). |
+| 8 | Bump BtbN FFmpeg release to current autobuild | Build fix. Upstream had pinned a release that BtbN had since pruned. Bumped 8.0 → 8.1. |
+| 9 | Build pipeline for `ghcr.io/rgregg/unmanic:local` | `.github/workflows/build_local.yml`. |
+| 10 | Test pipeline + coverage for `local` | `.github/workflows/test_local.yml`, `pytest.ini` rewrite, `pytest-cov` dep. |
 
 ## Possible follow-ups
 
@@ -86,51 +93,68 @@ Untracked but noted:
 
 ## Maintenance workflow
 
+### Day-to-day
+
+Make changes directly on `local`. Push. CI runs:
+
+- `.github/workflows/test_local.yml` — `pytest tests/unit/` + coverage
+- `.github/workflows/build_local.yml` — Docker image to `ghcr.io/rgregg/unmanic:local`
+
+If a change is large enough that you want bisect-friendly history, use a
+short-lived `feat/*` branch off `local`, then merge back (fast-forward
+or squash, whichever fits) and delete the branch.
+
 ### When upstream advances
 
 ```bash
 git fetch upstream
-git checkout master    && git rebase upstream/master    && git push
-git checkout staging   && git rebase upstream/staging   && git push
+git checkout master  && git rebase upstream/master  && git push
+git checkout staging && git rebase upstream/staging && git push
 
-# Rebase each topic branch onto the latest upstream/staging
-for b in fix/zip-slip-plugin-install fix/no-shell-true-exec-command \
-         fix/postprocessor-remote-data-loss feat/direct-plugin-repo-fetch; do
-    git checkout "$b" && git rebase upstream/staging
-done
-
-# Rebuild local from staging by re-applying the carried patches
+# Rebase local on top of the new staging. Resolve any conflicts as they
+# come up — the carried patches table lists what each commit does, which
+# helps when picking the right side of a conflict.
 git checkout local
-git reset --hard upstream/staging
-git cherry-pick fix/zip-slip-plugin-install        # b9635ae-ish
-git cherry-pick fix/no-shell-true-exec-command~1   # the security commit
-git cherry-pick fix/no-shell-true-exec-command     # the Windows fix
-git cherry-pick fix/postprocessor-remote-data-loss
-git cherry-pick feat/direct-plugin-repo-fetch
+git rebase upstream/staging
 git push --force-with-lease
 ```
 
 The `superpowers:sync-upstream` skill automates this pattern.
 
-### When an upstream PR is merged
-
-Drop the corresponding cherry-pick from the rebuild sequence above, and remove
-the row from the carried-patches table.
-
 ### When the Docker image needs to be rebuilt
 
-The image is built from `local`. Any push to `local` should trigger the build
-(or trigger it manually). See `home-docs/home-lab/apps/unmanic.md` for the
-deployment pipeline.
+The image is built from `local` automatically on every push (see
+`build_local.yml`). To trigger a rebuild without pushing:
+`gh workflow run "Build local fork image" --ref local`. See
+`home-docs/home-lab/apps/unmanic.md` for the deployment pipeline.
+
+## Tests and coverage
+
+Unit tests live under `tests/unit/` and run on every push to `local`
+and every PR targeting `local` via `.github/workflows/test_local.yml`.
+The job uploads three artifacts: `coverage-html` (browseable), `coverage-xml`
+(machine-readable), and `pytest-results` (JUnit XML).
+
+To run locally:
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+.venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
+```
+
+Current baseline: 36 tests, ~10% line coverage of the `unmanic` package
+(import-time + targeted module coverage at 15-30%). The goal is **add
+tests with each new patch on `local`** so coverage trends up rather than
+sweeping a separate "improve coverage" project.
 
 ## Why a separate `local` branch instead of just committing on `master`?
 
 So we can:
 - Track upstream cleanly on `master`/`staging` (no merge weirdness)
+- See exactly what we've added on top with `git log upstream/staging..local`
+- Rebase onto upstream advances rather than merge them
 - Bisect through carried patches when something breaks
-- Drop a single commit when its upstream PR merges, without unwinding history
-- Keep PR-able branches narrow (one concern per branch) while still building
-  a single integrated artifact
 
 ## Build target
 

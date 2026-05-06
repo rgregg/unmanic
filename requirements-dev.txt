@@ -1,6 +1,7 @@
 flake8>=5.0.4           # Note: Highest supporting Py 3.7
 pycodestyle>=2.9.1      # Note: Highest supporting Py 3.7
 pytest>=7.4.3           # Note: Highest supporting Py 3.7
+pytest-cov>=4.1.0       # Coverage measurement for the local fork's CI
 wheel>=0.42.0
 setuptools>=68.0.0      # Note: Highest supporting Py 3.7
 build>=0.10.0           # Note: Highest supporting Py 3.7

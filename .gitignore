@@ -19,3 +19,7 @@ venv/**
 build/**
 dist/**
 unmanic.egg-info/**
+/.coverage
+/htmlcov/
+/coverage.xml
+/pytest-results.xml
