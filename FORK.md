@@ -145,6 +145,29 @@ The image is built from `local` automatically on every push (see
 `gh workflow run "Build local fork image" --ref local`. See
 `home-docs/home-lab/apps/unmanic.md` for the deployment pipeline.
 
+### Production cutover (one-time)
+
+Before pointing media-server's running container at the new image:
+
+1. Confirm the latest [build_local](https://github.com/rgregg/unmanic/actions/workflows/build_local.yml)
+   AND [smoke_local](https://github.com/rgregg/unmanic/actions/workflows/smoke_local.yml)
+   runs are green. The smoke test boots the image, confirms session
+   level pins to 7, and verifies no api.unmanic.app traffic in logs.
+2. Cut over via Komodo: edit the unmanic stack's image to
+   `ghcr.io/rgregg/unmanic:local` (or `:local-<sha7>` to pin), redeploy.
+3. Bind mounts and env stay identical — the fork uses the same
+   `docker/Dockerfile` and `docker/root/` entrypoint.
+4. After redeploy, verify on the running install:
+   - `curl http://10.0.0.203:8888/unmanic/api/v2/version/read` returns 200
+   - `curl http://10.0.0.203:8888/unmanic/api/v2/session/state` shows `"level": 7`
+   - `docker exec unmanic cat /config/.unmanic/logs/unmanic.log | tail -50` shows no `api.unmanic.app` references and no `AttributeError` in `manage_completed_tasks`
+5. Watch for one full transcode cycle (a real h265 encode) to confirm
+   the runtime ffmpeg layers all resolve correctly under load.
+
+If anything breaks, roll back by pointing the image at
+`josh5/unmanic:latest` in Komodo and redeploying. The DB and config
+are unchanged so the rollback is clean.
+
 ## Tests and coverage
 
 Unit tests live under `tests/unit/` and run on every push to `local`
