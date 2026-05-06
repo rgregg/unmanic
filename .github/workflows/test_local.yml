@@ -64,7 +64,7 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
-            --cov-fail-under=9 \
+            --cov-fail-under=12 \
             --junitxml=pytest-results.xml
 
       - name: Coverage summary
