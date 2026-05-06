@@ -193,10 +193,17 @@ class ScheduledTasksManager(threading.Thread):
             self.logger.info("Found no %s completed tasks older than %s days", inc_status, max_age_in_days)
             return
 
+        # `get_historic_task_list_filtered_and_sorted` returns peewee `dicts()`
+        # rows (see history.py — the query ends with `query.dicts()`), so each
+        # row is a `dict`. Accessing `.id` previously raised AttributeError
+        # at startup and killed the ScheduledTasksManager thread, so cleanup
+        # silently never ran. Materialise IDs once for both branches below;
+        # this also avoids re-iterating the cursor.
+        task_ids = [historic_task['id'] for historic_task in results]
+
         if compress_completed_tasks_logs:
             self.logger.info("Found %s %s completed tasks older than %s days that should be compressed", count,
                              inc_status, max_age_in_days)
-            task_ids = [historic_task.id for historic_task in results]
             if not history_logging.delete_historic_task_command_logs(task_ids):
                 self.logger.error("Failed to compress %s %s completed tasks", count, inc_status)
                 return
@@ -205,7 +212,11 @@ class ScheduledTasksManager(threading.Thread):
 
         self.logger.info("Found %s %s completed tasks older than %s days that should be removed", count, inc_status,
                          max_age_in_days)
-        if not history_logging.delete_historic_tasks_recursively(results):
+        # `delete_historic_tasks_recursively` filters via `CompletedTasks.id.in_(id_list)`,
+        # so it needs a list of IDs, not the dicts cursor. Previously this passed
+        # the raw cursor and silently no-op'd because peewee's `in_` against
+        # dict objects matches nothing.
+        if not history_logging.delete_historic_tasks_recursively(task_ids):
             self.logger.error("Failed to delete %s %s completed tasks", count, inc_status)
             return
 
