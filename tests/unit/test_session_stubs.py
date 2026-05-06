@@ -153,6 +153,45 @@ class TestSyncRemoteInstallationsStubbed:
         s.requests_session.get.assert_not_called()
 
 
+class TestLoginUrlsReturnEmpty:
+    """Upstream returned URLs into api.unmanic.app's OAuth flows. Local
+    fork: empty strings so the frontend renders the buttons as no-ops
+    rather than links to dead endpoints."""
+
+    def test_get_patreon_login_url_empty(self):
+        s = _bare_session()
+        assert s.get_patreon_login_url() == ""
+
+    def test_get_github_login_url_empty(self):
+        s = _bare_session()
+        assert s.get_github_login_url() == ""
+
+    def test_get_discord_login_url_empty(self):
+        s = _bare_session()
+        assert s.get_discord_login_url() == ""
+
+    def test_get_sign_out_url_empty(self):
+        s = _bare_session()
+        assert s.get_sign_out_url() == ""
+
+
+class TestSiteUrlIsUnresolvable:
+    """Defense-in-depth: any future regression that does build a URL via
+    set_full_api_url should fail loudly at DNS rather than quietly hit
+    api.unmanic.app."""
+
+    def test_get_site_url_returns_invalid_tld(self):
+        s = _bare_session()
+        s.dev_api = None
+        assert ".invalid" in s.get_site_url()
+        assert "unmanic.app" not in s.get_site_url()
+
+    def test_dev_api_override_still_works(self):
+        s = _bare_session()
+        s.dev_api = "http://localhost:9999"
+        assert s.get_site_url() == "http://localhost:9999"
+
+
 class TestSignOutSkipsRemote:
 
     def test_sign_out_does_not_call_remote(self):

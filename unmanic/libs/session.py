@@ -431,14 +431,20 @@ class Session(object, metaclass=SingletonType):
 
     def get_site_url(self):
         """
-        Set the Unmanic application site URL
-        :return:
+        Set the Unmanic application site URL.
+
+        Local fork: return a deliberately-unresolvable invalid TLD instead
+        of api.unmanic.app. Every Session method that used to hit the API
+        is now a no-op stub, but if a future patch (or a missed call site
+        in some plugin) ever does try to construct a URL from this and
+        make a request, DNS resolution fails immediately. Loud over silent.
+
+        ``dev_api`` is preserved for explicit local testing against a
+        custom endpoint.
         """
-        api_proto = "https"
-        api_domain = "api.unmanic.app"
         if self.dev_api:
             return self.dev_api
-        return "{0}://{1}".format(api_proto, api_domain)
+        return "https://unmanic-app.disabled.invalid"
 
     def set_full_api_url(self, api_prefix, api_version, api_path):
         """
@@ -561,12 +567,10 @@ class Session(object, metaclass=SingletonType):
         return True
 
     def get_sign_out_url(self):
-        """
-        Fetch the application sign out URL
-
-        :return:
-        """
-        return "{0}/unmanic-api/v1/installation_auth/logout".format(self.get_site_url())
+        # Local fork: account login/logout is disabled. See sign_out and
+        # init_device_auth_flow. Returning empty makes the frontend render
+        # the sign-out menu as a no-op rather than a link to a dead URL.
+        return ""
 
     def init_device_auth_flow(self):
         """
@@ -583,28 +587,19 @@ class Session(object, metaclass=SingletonType):
         return None
 
     def get_patreon_login_url(self):
-        """
-        Fetch the Patreon Login URL
-
-        :return:
-        """
-        return "{0}/support-auth-api/v1/login_patreon/login".format(self.get_site_url())
+        # Local fork: empty. Upstream returned a link to api.unmanic.app's
+        # OAuth flow; that account model has no meaning here.
+        return ""
 
     def get_github_login_url(self):
-        """
-        Fetch the GitHub Login URL
-
-        :return:
-        """
-        return "{0}/support-auth-api/v1/login_github/login".format(self.get_site_url())
+        # Local fork: empty. Upstream returned a link to api.unmanic.app's
+        # OAuth flow; that account model has no meaning here.
+        return ""
 
     def get_discord_login_url(self):
-        """
-        Fetch the Discord Login URL
-
-        :return:
-        """
-        return "{0}/support-auth-api/v1/login_discord/login".format(self.get_site_url())
+        # Local fork: empty. Upstream returned a link to api.unmanic.app's
+        # OAuth flow; that account model has no meaning here.
+        return ""
 
     def get_patreon_sponsor_page(self):
         # Local fork: no phone-home. The upstream Patreon link still works
