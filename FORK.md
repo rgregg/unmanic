@@ -50,6 +50,20 @@ upstream ever takes the catalog private, point
 | `local` | **The working branch.** All fork changes commit here directly. Docker image is built from this branch. Force-pushed after each rebase onto `upstream/staging`. |
 | `feat/*` (optional) | Short-lived feature branches off `local` for in-progress work too large to land in one commit. Merge back into `local` and delete. |
 
+The `unmanic/webserver/frontend` submodule similarly tracks
+[`rgregg/unmanic-frontend`](https://github.com/rgregg/unmanic-frontend)'s
+`local` branch (forked from `Unmanic/unmanic-frontend`). To update it:
+
+```bash
+cd unmanic/webserver/frontend
+git fetch fork && git pull fork local
+# make changes, commit, push
+git push fork local
+cd -
+git add unmanic/webserver/frontend
+git commit -m "Bump frontend submodule"
+```
+
 We don't carry topic branches off `staging` for upstream PRs anymore.
 The maintainer's track record is closing outside PRs; the existing PRs
 (#617/#618/#619) are kept open as a record but treated as unlikely to
@@ -97,12 +111,9 @@ narrow it but isn't worth the workflow change.
 Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
 
 - **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)** — replace the unmanic.app `installation_data/list` mechanism (already stubbed) with `_unmanic._tcp.local` mDNS service advertisement so workers discover each other on the LAN. Fork-only feature.
-- **[#2 Remove footer bar](https://github.com/rgregg/unmanic/issues/2)** — get rid of the persistent copyright/version footer on every page.
-- **[#3 Remove sign-in / sign-out UI](https://github.com/rgregg/unmanic/issues/3)** — the backend auth flow is fully stubbed; the frontend buttons lead to dead unmanic.app links.
-- **[#4 Remove Unmanic Central link / page](https://github.com/rgregg/unmanic/issues/4)** — central-API features are stubbed; the nav entry leads to a blank/dead page.
 - **[#5 Multi-stage Dockerfile](https://github.com/rgregg/unmanic/issues/5)** — split the build-time toolchain (build-essential, *-dev packages, node) from runtime to shrink image size and speed cold builds. Not landed yet because identifying every runtime soname needed by jellyfin-ffmpeg / BtbN takes iteration.
 
-(#2/#3/#4 are all frontend strips; once we accumulate enough we should fork the `Unmanic/unmanic-frontend` submodule rather than maintain CSS hacks.)
+Closed: [#2 footer](https://github.com/rgregg/unmanic/issues/2), [#3 sign-in UI](https://github.com/rgregg/unmanic/issues/3), [#4 Unmanic Central](https://github.com/rgregg/unmanic/issues/4) — all resolved by forking `Unmanic/unmanic-frontend` to `rgregg/unmanic-frontend`'s `local` branch and stripping the dead-link UI surfaces. The submodule pointer in this repo now tracks that branch.
 
 Untracked but noted:
 
@@ -201,6 +212,15 @@ So we can:
 Docker image is built from `local`. The official `josh5/unmanic:latest` is
 **not** what runs in production on media-server — see deployment notes in
 `home-docs/home-lab/apps/unmanic.md`.
+
+## Test instance
+
+A second container, `unmanic-test`, runs on media-server.lan port 8889
+with isolated bind mounts (no real library). Use it to validate fork
+changes before cutting the production stack over. See
+`docker/docker-compose-test-instance.yml` for the deployment, and the
+"Production cutover" section below for the verification curls (point
+them at `:8889` instead of `:8888`).
 
 ### Build pipeline
 
