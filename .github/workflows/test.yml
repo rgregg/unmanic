@@ -1,19 +1,15 @@
-name: Test local fork
+name: Test
 
-# Runs the unit test suite on every push to local and on PRs targeting it.
-# Upstream's CI workflow has the pytest step commented out
-# ("Unit testing is disabled until further notice"); this fork re-enables
-# it for our test files (and any upstream tests that happen to live under
-# tests/unit/).
+# Runs the unit test suite on every push to main and on PRs targeting it.
 #
 # Coverage is reported in the job summary and uploaded as an artifact so
 # we can track the trend over time.
 
 on:
   push:
-    branches: ["local"]
+    branches: ["main"]
   pull_request:
-    branches: ["local"]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:

@@ -1,10 +1,7 @@
-name: Build local fork image
+name: Build image
 
-# Builds the rgregg/unmanic fork's Docker image from the `local` branch and
-# pushes it to GHCR. This is intentionally separate from upstream's
-# integration_test_and_build_all_packages_ci.yml — that workflow is tied to
-# the master/staging/dev-* tag scheme used by docker.io/josh5/unmanic and
-# refuses to push for non-josh5 owners.
+# Builds the rgregg/unmanic Docker image from main and
+# pushes it to GHCR.
 #
 # Image: ghcr.io/<owner>/unmanic
 # Tags:  :local                 (rolling)
@@ -13,7 +10,7 @@ name: Build local fork image
 
 on:
   push:
-    branches: ["local"]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -84,9 +81,9 @@ jobs:
           IMAGE="ghcr.io/${ORG}/unmanic"
           SHA_SHORT="${GITHUB_SHA::7}"
           BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          TAGS="${IMAGE}:local,${IMAGE}:local-${SHA_SHORT}"
+          TAGS="${IMAGE}:latest,${IMAGE}:main-${SHA_SHORT}"
           if [[ -n "${PY_VERSION}" ]]; then
-            TAGS="${TAGS},${IMAGE}:local-${PY_VERSION}"
+            TAGS="${TAGS},${IMAGE}:${PY_VERSION}"
           fi
           echo "image=${IMAGE}"           >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}"             >> "$GITHUB_OUTPUT"
@@ -112,11 +109,11 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.tags.outputs.build_date }}
             org.opencontainers.image.description=Self-hosted no-phone-home fork of Unmanic. See FORK.md.
-            source.fork=rgregg/unmanic
-            source.branch=local
+            source.repo=rgregg/unmanic
+            source.branch=main
             source.sha=${{ steps.tags.outputs.sha_short }}
-          cache-from: type=gha,scope=unmanic-local
-          cache-to: type=gha,scope=unmanic-local,mode=max
+          cache-from: type=gha,scope=unmanic-main
+          cache-to: type=gha,scope=unmanic-main,mode=max
 
       - name: Summary
         env:
@@ -131,6 +128,6 @@ jobs:
             echo ""
             echo "Pull with:"
             echo '```bash'
-            echo "docker pull ${IMAGE}:local"
+            echo "docker pull ${IMAGE}:latest"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

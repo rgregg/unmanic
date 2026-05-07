@@ -1,16 +1,11 @@
-# Fork notes
+# rgregg/unmanic
 
-This is a fork of [Unmanic/unmanic](https://github.com/Unmanic/unmanic). The
-upstream maintainer is solo and currently closes outside PRs targeting
-`master`; PRs targeting `staging` are sometimes merged. We carry a small set
-of patches that aren't shipping upstream (yet, or ever) and build our own
-Docker image from them.
+A self-hosted, no-phone-home, no-license-tier build of
+[Unmanic](https://github.com/Unmanic/unmanic).
 
 ## Goals
 
-This fork aims to be a **fully self-hosted, no-phone-home, no-license-tier**
-build of Unmanic that exercises the rights granted by upstream's GPLv3
-license:
+GPLv3 lets us exercise the rights it grants. This fork:
 
 - **No `api.unmanic.app` dependency.** Plugin discovery, plugin downloads,
   registration, token refresh, and "linked installation" sync are all
@@ -20,240 +15,139 @@ license:
   no "user info" lookups, no remote installation address sync.
 - **No supporter level gates.** Library count limits, linked-installation
   count limits, and per-plugin `req_lev` setting restrictions are removed.
-  Every feature in the codebase is available to every installation, which
-  matches the freedoms granted by GPLv3.
+  Every feature in the codebase is available to every installation.
 
-The fork does not fork the public plugin catalog at
-`Unmanic/unmanic-plugins`; that repo is GPLv3 and openly published, and
-plugin zips are pulled directly from it via raw.githubusercontent.com. If
+The plugin catalog at `Unmanic/unmanic-plugins` is **not** forked — plugin
+zips are pulled directly from it via `raw.githubusercontent.com`. If
 upstream ever takes the catalog private, point
 `UNMANIC_DEFAULT_PLUGIN_REPO_URL` at a mirror.
 
-### Status
+## Repo layout
 
-| Goal | State |
-|---|---|
-| Plugin catalog fetched directly from public GitHub (no proxy) | Done — `feat/direct-plugin-repo-fetch` |
-| Plugin zip downloads go straight to GitHub when using direct catalogs | Done (consequence of the above — `repo_data_directory` is preserved) |
-| Registration / heartbeat / `verify_token` / `fetch_user_data` calls stubbed | Done — "Stub api.unmanic.app dependencies for self-hosted operation" |
-| 60-minute scheduler heartbeat removed | Done (same commit) |
-| Plugin install telemetry call removed | Done (same commit) |
-| Community-forks endpoint short-circuited | Done (same commit) |
-| Supporter-level feature gates removed | Done — "Remove supporter-level feature gates" |
+This is a single-branch repo. `main` is the working branch. Commits land
+either directly on `main` or via a PR from a feature branch. There is no
+upstream-tracking branch; upstream changes get pulled in selectively via
+`git fetch <upstream-url>` + cherry-pick when something specific is
+worth absorbing.
 
-## Branch layout
+The frontend (`unmanic/webserver/frontend/`) is a regular tree in this
+repo — not a submodule. Originally absorbed via `git subtree add --squash`
+from a now-archived intermediate fork.
 
-| Branch | Purpose |
-|---|---|
-| `master` | Mirror of `upstream/master`. Never commit here. |
-| `staging` | Mirror of `upstream/staging`. Never commit here. |
-| `local` | **The working branch.** All fork changes commit here directly. Docker image is built from this branch. Force-pushed after each rebase onto `upstream/staging`. |
-| `feat/*` (optional) | Short-lived feature branches off `local` for in-progress work too large to land in one commit. Merge back into `local` and delete. |
+## What's different from upstream
 
-The frontend code at `unmanic/webserver/frontend` lives directly in
-this repo as a regular tree — **no submodule, no separate
-`unmanic-frontend` checkout**. Originally merged in via
-`git subtree add --squash` from `rgregg/unmanic-frontend@14690f5`
-(now archived). Day-to-day frontend edits commit directly here
-alongside backend changes.
+For day-to-day development this is incidental detail, but useful when
+auditing what we've changed:
 
-To pull a future change in from the official upstream frontend repo:
+- `unmanic/libs/session.py` — every `api.unmanic.app` call is a no-op
+  stub. `register_unmanic` pins level to `LOCAL_SESSION_LEVEL` (default 7,
+  override via `UNMANIC_LOCAL_SESSION_LEVEL`). `get_site_url` returns
+  `https://unmanic-app.disabled.invalid` so a leaked call fails loudly
+  at DNS instead of silently hitting the upstream API.
+- `unmanic/libs/plugins.py` — `fetch_remote_repo_data` reads catalogs
+  directly from the URL (skipping the upstream proxy);
+  `notify_site_of_plugin_install` is a no-op.
+- `unmanic/libs/scheduler.py` — 60-min `register_unmanic` heartbeat
+  removed; `manage_completed_tasks` dict-vs-model bug fixed (was killing
+  the ScheduledTasksManager thread at startup).
+- `unmanic/libs/library.py`, `unmanic/libs/installation_link.py`,
+  `unmanic/libs/unplugins/executor.py`, `unmanic/webserver/helpers/plugins.py`
+  — every supporter-level gate (`s.level <= 1`, `s.level > 1`, `req_lev`)
+  removed or returned True.
+- `unmanic/libs/workers.py` — plugin string `exec_command` no longer runs
+  through a shell. Strings are normalised via `_coerce_exec_command_to_argv`
+  before reaching `subprocess.Popen`.
+- `unmanic/libs/postprocessor.py` — source files are no longer removed
+  before the cache copy succeeds (was a data-loss path).
+- `unmanic/webserver/api_v2/plugins_api.py` — the community-forks endpoint
+  short-circuits to an empty list.
+- `unmanic/webserver/frontend/` — footer bar, sign-in/sign-out UI,
+  Unmanic Central nav entry, avatar/name/support button, and funding
+  portal click handlers all stripped.
+- Security fixes: zip-slip validation before plugin extract, no `shell=True`
+  on plugin commands, postprocessor source-removal ordering.
+- Build/test/smoke CI workflows (`.github/workflows/`) and a `HEALTHCHECK`
+  in the Dockerfile.
+- Test infrastructure: pytest + coverage configured to run on every push,
+  113 unit tests pinning the invariants this fork relies on so a careless
+  edit doesn't silently re-introduce upstream behaviour.
 
-```bash
-git subtree pull --prefix=unmanic/webserver/frontend \
-    https://github.com/Unmanic/unmanic-frontend.git master --squash
-```
+## Build pipeline
 
-We don't carry topic branches off `staging` for upstream PRs anymore.
-The maintainer's track record is closing outside PRs; the existing PRs
-(#617/#618/#619) are kept open as a record but treated as unlikely to
-land. If a single patch ever turns out to be worth submitting, extract
-it: `git cherry-pick <sha>` onto a fresh branch off `staging` and PR
-from there. One command, no ongoing overhead.
+Every push to `main` runs four workflows:
 
-## Carried patches on `local`
+- **build** (`.github/workflows/build.yml`) — builds the Python wheel
+  and Docker image, pushes to GHCR.
+- **test** (`.github/workflows/test.yml`) — `pytest tests/unit/` plus
+  flake8 errors-only lint, with a coverage floor enforced.
+- **smoke** (`.github/workflows/smoke.yml`) — fires after `build`. Pulls
+  the freshly built image, boots it, asserts cord-cutting invariants
+  (level pinned, no api.unmanic.app traffic, healthcheck reaches healthy).
+- **btbn_release_watch** — Mondays 11:30 UTC. Verifies the BtbN FFmpeg
+  release tag pinned in the Dockerfile still exists; opens an issue with
+  a proposed bump if it's been pruned.
 
-In application order on top of `upstream/staging`. Each is a single
-commit on `local` with the topic branch (where one existed) listed for
-historical reference; future patches just commit directly.
+### Image tags
 
-| # | Subject | Notes |
+| Tag | Mutability | When to use |
 |---|---|---|
-| 1 | Validate plugin zip members before extraction (zip-slip) | Security. Was `fix/zip-slip-plugin-install` (PR #617, ignored upstream). |
-| 2 | Stop running plugin string exec_command with `shell=True` | Security. Was `fix/no-shell-true-exec-command` (PR #618, ignored upstream). |
-| 3 | Use Windows-safe `shlex.split` for deprecated string exec_command | Companion to #2. |
-| 4 | Defer source removal in `post_process_remote_file` until delivery succeeds | Correctness. Was `fix/postprocessor-remote-data-loss` (PR #619, ignored upstream). |
-| 5 | Fetch plugin repo catalogs directly from public URLs | Was `feat/direct-plugin-repo-fetch`. Bypasses `api.unmanic.app` for plugin catalog fetches. Comes with 15 unit tests. |
-| 6 | Stub `api.unmanic.app` dependencies for self-hosted operation | Turns `register_unmanic` / `verify_token` / `fetch_user_data` / `auth_*` / device-flow / `notify_site_of_plugin_install` / community-forks endpoint / scheduler heartbeat / log-forwarding endpoint lookup into no-ops. Pins session level to `LOCAL_SESSION_LEVEL` (default 7, override via `UNMANIC_LOCAL_SESSION_LEVEL`). |
-| 7 | Remove supporter-level feature gates | Strips library count cap, linked-installation count cap, and per-setting `req_lev` enforcement (both save-time and form-render-time). |
-| 8 | Bump BtbN FFmpeg release to current autobuild | Build fix. Upstream had pinned a release that BtbN had since pruned. Bumped 8.0 → 8.1. |
-| 9 | Build pipeline for `ghcr.io/rgregg/unmanic:local` | `.github/workflows/build_local.yml`. |
-| 10 | Test pipeline + coverage for `local` | `.github/workflows/test_local.yml`, `pytest.ini` rewrite, `pytest-cov` dep. |
+| `ghcr.io/rgregg/unmanic:latest` | rolling | Komodo deployment for "always latest" |
+| `ghcr.io/rgregg/unmanic:main-<sha7>` | immutable | Pinning a specific build |
+| `ghcr.io/rgregg/unmanic:<py-version>` | follows setup.py version | When bumping versions intentionally |
 
-## Audit notes
-
-### `/library` mount scope (2026-05-06)
-
-Investigated whether the `/library` bind could be tightened from RW to
-something narrower for blast-radius reduction. **Conclusion: no.** The
-configured operating model writes back to source paths in place:
-
-- `unmanic/libs/postprocessor.py:411` and `:275`: `os.remove(source_data.get('abspath'))`
-- `unmanic/libs/postprocessor.py:475/487`: `shutil.move` / `shutil.copyfile` to the destination, which is under `/library`
-- `unmanic/libs/workers.py:879`: `os.remove(file_in)` for runner-pass cleanup
-
-So full RW on `/library → /mnt/movie-archive` is required. A different
-operating model (write to a separate output dir, manual deletion) could
-narrow it but isn't worth the workflow change.
-
-## Possible follow-ups
-
-Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
-
-- **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)** — replace the unmanic.app `installation_data/list` mechanism (already stubbed) with `_unmanic._tcp.local` mDNS service advertisement so workers discover each other on the LAN. Fork-only feature.
-- **[#5 Multi-stage Dockerfile](https://github.com/rgregg/unmanic/issues/5)** — split the build-time toolchain (build-essential, *-dev packages, node) from runtime to shrink image size and speed cold builds. Not landed yet because identifying every runtime soname needed by jellyfin-ffmpeg / BtbN takes iteration.
-
-Closed: [#2 footer](https://github.com/rgregg/unmanic/issues/2), [#3 sign-in UI](https://github.com/rgregg/unmanic/issues/3), [#4 Unmanic Central](https://github.com/rgregg/unmanic/issues/4) — all resolved by stripping the dead-link UI surfaces. Originally landed in `rgregg/unmanic-frontend@14690f5` (now archived); content was subsequently absorbed into this repo at `unmanic/webserver/frontend/`.
-
-Untracked but noted:
-
-- **`fix/scheduler-completed-tasks-dict-bug`** — `manage_completed_tasks` at `scheduler.py:198` does `historic_task.id` on what is actually a dict, so `'dict' object has no attribute 'id'` fires at startup. Visible in container logs. Upstreamable; could become `fix/*` against `staging`.
-
-## Maintenance workflow
-
-### Day-to-day
-
-Make changes directly on `local`. Push. CI runs:
-
-- `.github/workflows/test_local.yml` — `pytest tests/unit/` + coverage
-- `.github/workflows/build_local.yml` — Docker image to `ghcr.io/rgregg/unmanic:local`
-
-If a change is large enough that you want bisect-friendly history, use a
-short-lived `feat/*` branch off `local`, then merge back (fast-forward
-or squash, whichever fits) and delete the branch.
-
-### When upstream advances
+### Trigger a manual rebuild
 
 ```bash
-git fetch upstream
-git checkout master  && git rebase upstream/master  && git push
-git checkout staging && git rebase upstream/staging && git push
-
-# Rebase local on top of the new staging. Resolve any conflicts as they
-# come up — the carried patches table lists what each commit does, which
-# helps when picking the right side of a conflict.
-git checkout local
-git rebase upstream/staging
-git push --force-with-lease
+gh workflow run "Build image" --ref main
 ```
 
-The `superpowers:sync-upstream` skill automates this pattern.
+## Production deployment
 
-### When the Docker image needs to be rebuilt
+The production container runs on the media-server VM (10.0.0.203) in
+the homelab. See `home-docs/home-lab/apps/unmanic.md` for that side of
+the runbook.
 
-The image is built from `local` automatically on every push (see
-`build_local.yml`). To trigger a rebuild without pushing:
-`gh workflow run "Build local fork image" --ref local`. See
-`home-docs/home-lab/apps/unmanic.md` for the deployment pipeline.
+### Cutover from `josh5/unmanic:latest`
 
-### Production cutover (one-time)
+1. Confirm the latest [build](https://github.com/rgregg/unmanic/actions/workflows/build.yml)
+   AND [smoke](https://github.com/rgregg/unmanic/actions/workflows/smoke.yml)
+   runs are green.
+2. In Komodo, edit the unmanic stack's image to
+   `ghcr.io/rgregg/unmanic:latest` and redeploy.
+3. Bind mounts and env stay identical — same `docker/Dockerfile` and
+   `docker/root/` entrypoint.
+4. Verify on the running install:
+   - `curl http://10.0.0.203:8888/unmanic/api/v2/version/read` → 200
+   - `curl http://10.0.0.203:8888/unmanic/api/v2/session/state` → `"level": 7`
+   - `docker exec unmanic cat /config/.unmanic/logs/unmanic.log | tail -50` → no `api.unmanic.app` references, no `AttributeError`
+5. Watch one full transcode cycle to confirm runtime ffmpeg layers
+   resolve correctly under load.
 
-Before pointing media-server's running container at the new image:
-
-1. Confirm the latest [build_local](https://github.com/rgregg/unmanic/actions/workflows/build_local.yml)
-   AND [smoke_local](https://github.com/rgregg/unmanic/actions/workflows/smoke_local.yml)
-   runs are green. The smoke test boots the image, confirms session
-   level pins to 7, and verifies no api.unmanic.app traffic in logs.
-2. Cut over via Komodo: edit the unmanic stack's image to
-   `ghcr.io/rgregg/unmanic:local` (or `:local-<sha7>` to pin), redeploy.
-3. Bind mounts and env stay identical — the fork uses the same
-   `docker/Dockerfile` and `docker/root/` entrypoint.
-4. After redeploy, verify on the running install:
-   - `curl http://10.0.0.203:8888/unmanic/api/v2/version/read` returns 200
-   - `curl http://10.0.0.203:8888/unmanic/api/v2/session/state` shows `"level": 7`
-   - `docker exec unmanic cat /config/.unmanic/logs/unmanic.log | tail -50` shows no `api.unmanic.app` references and no `AttributeError` in `manage_completed_tasks`
-5. Watch for one full transcode cycle (a real h265 encode) to confirm
-   the runtime ffmpeg layers all resolve correctly under load.
-
-If anything breaks, roll back by pointing the image at
-`josh5/unmanic:latest` in Komodo and redeploying. The DB and config
-are unchanged so the rollback is clean.
-
-## Tests and coverage
-
-Unit tests live under `tests/unit/` and run on every push to `local`
-and every PR targeting `local` via `.github/workflows/test_local.yml`.
-The job uploads three artifacts: `coverage-html` (browseable), `coverage-xml`
-(machine-readable), and `pytest-results` (JUnit XML).
-
-To run locally:
-
-```bash
-python -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-.venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
-```
-
-Current baseline: 36 tests, ~10% line coverage of the `unmanic` package
-(import-time + targeted module coverage at 15-30%). The goal is **add
-tests with each new patch on `local`** so coverage trends up rather than
-sweeping a separate "improve coverage" project.
-
-## Why a separate `local` branch instead of just committing on `master`?
-
-So we can:
-- Track upstream cleanly on `master`/`staging` (no merge weirdness)
-- See exactly what we've added on top with `git log upstream/staging..local`
-- Rebase onto upstream advances rather than merge them
-- Bisect through carried patches when something breaks
-
-## Build target
-
-Docker image is built from `local`. The official `josh5/unmanic:latest` is
-**not** what runs in production on media-server — see deployment notes in
-`home-docs/home-lab/apps/unmanic.md`.
+Rollback: point the image at `josh5/unmanic:latest` and redeploy. DB and
+config are unchanged so the rollback is clean.
 
 ## Test instance
 
 A second container, `unmanic-test`, runs on media-server.lan with
-isolated bind mounts (no real library). Use it to validate fork
-changes before cutting the production stack over.
+isolated bind mounts (no real library). Use it to validate changes
+before cutting production over.
 
 ### Layout
 
 - **Host:** media-server VM (10.0.0.203)
-- **Container:** `unmanic-test`, image `ghcr.io/rgregg/unmanic:local`
+- **Container:** `unmanic-test`, image `ghcr.io/rgregg/unmanic:latest`
 - **UI:** http://10.0.0.203:8889
-- **Config / library / cache:** `/mnt/local_ssd/stacks/unmanic-test/{config,library,cache}` — fully isolated from `/mnt/movie-archive` and the production config
-- **GPU:** none (transcoding not required for the API/UI invariants we're validating; uncomment the runtime/env block in the compose to enable)
+- **Config / library / cache:** `/mnt/local_ssd/stacks/unmanic-test/{config,library,cache}` — fully isolated from production
+- **GPU:** none (uncomment `runtime: nvidia` block in the compose to enable)
 - **Compose:** `docker/docker-compose-test-instance.yml`
 
-### Refresh the test instance with the latest image
+### Refresh the test instance
 
 ```bash
 ssh media-server.lan
-sudo docker pull ghcr.io/rgregg/unmanic:local
+sudo docker pull ghcr.io/rgregg/unmanic:latest
 sudo docker rm -f unmanic-test
-sudo docker compose -f /path/to/repo/docker/docker-compose-test-instance.yml up -d
-# or, ad-hoc:
-sudo docker run -d --name unmanic-test --restart unless-stopped \
-    -p 8889:8888 \
-    -e PUID=1000 -e PGID=1000 -e TZ=America/Los_Angeles \
-    -v /mnt/local_ssd/stacks/unmanic-test/config:/config \
-    -v /mnt/local_ssd/stacks/unmanic-test/library:/library \
-    -v /mnt/local_ssd/stacks/unmanic-test/cache:/tmp/unmanic \
-    ghcr.io/rgregg/unmanic:local
-```
-
-### Verification (smoke)
-
-```bash
-# Webserver up
-curl http://10.0.0.203:8889/unmanic/api/v2/version/read
-# Session pinned at LOCAL_SESSION_LEVEL=7
-curl http://10.0.0.203:8889/unmanic/api/v2/session/state | jq .level
-# No phone-home, no scheduler crash
-ssh media-server.lan 'sudo docker logs unmanic-test 2>&1 | grep -E "api.unmanic.app|AttributeError"' || echo OK
+# Then re-run the compose up command from docker-compose-test-instance.yml
 ```
 
 ### Wipe and start fresh
@@ -262,47 +156,47 @@ ssh media-server.lan 'sudo docker logs unmanic-test 2>&1 | grep -E "api.unmanic.
 ssh media-server.lan
 sudo docker rm -f unmanic-test
 sudo rm -rf /mnt/local_ssd/stacks/unmanic-test/{config,cache}/*
-# then re-run the compose up command above
+# Then re-run compose up
 ```
 
-### Build pipeline
+## Tests and coverage
 
-`.github/workflows/build_local.yml` builds and pushes on every push to
-`local` (and on `workflow_dispatch`). Output:
+Unit tests live under `tests/unit/`. Run locally:
 
-| Tag | Mutability | When to use |
-|---|---|---|
-| `ghcr.io/rgregg/unmanic:local` | rolling — moves with each push | Komodo deployment for "always latest local" |
-| `ghcr.io/rgregg/unmanic:local-<sha7>` | immutable | Pinning a specific build in Komodo if you want to control rollouts |
-| `ghcr.io/rgregg/unmanic:local-<py-version>` | follows the python `setup.py` version | Useful when bumping versions intentionally |
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+.venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
+```
 
-The workflow is intentionally **separate** from upstream's
-`integration_test_and_build_all_packages_ci.yml`. That workflow:
-- Builds on `master` / `staging` / `dev-*` / tags only (does not recognize `local`)
-- Hard-codes `docker.io/josh5/unmanic` and refuses to push for other owners
-- Runs the integration test suite first (heavy; needs test videos)
+CI runs the same command on every push to `main` and on PRs targeting
+`main`. Failing tests fail the build. The coverage floor (currently 13%)
+ratchets up as new tests land.
 
-Our workflow builds the wheel directly (skipping integration tests since
-this fork's CI step for them is disabled upstream anyway, and our changes
-are syntactically validated locally), then builds and pushes a single
-amd64 image to GHCR using the existing `docker/Dockerfile` unchanged.
+The test files under `tests/unit/` are deliberately focused: each one
+pins an invariant this fork relies on. The pattern in
+`test_session_stubs.py` and `test_supporter_gates_removed.py` shows how
+to test behaviour without a full DB / config bootstrap — construct the
+singleton bare via `__new__`, mock collaborators, assert.
 
-Add `linux/arm64` to the `platforms:` line in the workflow if a Pi worker
-ever needs the same image.
+## Possible follow-ups
 
-### First build
+Tracked in [the issue tracker](https://github.com/rgregg/unmanic/issues):
 
-The workflow will trigger automatically on the next push to `local`.
-To trigger a build manually now: `gh workflow run "Build local fork image" --ref local`
-or click "Run workflow" in the Actions tab on GitHub.
+- **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)**
+  — replace the unmanic.app `installation_data/list` mechanism (already
+  stubbed) with `_unmanic._tcp.local` mDNS advertisement so workers
+  discover each other on the LAN.
+- **[#5 Multi-stage Dockerfile](https://github.com/rgregg/unmanic/issues/5)**
+  — split build-time from runtime to shrink image size and speed cold
+  builds. Needs careful runtime-soname iteration.
 
-### Deploying
+## Audit notes
 
-In Komodo, point the `unmanic` container's image at
-`ghcr.io/rgregg/unmanic:local` (rolling) or a specific
-`ghcr.io/rgregg/unmanic:local-<sha7>` (pinned). Bind mounts and env stay
-the same — see `home-docs/home-lab/apps/unmanic.md`.
+### `/library` mount scope
 
-GHCR images for public repos are public by default. If `rgregg/unmanic`
-is private, the image will also be private and you'll need to either make
-the package public via GHCR's UI or configure Komodo with a pull token.
+The `/library` bind needs full RW. The configured operating model writes
+back to source paths in place via `shutil.move` and `os.remove` in
+`unmanic/libs/postprocessor.py` and `unmanic/libs/workers.py`. A
+different operating model (write to a separate output dir, manual
+deletion) could narrow it but isn't worth the workflow change.
