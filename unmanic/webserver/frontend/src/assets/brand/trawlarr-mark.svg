@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Trawlarr">
+  <title>Trawlarr</title>
+  <!-- Background: rounded square in brand navy -->
+  <rect width="512" height="512" rx="88" ry="88" fill="#002e5c"/>
+  <!-- Stem of T (drawn first so the cap covers the junction cleanly) -->
+  <rect x="224" y="128" width="64" height="248" rx="8" ry="8" fill="#ffffff"/>
+  <!-- Top bar of T -->
+  <rect x="96" y="128" width="224" height="64" rx="6" ry="6" fill="#ffffff"/>
+  <!-- Cyan play-triangle off the right end of the top bar -->
+  <path d="M 320 116 L 440 160 L 320 204 Z" fill="#009fdd"/>
+</svg>

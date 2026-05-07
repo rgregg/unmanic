@@ -48,7 +48,7 @@
 
         <q-toolbar-title shrink>
           <q-avatar rounded size="2rem" font-size="82px" class="q-mr-lg">
-            <img src="~assets/unmanic-logo-white.png">
+            <img src="~assets/trawlarr-logo-white.png">
           </q-avatar>
         </q-toolbar-title>
 

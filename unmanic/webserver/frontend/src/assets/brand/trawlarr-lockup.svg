@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" role="img" aria-label="Trawlarr">
+  <title>Trawlarr</title>
+  <!-- Mark on the left, scaled 0.625 → 320×320 -->
+  <g transform="scale(0.625)">
+    <rect width="512" height="512" rx="88" ry="88" fill="#002e5c"/>
+    <rect x="224" y="128" width="64" height="248" rx="8" ry="8" fill="#ffffff"/>
+    <rect x="96" y="128" width="224" height="64" rx="6" ry="6" fill="#ffffff"/>
+    <path d="M 320 116 L 440 160 L 320 204 Z" fill="#009fdd"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="370" y="220"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        font-weight="700"
+        font-size="180"
+        fill="#002e5c"
+        letter-spacing="-3">Trawlarr</text>
+</svg>

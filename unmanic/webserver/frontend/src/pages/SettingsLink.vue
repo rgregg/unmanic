@@ -70,11 +70,11 @@
                     <q-item-section avatar>
                       <q-img
                         v-if="installation.available"
-                        src="~assets/unmanic-logo-white.png"/>
+                        src="~assets/trawlarr-logo-white.png"/>
                       <q-img
                         v-else
                         :img-style="{ filter: 'grayscale(100%)' }"
-                        src="~assets/unmanic-logo-white.png"/>
+                        src="~assets/trawlarr-logo-white.png"/>
                       <q-tooltip v-if="installation.available">
                         {{ $t('tooltips.available') }}
                       </q-tooltip>

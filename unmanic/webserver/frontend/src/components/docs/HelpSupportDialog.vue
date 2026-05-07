@@ -22,7 +22,7 @@
 
                     <q-item>
                       <q-item-section avatar>
-                        <q-img src="~assets/unmanic-logo-white.png"/>
+                        <q-img src="~assets/trawlarr-logo-white.png"/>
                       </q-item-section>
                       <q-item-section>
                         <q-item-label>{{ $t('components.settings.support.appVersion') }}:</q-item-label>
