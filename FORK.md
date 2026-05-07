@@ -52,13 +52,12 @@ upstream ever takes the catalog private, point
 
 The frontend code at `unmanic/webserver/frontend` lives directly in
 this repo as a regular tree — **no submodule, no separate
-`unmanic-frontend` checkout**. Merged in via `git subtree add --squash`
-from the `local` branch of [`rgregg/unmanic-frontend`](https://github.com/rgregg/unmanic-frontend)
-(which itself was forked from `Unmanic/unmanic-frontend`). The
-upstream frontend repo still exists for syncing future changes if
-useful, but day-to-day frontend edits commit directly here.
+`unmanic-frontend` checkout**. Originally merged in via
+`git subtree add --squash` from `rgregg/unmanic-frontend@14690f5`
+(now archived). Day-to-day frontend edits commit directly here
+alongside backend changes.
 
-To pull a future upstream-frontend change in:
+To pull a future change in from the official upstream frontend repo:
 
 ```bash
 git subtree pull --prefix=unmanic/webserver/frontend \
@@ -114,7 +113,7 @@ Tracked in [the fork's issue tracker](https://github.com/rgregg/unmanic/issues):
 - **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)** — replace the unmanic.app `installation_data/list` mechanism (already stubbed) with `_unmanic._tcp.local` mDNS service advertisement so workers discover each other on the LAN. Fork-only feature.
 - **[#5 Multi-stage Dockerfile](https://github.com/rgregg/unmanic/issues/5)** — split the build-time toolchain (build-essential, *-dev packages, node) from runtime to shrink image size and speed cold builds. Not landed yet because identifying every runtime soname needed by jellyfin-ffmpeg / BtbN takes iteration.
 
-Closed: [#2 footer](https://github.com/rgregg/unmanic/issues/2), [#3 sign-in UI](https://github.com/rgregg/unmanic/issues/3), [#4 Unmanic Central](https://github.com/rgregg/unmanic/issues/4) — all resolved by forking `Unmanic/unmanic-frontend` to `rgregg/unmanic-frontend`'s `local` branch and stripping the dead-link UI surfaces. The submodule pointer in this repo now tracks that branch.
+Closed: [#2 footer](https://github.com/rgregg/unmanic/issues/2), [#3 sign-in UI](https://github.com/rgregg/unmanic/issues/3), [#4 Unmanic Central](https://github.com/rgregg/unmanic/issues/4) — all resolved by stripping the dead-link UI surfaces. Originally landed in `rgregg/unmanic-frontend@14690f5` (now archived); content was subsequently absorbed into this repo at `unmanic/webserver/frontend/`.
 
 Untracked but noted:
 
