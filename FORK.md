@@ -215,12 +215,55 @@ Docker image is built from `local`. The official `josh5/unmanic:latest` is
 
 ## Test instance
 
-A second container, `unmanic-test`, runs on media-server.lan port 8889
-with isolated bind mounts (no real library). Use it to validate fork
-changes before cutting the production stack over. See
-`docker/docker-compose-test-instance.yml` for the deployment, and the
-"Production cutover" section below for the verification curls (point
-them at `:8889` instead of `:8888`).
+A second container, `unmanic-test`, runs on media-server.lan with
+isolated bind mounts (no real library). Use it to validate fork
+changes before cutting the production stack over.
+
+### Layout
+
+- **Host:** media-server VM (10.0.0.203)
+- **Container:** `unmanic-test`, image `ghcr.io/rgregg/unmanic:local`
+- **UI:** http://10.0.0.203:8889
+- **Config / library / cache:** `/mnt/local_ssd/stacks/unmanic-test/{config,library,cache}` — fully isolated from `/mnt/movie-archive` and the production config
+- **GPU:** none (transcoding not required for the API/UI invariants we're validating; uncomment the runtime/env block in the compose to enable)
+- **Compose:** `docker/docker-compose-test-instance.yml`
+
+### Refresh the test instance with the latest image
+
+```bash
+ssh media-server.lan
+sudo docker pull ghcr.io/rgregg/unmanic:local
+sudo docker rm -f unmanic-test
+sudo docker compose -f /path/to/repo/docker/docker-compose-test-instance.yml up -d
+# or, ad-hoc:
+sudo docker run -d --name unmanic-test --restart unless-stopped \
+    -p 8889:8888 \
+    -e PUID=1000 -e PGID=1000 -e TZ=America/Los_Angeles \
+    -v /mnt/local_ssd/stacks/unmanic-test/config:/config \
+    -v /mnt/local_ssd/stacks/unmanic-test/library:/library \
+    -v /mnt/local_ssd/stacks/unmanic-test/cache:/tmp/unmanic \
+    ghcr.io/rgregg/unmanic:local
+```
+
+### Verification (smoke)
+
+```bash
+# Webserver up
+curl http://10.0.0.203:8889/unmanic/api/v2/version/read
+# Session pinned at LOCAL_SESSION_LEVEL=7
+curl http://10.0.0.203:8889/unmanic/api/v2/session/state | jq .level
+# No phone-home, no scheduler crash
+ssh media-server.lan 'sudo docker logs unmanic-test 2>&1 | grep -E "api.unmanic.app|AttributeError"' || echo OK
+```
+
+### Wipe and start fresh
+
+```bash
+ssh media-server.lan
+sudo docker rm -f unmanic-test
+sudo rm -rf /mnt/local_ssd/stacks/unmanic-test/{config,cache}/*
+# then re-run the compose up command above
+```
 
 ### Build pipeline
 
