@@ -47,14 +47,14 @@
     "saved": "Saved.",
     "installed": "Installed.",
     "copied": "Copied",
-    "backendConnectionWarning": "Unable to connect to Unmanic backend. Please check that it is running.",
+    "backendConnectionWarning": "Unable to connect to Trawlarr backend. Please check that it is running.",
     "failedToFetchLoginUrl": "Failed to get login URL.",
     "failedToFetchLogoutUrl": "Failed to get logout URL.",
     "failedToLogout": "Failed to log current user out of installation.",
     "failedToSaveSettings": "Failed to save settings.",
-    "failedToFetchSettings": "Failed to fetch Unmanic's current settings.",
-    "failedToFetchSystemConfig": "Failed to fetch Unmanic's system configuration.",
-    "failedToFetchLibraryList": "Failed to fetch Unmanic's library list.",
+    "failedToFetchSettings": "Failed to fetch Trawlarr's current settings.",
+    "failedToFetchSystemConfig": "Failed to fetch Trawlarr's system configuration.",
+    "failedToFetchLibraryList": "Failed to fetch Trawlarr's library list.",
     "SavedPluginSettings": "Plugin settings saved.",
     "failedToSavePluginSettings": "Failed to save plugin settings.",
     "failedToInstallPlugin": "An error was encountered while attempting to install the requested plugin.",
@@ -68,9 +68,9 @@
     "allowPopups": "Please allow popups for this website.",
     "invalidWorkerEvent": "Unable to add invalid worker event.",
     "remoteInstallationAlreadyInList": "The address you entered is already in the list of remote installations.",
-    "invalidRemoteInstallationAddress": "The address you entered was not a valid Unmanic installation.",
+    "invalidRemoteInstallationAddress": "The address you entered was not a valid Trawlarr installation.",
     "invalidJson": "The provided JSON is invalid.",
-    "incompatibleRemoteInstallation": "The remote Unmanic installation that you are trying to add is not compatible with linking. Try updating it first.",
+    "incompatibleRemoteInstallation": "The remote Trawlarr installation that you are trying to add is not compatible with linking. Try updating it first.",
     "cannotRemoveDefaultLibrary": "Cannot remove the default Library",
     "rescanLibraryError": "An error was encountered while requesting a library rescan",
     "rescanLibraryScheduled": "Library scan scheduled. It will start shortly.",
@@ -82,14 +82,14 @@
         "success": "Unknown message from server",
         "status": "Unknown status update from server"
       },
-      "incompatiblePlugin": "Unmanic has stopped processing tasks as it has detected an incompatible plugin enabled on one of your libraries",
-      "libraryEnabledLimits": "Unmanic has stopped processing tasks as you have too many libraries configured for a non-supporter tier. Consider sponsoring the project to enable more than 2 libraries.",
-      "pluginSettingsChangeWorkersStopped": "Unmanic has stopped all workers as it has detected a change to the plugins configuration. When you are ready, resume the workers from the dashboard.",
+      "incompatiblePlugin": "Trawlarr has stopped processing tasks as it has detected an incompatible plugin enabled on one of your libraries",
+      "libraryEnabledLimits": "Trawlarr has stopped processing tasks as you have too many libraries configured for a non-supporter tier. Consider sponsoring the project to enable more than 2 libraries.",
+      "pluginSettingsChangeWorkersStopped": "Trawlarr has stopped all workers as it has detected a change to the plugins configuration. When you are ready, resume the workers from the dashboard.",
       "libraryScanProgress": "Library scan running",
       "pendingTaskHaltedPostProcessorQueueFull": "The Post-processor queue reached its limit",
       "pendingTaskHaltedPostProcessorQueueFullMessage": "Workers will not receive a new pending task until the Post-processor queue drops below the current configured worker count",
       "receivingRemoteFile": "Receiving remote file",
-      "linkedInstallationLimits": "Unmanic has stopped processing tasks as you have linked too many remote installations for a non-supporter tier. Consider sponsoring the project to link more than one remote installation.",
+      "linkedInstallationLimits": "Trawlarr has stopped processing tasks as you have linked too many remote installations for a non-supporter tier. Consider sponsoring the project to link more than one remote installation.",
       "forwardLogHandlerError": "Error Forwarding Logs"
     },
     "serverNotificationLabels": {
@@ -122,7 +122,7 @@
     "selectLibrary": "Select a library",
     "login": "Login",
     "listEmpty": "This task list is empty",
-    "welcomeToUnmanic": "Welcome to Unmanic"
+    "welcomeToUnmanic": "Welcome to Trawlarr"
   },
   "tooltips": {
     "close": "Close",
@@ -164,7 +164,7 @@
       "local": "Local",
       "unknownRemote": "Unknown Remote",
       "thisInstallation": "This installation",
-      "centralLink": "Unmanic Central"
+      "centralLink": "Trawlarr Central"
     },
     "settings": {
       "pleaseEnterAValidNumber": "Please enter a valid number",
@@ -253,7 +253,7 @@
         "thisInstallation": "Local",
         "nameThisInstall": "Name this installation",
         "installationPublicAddress": "Public Address (e.g. http://192.168.1.5:8888)",
-        "syncTipBody": "When you have configured your installation name and public address, and you are logged into your Unmanic account as a project supporter, your installation will automatically populate the remote installations list for your other linked installations. For this to work, you must ensure your public address is accessible by your other installations.",
+        "syncTipBody": "When you have configured your installation name and public address, and you are logged into your Trawlarr account as a project supporter, your installation will automatically populate the remote installations list for your other linked installations. For this to work, you must ensure your public address is accessible by your other installations.",
         "remoteInstallations": "Remote installations",
         "saveLinkConfig": "Save link config",
         "name": "Name",
@@ -289,7 +289,7 @@
         "currentSystemLogs": "Current System Logs",
         "downloadSystemLogs": "Download System Logs",
         "configuration": "Configuration",
-        "appVersion": "Unmanic Version",
+        "appVersion": "Trawlarr Version",
         "pythonVersion": "Python Version",
         "platform": "Platform (Operating System)",
         "configPath": "Configuration Path",
@@ -299,8 +299,8 @@
         "apiSpec": "API Specification",
         "applicationDocumentation": "Application Documentation",
         "support": "Support",
-        "unmanicAppSourceRequests": "Request feature in Unmanic Application",
-        "unmanicFrontendSourceRequests": "Request feature in Unmanic Frontend",
+        "unmanicAppSourceRequests": "Request feature in Trawlarr Application",
+        "unmanicFrontendSourceRequests": "Request feature in Trawlarr Frontend",
         "unmanicOfficialPluginRequests": "Request a plugin for Unmanic",
         "supporterStatus": "Supporter Status",
         "supporterStatusBody": "Some features are limited when you are not logged in as a supporter. Supporter access can be earned through financial sponsorship, code contributions, or active community participation.",
@@ -337,17 +337,17 @@
       }
     },
     "workers": {
-      "listEmpty": "There are no workers currently running. Increase the worker count in Unmanic's settings to spawn a worker.",
+      "listEmpty": "There are no workers currently running. Increase the worker count in Trawlarr's settings to spawn a worker.",
       "pauseWorker": "Pause this worker",
       "workerPaused": "Worker has been paused",
-      "workerPausedFailed": "Unmanic was unable to pause this worker for some reason",
+      "workerPausedFailed": "Trawlarr was unable to pause this worker for some reason",
       "resumeWorker": "Resume this worker",
       "workerResumed": "Worker has been resumed",
-      "workerResumedFailed": "Unmanic was unable to resume this worker for some reason",
+      "workerResumedFailed": "Trawlarr was unable to resume this worker for some reason",
       "terminateWorker": "Terminate this worker",
       "terminateWorkerWarning": "Are you sure you want to terminate this worker and its current task? The current task will be marked as failed in the completed task list.",
       "workerTerminated": "Worker has been terminated",
-      "workerTerminationFailed": "Unmanic was unable to terminate this worker for some reason",
+      "workerTerminationFailed": "Trawlarr was unable to terminate this worker for some reason",
       "pauseAllWorkers": "Pause all workers",
       "resumeAllWorkers": "Resume all workers",
       "terminateAllWorkers": "Terminate all workers",
@@ -567,25 +567,25 @@
     "docs": {
       "trialWelcome": {
         "kicker": "Getting Started",
-        "heroTitle": "Thanks for trying Unmanic",
+        "heroTitle": "Thanks for trying Trawlarr",
         "welcomeMessage": "You are currently running a full-featured trial version of this application.",
         "trialInfo": "For the next 14 days, you have unlimited access to all features.",
-        "centralTitle": "Connect to Unmanic Central",
-        "centralBody": "Unmanic Central is the official platform for collecting logs and metrics from all your Unmanic installations. Features include:",
+        "centralTitle": "Connect to Trawlarr Central",
+        "centralBody": "Trawlarr Central is the official platform for collecting logs and metrics from all your Trawlarr installations. Features include:",
         "centralPoints": {
           "logs": "Aggregate logs across servers in one place",
           "grafana": "Present metrics in Grafana with ready-to-use data sources",
           "dashboards": "Use the built-in dashboards for a simple overview"
         },
-        "centralLinkLabel": "Open Unmanic Central",
+        "centralLinkLabel": "Open Trawlarr Central",
         "supportTitle": "Need a hand?",
         "supportBody": "Check the docs for setup guides or join the community for help and tips.",
         "docsLinkLabel": "Read the docs",
         "discordLinkLabel": "Join the support Discord",
         "limitationsTitle": "After the trial ends, some features are limited for non-supporters.",
-        "limitationsBody": "Unmanic is free and open source, and supporters help keep the project healthy. Supporter status can be earned by contributing in many ways, including documentation or helping others in Discord. Financial support is not required. See the feature comparison for what supporter access unlocks.",
+        "limitationsBody": "Trawlarr is free and open source, and supporters help keep the project healthy. Supporter status can be earned by contributing in many ways, including documentation or helping others in Discord. Financial support is not required. See the feature comparison for what supporter access unlocks.",
         "limitationsLinkLabel": "View feature comparison",
-        "enjoy": "We hope you enjoy using Unmanic!"
+        "enjoy": "We hope you enjoy using Trawlarr!"
       }
     },
     "loginDialog": {
@@ -611,7 +611,7 @@
       "noteTitle": "Note:",
       "noteLineOne": "Streaming Tech is the umbrella organisation for all open-source GitHub projects by Josh Sunnex (Josh.5).",
       "noteLineTwo": "Sponsorship funds (e.g., via Patreon) are used to hire or contract outside help, maintain infrastructure, and fuel my coffee addiction.",
-      "noteLineThree": "Supporting Unmanic also sustains our wider free and open-source development."
+      "noteLineThree": "Supporting Trawlarr also sustains our wider free and open-source development."
     }
   }
 }

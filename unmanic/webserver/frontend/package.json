@@ -1,9 +1,9 @@
 {
   "name": "unmanic-frontend",
   "version": "0.0.1",
-  "description": "A simple tool for optimising your video library to a single, uniform format",
-  "productName": "Unmanic",
-  "author": "Josh.5 <jsunnex@gmail.com>",
+  "description": "A self-hosted, no-phone-home media library optimiser. Fork of Unmanic.",
+  "productName": "Trawlarr",
+  "author": "Trawlarr contributors (forked from Unmanic by Josh.5 <jsunnex@gmail.com>)",
   "private": true,
   "scripts": {
     "lint": "eslint --ext .js,.vue ./",

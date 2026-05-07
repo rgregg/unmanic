@@ -134,7 +134,7 @@
                     dense
                     class="q-pl-sm">
                     <q-item clickable dense class="support-link-row rounded-borders"
-                            @click="openExternalURL('https://github.com/Unmanic/unmanic/issues')">
+                            @click="openExternalURL('https://github.com/rgregg/trawlarr/issues')">
                       <q-item-section avatar>
                         <q-icon color="primary" name="fab fa-github" size="18px"/>
                       </q-item-section>
@@ -146,7 +146,7 @@
                       </q-item-section>
                     </q-item>
                     <q-item clickable dense class="support-link-row rounded-borders"
-                            @click="openExternalURL('https://github.com/Unmanic/unmanic-frontend/issues')">
+                            @click="openExternalURL('https://github.com/rgregg/trawlarr/issues')">
                       <q-item-section avatar>
                         <q-icon color="primary" name="fab fa-github" size="18px"/>
                       </q-item-section>

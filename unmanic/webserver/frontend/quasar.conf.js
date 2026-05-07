@@ -187,8 +187,8 @@ module.exports = configure(function (ctx) {
 
 
       manifest: {
-        name: `Unmanic`,
-        short_name: `Unmanic`,
+        name: `Trawlarr`,
+        short_name: `Trawlarr`,
         description: `A simple tool for optimising your video library to a single, uniform format`,
         display: 'standalone',
         orientation: 'portrait',
