@@ -1,4 +1,0 @@
-[submodule "unmanic/webserver/frontend"]
-	path = unmanic/webserver/frontend
-	url = https://github.com/rgregg/unmanic-frontend.git
-	branch = local
