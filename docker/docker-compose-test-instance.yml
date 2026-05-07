@@ -1,19 +1,19 @@
-# Standalone test instance of the local fork.
+# Standalone test instance of Trawlarr.
 #
-# Runs ghcr.io/rgregg/unmanic:latest on a separate port (8889) with
+# Runs ghcr.io/rgregg/trawlarr:latest on a separate port (8889) with
 # isolated bind mounts that DO NOT touch the real media library. Use it
 # to validate fork changes (frontend strips, plugin behaviour, scheduler
 # fixes, etc) before cutting Komodo's production stack over.
 #
 # Usage on media-server:
-#   sudo mkdir -p /mnt/local_ssd/stacks/unmanic-test/{config,library,cache}
-#   sudo chown -R 1000:1000 /mnt/local_ssd/stacks/unmanic-test
+#   sudo mkdir -p /mnt/local_ssd/stacks/trawlarr-test/{config,library,cache}
+#   sudo chown -R 1000:1000 /mnt/local_ssd/stacks/trawlarr-test
 #   docker compose -f docker/docker-compose-test-instance.yml up -d
 #
 # Browse at http://<host>:8889/
 # Distinct from production:
 #   - Port 8889 (production = 8888)
-#   - /mnt/local_ssd/stacks/unmanic-test/library (production = /mnt/movie-archive)
+#   - /mnt/local_ssd/stacks/trawlarr-test/library (production = /mnt/movie-archive)
 #   - Separate config + cache dirs
 #   - No GPU passthrough — testing the fork's API/cord-cutting invariants
 #     does not require a transcode. Add `runtime: nvidia` + the env vars
@@ -21,12 +21,12 @@
 #
 # To wipe state and start fresh:
 #   docker compose -f docker/docker-compose-test-instance.yml down
-#   sudo rm -rf /mnt/local_ssd/stacks/unmanic-test/{config,cache}/*
+#   sudo rm -rf /mnt/local_ssd/stacks/trawlarr-test/{config,cache}/*
 #   docker compose -f docker/docker-compose-test-instance.yml up -d
 services:
-  unmanic-test:
-    image: ghcr.io/rgregg/unmanic:latest
-    container_name: unmanic-test
+  trawlarr-test:
+    image: ghcr.io/rgregg/trawlarr:latest
+    container_name: trawlarr-test
     restart: unless-stopped
     ports:
       - "8889:8888"
@@ -35,9 +35,9 @@ services:
       - PGID=1000
       - TZ=America/Los_Angeles
     volumes:
-      - /mnt/local_ssd/stacks/unmanic-test/config:/config
-      - /mnt/local_ssd/stacks/unmanic-test/library:/library
-      - /mnt/local_ssd/stacks/unmanic-test/cache:/tmp/unmanic
+      - /mnt/local_ssd/stacks/trawlarr-test/config:/config
+      - /mnt/local_ssd/stacks/trawlarr-test/library:/library
+      - /mnt/local_ssd/stacks/trawlarr-test/cache:/tmp/unmanic
     # GPU passthrough commented out — uncomment to enable transcode testing.
     # Requires nvidia-container-toolkit on the host.
     # runtime: nvidia

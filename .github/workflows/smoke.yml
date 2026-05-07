@@ -1,6 +1,6 @@
 name: Smoke test
 
-# Boots ghcr.io/<owner>/unmanic:latest in a throwaway container and verifies:
+# Boots ghcr.io/<owner>/trawlarr:latest in a throwaway container and verifies:
 #  - Webserver responds on /version/read (HEALTHCHECK probe target)
 #  - /session/state reports level == LOCAL_SESSION_LEVEL (default 7)
 #  - No outbound calls to api.unmanic.app appear in the container logs
@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   smoke:
-    name: Smoke test ghcr.io/<owner>/unmanic:latest
+    name: Smoke test ghcr.io/<owner>/trawlarr:latest
     runs-on: ubuntu-latest
     # Only run if the upstream build succeeded.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
@@ -34,7 +34,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: |
           ORG=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
-          echo "name=ghcr.io/${ORG}/unmanic:latest" >> "$GITHUB_OUTPUT"
+          echo "name=ghcr.io/${ORG}/trawlarr:latest" >> "$GITHUB_OUTPUT"
 
       - name: Log into GHCR
         uses: docker/login-action@v3
@@ -56,7 +56,7 @@ jobs:
           # Detached, named, with the same fork env knob in play. No NVIDIA
           # device passthrough — smoke test exercises the API and config,
           # not actual transcoding.
-          docker run -d --name unmanic-smoke \
+          docker run -d --name trawlarr-smoke \
             -p 127.0.0.1:8888:8888 \
             -e PUID=1000 -e PGID=1000 -e TZ=UTC \
             -v "$RUNNER_TEMP/unmanic-config:/config" \
@@ -76,7 +76,7 @@ jobs:
             sleep 3
           done
           echo "::error::Webserver did not come up within 180s"
-          docker logs unmanic-smoke | tail -200
+          docker logs trawlarr-smoke | tail -200
           exit 1
 
       - name: Verify session level is pinned
@@ -104,7 +104,7 @@ jobs:
           # reaches out (a plugin schedule, a missed call site, a frontend
           # request reverse-proxied via an api endpoint), we want it loud.
           LOGS="$RUNNER_TEMP/container.log"
-          docker logs unmanic-smoke 2>&1 > "$LOGS"
+          docker logs trawlarr-smoke 2>&1 > "$LOGS"
           echo "--- container log tail ---"
           tail -80 "$LOGS"
           echo "--- end container log ---"
@@ -141,7 +141,7 @@ jobs:
         run: |
           # Give the HEALTHCHECK a couple of cycles to run.
           sleep 10
-          STATUS=$(docker inspect --format '{{.State.Health.Status}}' unmanic-smoke)
+          STATUS=$(docker inspect --format '{{.State.Health.Status}}' trawlarr-smoke)
           echo "Healthcheck status: $STATUS"
           if [[ "$STATUS" != "healthy" ]]; then
             echo "::warning::Healthcheck status is '$STATUS' (expected 'healthy'). Probe may need more time on cold start."
@@ -150,8 +150,8 @@ jobs:
       - name: Tear down
         if: always()
         run: |
-          docker logs unmanic-smoke > "$RUNNER_TEMP/full-container.log" 2>&1 || true
-          docker rm -f unmanic-smoke || true
+          docker logs trawlarr-smoke > "$RUNNER_TEMP/full-container.log" 2>&1 || true
+          docker rm -f trawlarr-smoke || true
 
       - name: Upload container log
         if: always()

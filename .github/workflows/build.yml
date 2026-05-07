@@ -1,9 +1,9 @@
 name: Build image
 
-# Builds the rgregg/unmanic Docker image from main and
+# Builds the rgregg/trawlarr Docker image from main and
 # pushes it to GHCR.
 #
-# Image: ghcr.io/<owner>/unmanic
+# Image: ghcr.io/<owner>/trawlarr
 # Tags:  :local                 (rolling)
 #        :local-<sha7>          (immutable, for pinning in Komodo)
 #        :local-<py-version>    (e.g. local-0.2.16, when the python version bumps)
@@ -78,7 +78,7 @@ jobs:
           PY_VERSION: ${{ steps.wheel.outputs.py_version }}
         run: |
           ORG=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
-          IMAGE="ghcr.io/${ORG}/unmanic"
+          IMAGE="ghcr.io/${ORG}/trawlarr"
           SHA_SHORT="${GITHUB_SHA::7}"
           BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           TAGS="${IMAGE}:latest,${IMAGE}:main-${SHA_SHORT}"
@@ -104,16 +104,16 @@ jobs:
           push: "true"
           tags: ${{ steps.tags.outputs.tags }}
           labels: |
-            org.opencontainers.image.title=unmanic
+            org.opencontainers.image.title=trawlarr
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ steps.tags.outputs.build_date }}
-            org.opencontainers.image.description=Self-hosted no-phone-home fork of Unmanic. See FORK.md.
-            source.repo=rgregg/unmanic
+            org.opencontainers.image.description=Trawlarr — self-hosted, no-phone-home fork of Unmanic. See FORK.md.
+            source.repo=rgregg/trawlarr
             source.branch=main
             source.sha=${{ steps.tags.outputs.sha_short }}
-          cache-from: type=gha,scope=unmanic-main
-          cache-to: type=gha,scope=unmanic-main,mode=max
+          cache-from: type=gha,scope=trawlarr-main
+          cache-to: type=gha,scope=trawlarr-main,mode=max
 
       - name: Summary
         env:

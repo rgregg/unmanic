@@ -1,7 +1,11 @@
-# rgregg/unmanic
+# Trawlarr — fork notes
 
 A self-hosted, no-phone-home, no-license-tier build of
-[Unmanic](https://github.com/Unmanic/unmanic).
+[Unmanic](https://github.com/Unmanic/unmanic), branded as Trawlarr.
+
+This file is a developer/operations companion to the user-facing
+[`README.md`](README.md). It documents what the fork carries, the
+build pipeline, the test instance, and the audit trail of changes.
 
 ## Goals
 
@@ -91,9 +95,9 @@ Every push to `main` runs four workflows:
 
 | Tag | Mutability | When to use |
 |---|---|---|
-| `ghcr.io/rgregg/unmanic:latest` | rolling | Komodo deployment for "always latest" |
-| `ghcr.io/rgregg/unmanic:main-<sha7>` | immutable | Pinning a specific build |
-| `ghcr.io/rgregg/unmanic:<py-version>` | follows setup.py version | When bumping versions intentionally |
+| `ghcr.io/rgregg/trawlarr:latest` | rolling | Komodo deployment for "always latest" |
+| `ghcr.io/rgregg/trawlarr:main-<sha7>` | immutable | Pinning a specific build |
+| `ghcr.io/rgregg/trawlarr:<py-version>` | follows setup.py version | When bumping versions intentionally |
 
 ### Trigger a manual rebuild
 
@@ -109,11 +113,11 @@ the runbook.
 
 ### Cutover from `josh5/unmanic:latest`
 
-1. Confirm the latest [build](https://github.com/rgregg/unmanic/actions/workflows/build.yml)
-   AND [smoke](https://github.com/rgregg/unmanic/actions/workflows/smoke.yml)
+1. Confirm the latest [build](https://github.com/rgregg/trawlarr/actions/workflows/build.yml)
+   AND [smoke](https://github.com/rgregg/trawlarr/actions/workflows/smoke.yml)
    runs are green.
 2. In Komodo, edit the unmanic stack's image to
-   `ghcr.io/rgregg/unmanic:latest` and redeploy.
+   `ghcr.io/rgregg/trawlarr:latest` and redeploy.
 3. Bind mounts and env stay identical — same `docker/Dockerfile` and
    `docker/root/` entrypoint.
 4. Verify on the running install:
@@ -128,16 +132,16 @@ config are unchanged so the rollback is clean.
 
 ## Test instance
 
-A second container, `unmanic-test`, runs on media-server.lan with
+A second container, `trawlarr-test`, runs on media-server.lan with
 isolated bind mounts (no real library). Use it to validate changes
 before cutting production over.
 
 ### Layout
 
 - **Host:** media-server VM (10.0.0.203)
-- **Container:** `unmanic-test`, image `ghcr.io/rgregg/unmanic:latest`
+- **Container:** `trawlarr-test`, image `ghcr.io/rgregg/trawlarr:latest`
 - **UI:** http://10.0.0.203:8889
-- **Config / library / cache:** `/mnt/local_ssd/stacks/unmanic-test/{config,library,cache}` — fully isolated from production
+- **Config / library / cache:** `/mnt/local_ssd/stacks/trawlarr-test/{config,library,cache}` — fully isolated from production
 - **GPU:** none (uncomment `runtime: nvidia` block in the compose to enable)
 - **Compose:** `docker/docker-compose-test-instance.yml`
 
@@ -145,8 +149,8 @@ before cutting production over.
 
 ```bash
 ssh media-server.lan
-sudo docker pull ghcr.io/rgregg/unmanic:latest
-sudo docker rm -f unmanic-test
+sudo docker pull ghcr.io/rgregg/trawlarr:latest
+sudo docker rm -f trawlarr-test
 # Then re-run the compose up command from docker-compose-test-instance.yml
 ```
 
@@ -154,8 +158,8 @@ sudo docker rm -f unmanic-test
 
 ```bash
 ssh media-server.lan
-sudo docker rm -f unmanic-test
-sudo rm -rf /mnt/local_ssd/stacks/unmanic-test/{config,cache}/*
+sudo docker rm -f trawlarr-test
+sudo rm -rf /mnt/local_ssd/stacks/trawlarr-test/{config,cache}/*
 # Then re-run compose up
 ```
 
@@ -181,13 +185,13 @@ singleton bare via `__new__`, mock collaborators, assert.
 
 ## Possible follow-ups
 
-Tracked in [the issue tracker](https://github.com/rgregg/unmanic/issues):
+Tracked in [the issue tracker](https://github.com/rgregg/trawlarr/issues):
 
-- **[#1 mDNS-based node discovery](https://github.com/rgregg/unmanic/issues/1)**
+- **[#1 mDNS-based node discovery](https://github.com/rgregg/trawlarr/issues/1)**
   — replace the unmanic.app `installation_data/list` mechanism (already
   stubbed) with `_unmanic._tcp.local` mDNS advertisement so workers
   discover each other on the LAN.
-- **[#5 Multi-stage Dockerfile](https://github.com/rgregg/unmanic/issues/5)**
+- **[#5 Multi-stage Dockerfile](https://github.com/rgregg/trawlarr/issues/5)**
   — split build-time from runtime to shrink image size and speed cold
   builds. Needs careful runtime-soname iteration.
 
