@@ -50,18 +50,19 @@ upstream ever takes the catalog private, point
 | `local` | **The working branch.** All fork changes commit here directly. Docker image is built from this branch. Force-pushed after each rebase onto `upstream/staging`. |
 | `feat/*` (optional) | Short-lived feature branches off `local` for in-progress work too large to land in one commit. Merge back into `local` and delete. |
 
-The `unmanic/webserver/frontend` submodule similarly tracks
-[`rgregg/unmanic-frontend`](https://github.com/rgregg/unmanic-frontend)'s
-`local` branch (forked from `Unmanic/unmanic-frontend`). To update it:
+The frontend code at `unmanic/webserver/frontend` lives directly in
+this repo as a regular tree — **no submodule, no separate
+`unmanic-frontend` checkout**. Merged in via `git subtree add --squash`
+from the `local` branch of [`rgregg/unmanic-frontend`](https://github.com/rgregg/unmanic-frontend)
+(which itself was forked from `Unmanic/unmanic-frontend`). The
+upstream frontend repo still exists for syncing future changes if
+useful, but day-to-day frontend edits commit directly here.
+
+To pull a future upstream-frontend change in:
 
 ```bash
-cd unmanic/webserver/frontend
-git fetch fork && git pull fork local
-# make changes, commit, push
-git push fork local
-cd -
-git add unmanic/webserver/frontend
-git commit -m "Bump frontend submodule"
+git subtree pull --prefix=unmanic/webserver/frontend \
+    https://github.com/Unmanic/unmanic-frontend.git master --squash
 ```
 
 We don't carry topic branches off `staging` for upstream PRs anymore.
