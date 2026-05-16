@@ -138,7 +138,19 @@ class FileTest(object):
                 'priority_score': 0,
                 'shared_info':    {},
             }
-            # Run tests against plugins
+            # Run every file-test plugin and collect votes. Precedence:
+            #   - any plugin voting True ("queue this file") wins over any
+            #     plugin voting False ("skip this file"), so requester-style
+            #     plugins can legitimately override filter-style plugins
+            #     that have looked at the same file and decided it was fine.
+            #   - within a tier, the first plugin to cast that vote is
+            #     recorded as the decision plugin (used by /pending/test).
+            # A future API revision should let plugins declare their role
+            # explicitly (filter vs requester); see issue #16. This change
+            # is the minimal fix.
+            queue_decision_plugin = None
+            skip_decision_plugin = None
+
             for plugin_module in self.plugin_modules:
                 data['library_id'] = self.library_id
                 data['path'] = path
@@ -153,16 +165,24 @@ class FileTest(object):
                 # Append any file issues found during previous tests
                 file_issues = data.get('issues')
 
-                # Set the return_value based on the plugin results
-                # If the add_file_to_pending_tasks returned an answer (True/False) then break the loop.
-                # No need to continue.
-                if data.get('add_file_to_pending_tasks') is not None:
-                    return_value = data.get('add_file_to_pending_tasks')
-                    decision_plugin = {
+                vote = data.get('add_file_to_pending_tasks')
+                if vote is True and queue_decision_plugin is None:
+                    queue_decision_plugin = {
                         'plugin_id':   plugin_module.get('plugin_id'),
                         'plugin_name': plugin_module.get('name'),
                     }
-                    break
+                elif vote is False and skip_decision_plugin is None:
+                    skip_decision_plugin = {
+                        'plugin_id':   plugin_module.get('plugin_id'),
+                        'plugin_name': plugin_module.get('name'),
+                    }
+
+            if queue_decision_plugin is not None:
+                return_value = True
+                decision_plugin = queue_decision_plugin
+            elif skip_decision_plugin is not None:
+                return_value = False
+                decision_plugin = skip_decision_plugin
             # Set the priority score modification
             priority_score_modification = data.get('priority_score', 0)
 
