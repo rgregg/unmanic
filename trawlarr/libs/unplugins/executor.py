@@ -42,6 +42,7 @@ import sys
 from trawlarr import config
 from . import plugin_types
 from trawlarr.libs import common
+from trawlarr.libs import runtimepaths
 from ..logs import TrawlarrLogging
 from ..task import TaskDataStore
 from trawlarr.libs.metadata import TrawlarrFileMetadata
@@ -52,8 +53,11 @@ class PluginExecutor(object):
     def __init__(self, plugins_directory=None):
         # Set plugins directory
         if not plugins_directory:
+            # The app dir name is owned by runtimepaths -- hardcoding it here
+            # is what left this pointing at the pre-rename '.unmanic' while
+            # the application installed plugins under '.trawlarr'.
             home_directory = common.get_home_dir()
-            plugins_directory = os.path.join(home_directory, '.unmanic', 'plugins')
+            plugins_directory = os.path.join(home_directory, runtimepaths.APP_DIR_NAME, 'plugins')
         self.plugins_directory = plugins_directory
         # NOTE: List plugin types in order that they are run against a library
         #       This is listing them in order helps the frontend. Don't order alphabetically
