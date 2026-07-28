@@ -38,6 +38,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from operator import attrgetter
 
@@ -218,32 +219,90 @@ class PluginsHandler(object, metaclass=SingletonType):
                 "Direct fetch of plugin repo '%s' returned non-JSON: %s", url, e)
             return None
 
+    def _write_repo_cache(self, repo_cache, repo_data):
+        """
+        Serialise ``repo_data`` into ``repo_cache``, replacing the file
+        atomically so a crash or a serialisation error can never leave a
+        truncated cache behind. The data is written to a uniquely named
+        temporary file in the same directory (keeping the rename on a single
+        filesystem) and only then moved into place. Any failure is raised to
+        the caller with the previous cache file left untouched.
+        """
+        cache_directory = os.path.dirname(repo_cache)
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=cache_directory, prefix='.repo-', suffix='.json.tmp')
+        try:
+            with os.fdopen(tmp_fd, 'w') as f:
+                json.dump(repo_data, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+            # mkstemp() creates the file 0600. Carry over the mode of the cache
+            # file being replaced so that refreshing a repo does not silently
+            # change who is able to read the catalog.
+            if os.path.exists(repo_cache):
+                shutil.copymode(repo_cache, tmp_path)
+            else:
+                os.chmod(tmp_path, 0o644)
+            os.replace(tmp_path, repo_cache)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
+
     def update_plugin_repos(self):
         """
         Updates the local cached data of plugin repos
 
-        :return:
+        Each configured repo is refreshed independently. Upstream wrote
+        whatever ``fetch_remote_repo_data()`` returned - including ``None``
+        from a failed fetch - straight over the cache and always returned
+        True, so a network blip would replace a good catalog with ``null``
+        while the UI reported success. We now only overwrite the cache with
+        data that actually looks like a repo catalog, replace the file
+        atomically, and report failure to the caller.
+
+        :return: True only if every configured repo was refreshed
         """
         plugins_directory = self.settings.get_plugins_path()
         if not os.path.exists(plugins_directory):
             os.makedirs(plugins_directory)
+        success = True
         current_repos_list = self.get_plugin_repos()
         for repo in current_repos_list:
             repo_path = repo.get('path')
             repo_id = self.get_plugin_repo_id(repo_path)
 
             # Fetch remote JSON file
-            repo_data = self.fetch_remote_repo_data(repo_path)
+            try:
+                repo_data = self.fetch_remote_repo_data(repo_path)
+            except Exception as e:
+                success = False
+                self.logger.error(
+                    "Failed to fetch plugin repo '%s'. %s. Keeping the previously cached data.",
+                    repo_path, str(e))
+                continue
 
-            # Dumb object to local JSON file
+            # A failed fetch returns None, and the proxy can return an error
+            # body. Neither is a catalog, and neither should be cached.
+            if not isinstance(repo_data, dict) or not repo_data:
+                success = False
+                self.logger.error(
+                    "Received no usable data for plugin repo '%s'. Keeping the previously cached data.",
+                    repo_path)
+                continue
+
+            # Dump object to local JSON file
             repo_cache = self.get_repo_cache_file(repo_id)
             self.logger.info("Repo cache file '%s'.", repo_cache)
             try:
-                with open(repo_cache, 'w') as f:
-                    json.dump(repo_data, f, indent=4)
-            except json.JSONDecodeError as e:
-                self.logger.error("Unable to update plugin repo '%s'. %s", repo_path, str(e))
-        return True
+                self._write_repo_cache(repo_cache, repo_data)
+            except (OSError, TypeError, ValueError) as e:
+                success = False
+                self.logger.error(
+                    "Unable to update plugin repo '%s'. %s. Keeping the previously cached data.",
+                    repo_path, str(e))
+        return success
 
     def get_settings_of_all_installed_plugins(self):
         all_settings = {}
