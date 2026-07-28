@@ -127,29 +127,7 @@ export default {
         callback(response.data)
       } else {
         // Our query was unsuccessful
-        console.error('An error occurred while fetching the patreon sponsor page.');
-      }
-    }).catch(() => {
-      Notify.create({
-        color: 'negative',
-        position: 'top',
-        message: $t('notifications.failedToFetchLoginUrl'),
-        icon: 'report_problem',
-        actions: [{ icon: 'close', color: 'white' }]
-      });
-    })
-  },
-  loginWithPatreon($t) {
-    axios({
-      method: 'get',
-      url: getUnmanicApiUrl('v1', 'session/unmanic-patreon-login-url'),
-    }).then((response) => {
-      if (response.data.success) {
-        // If query was successful...
-        this.login(response.data);
-      } else {
-        // Our query was unsuccessful
-        console.error('An error occurred while fetching the patreon sponsor page.');
+        console.error('An error occurred while fetching the app auth code.');
       }
     }).catch(() => {
       Notify.create({
@@ -221,43 +199,6 @@ export default {
         color: 'negative',
         position: 'top',
         message: $t('notifications.failedToLogout'),
-        icon: 'report_problem',
-        actions: [{ icon: 'close', color: 'white' }]
-      });
-    })
-  },
-  sponsorProject($t) {
-    // TODO: Create v2 API endpoint
-    axios({
-      method: 'get',
-      url: getUnmanicApiUrl('v1', 'session/unmanic-patreon-page'),
-    }).then((response) => {
-      if (response.data.success) {
-        // If query was successful...
-        // Open the Patreon sponsor page in a new tab
-        let win = window.open(response.data.data.sponsor_page, '_blank');
-        if (win) {
-          //Browser has allowed it to be opened
-          win.focus();
-        } else {
-          //Browser has blocked it
-          Notify.create({
-            color: 'negative',
-            position: 'top',
-            message: $t('notifications.allowPopups'),
-            icon: 'report_problem',
-            actions: [{ icon: 'close', color: 'white' }]
-          });
-        }
-      } else {
-        // Our query was unsuccessful
-        console.error('An error occurred while fetching the patreon sponsor page.');
-      }
-    }).catch(() => {
-      Notify.create({
-        color: 'negative',
-        position: 'top',
-        message: $t('notifications.failedToFetchLoginUrl'),
         icon: 'report_problem',
         actions: [{ icon: 'close', color: 'white' }]
       });
