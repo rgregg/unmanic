@@ -2183,6 +2183,17 @@
                         "description": "If the library is configured to monitor for file changes",
                         "example": false
                     },
+                    "file_extension_allowlist": {
+                        "type": "array",
+                        "description": "File extensions this library will consider for processing. An empty list means no restriction",
+                        "example": [
+                            "mkv",
+                            "mp4"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                     "tags": {
                         "type": "array",
                         "description": "A list of tags associated with this library",
@@ -2198,6 +2209,7 @@
                 "required": [
                     "enable_inotify",
                     "enable_scanner",
+                    "file_extension_allowlist",
                     "id",
                     "locked",
                     "name",
@@ -2250,6 +2262,7 @@
                             "enable_scanner": false,
                             "enable_inotify": false,
                             "priority_score": 0,
+                            "file_extension_allowlist": [],
                             "tags": []
                         },
                         "additionalProperties": {}
@@ -2329,6 +2342,7 @@
                             "enable_scanner": false,
                             "enable_inotify": false,
                             "priority_score": 0,
+                            "file_extension_allowlist": [],
                             "tags": []
                         },
                         "additionalProperties": {}
@@ -2392,6 +2406,7 @@
                             "enable_scanner": false,
                             "enable_inotify": false,
                             "priority_score": 0,
+                            "file_extension_allowlist": [],
                             "tags": []
                         },
                         "additionalProperties": {}

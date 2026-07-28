@@ -50,6 +50,15 @@ class Libraries(BaseModel):
     enable_scanner = BooleanField(null=False, default=False)
     enable_inotify = BooleanField(null=False, default=False)
     priority_score = BigIntegerField(null=False, default=0)
+    # Trawlarr fork addition (see issue #33). Comma-separated list of file
+    # extensions that this library will consider for processing, stored
+    # without leading dots and lower-cased.
+    #
+    # The default is the empty string, and empty means NO RESTRICTION - see
+    # trawlarr/libs/extensions.py for why. An existing installation upgrading
+    # onto this column gets '' for every library and so keeps its current
+    # behaviour exactly.
+    file_extension_allowlist = TextField(null=False, default='')
     # ManyToMany Linking field. Does not create a column in the DB. See linking table below
     tags = ManyToManyField(Tags, backref='tags')
 

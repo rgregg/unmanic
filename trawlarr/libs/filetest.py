@@ -38,10 +38,46 @@ import time
 from copy import deepcopy
 
 from trawlarr import config
-from trawlarr.libs import history, common
+from trawlarr.libs import donestate, extensions, history, common
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 
+# Trawlarr fork addition (see issue #33).
+#
+# THE PRECEDENCE MODEL, TOP TO BOTTOM
+# -----------------------------------
+#   Tier 0  native platform checks (this module, below)
+#           Not overridable by anything in the plugin layer. These answer
+#           questions about the file that are the platform's own business:
+#           is it in scope for this library at all, and is it already done?
+#   Tier 1  a guard plugin voting False - a veto (issue #32)
+#   Tier 2  any plugin voting True - queue the file
+#   Tier 3  a filter plugin voting False - skip the file
+#
+# Tier 0 is new. Before it, "already completed successfully" and "not a video
+# file" were answered by two ordinary plugins whose votes sat in tiers 1-3
+# along with everyone else's, which is how a file could be completed and then
+# immediately re-queued, forever, while the installation looked healthy.
+#
+# WHAT THIS DID *NOT* CHANGE, AND WHY
+# -----------------------------------
+# Tiers 1-3 - the ADVISORY_SKIP_PLUGIN_IDS list and the veto-by-default
+# heuristic below - are left exactly as issue #32 landed them. It is tempting
+# to argue that with tier 0 in place the guard tier is redundant, since the
+# two plugins that motivated it are now superseded by the platform. It is not:
+#
+#   * Those plugins are not uninstalled by this change. An existing library
+#     still has them enabled and still gets their votes, and demoting those
+#     votes to advisory in the same release that adds tier 0 would reopen the
+#     reprocess loop for anyone whose plugin config we did not touch.
+#   * The guard tier is not only about those two plugins. Any third-party
+#     plugin that says "do not touch this file" relies on it.
+#   * The full role-split redesign is issue #16, not this one.
+#
+# So the stopgap stays, tier 0 sits above it, and the two plugins become
+# genuinely optional rather than load-bearing.
+#
+#
 # Trawlarr fork addition (see issue #32).
 #
 # The 'library_management.file_test' API gives a plugin only one way to say
@@ -98,7 +134,13 @@ class FileTest(object):
 
     """
 
-    def __init__(self, library_id: int):
+    def __init__(self, library_id: int, ignore_completed_files: bool = False):
+        """
+        :param library_id:
+        :param ignore_completed_files: skip the native completed-successfully
+            check for this caller only. The seam for deliberate reprocessing
+            (issue #41); see trawlarr/libs/donestate.py.
+        """
         self.settings = config.Config()
         self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
@@ -108,8 +150,58 @@ class FileTest(object):
         self.plugin_modules = self.plugin_handler.get_enabled_plugin_modules_by_type('library_management.file_test',
                                                                                      library_id=library_id)
 
+        # Native tier-0 configuration
+        self.ignore_completed_files = ignore_completed_files
+        self.file_extension_allowlist = self.__read_library_extension_allowlist()
+
         # List of filed tasks
         self.failed_paths = []
+
+    def __read_library_extension_allowlist(self):
+        """
+        Read this library's extension allow-list once, at construction.
+
+        A failure here must not be allowed to gate the whole library: an
+        unreadable allow-list falls back to the empty list, which allows
+        everything, matching the behaviour of an installation that has not
+        configured one.
+
+        :return:
+        """
+        try:
+            from trawlarr.libs.library import Library
+            return tuple(Library(self.library_id).get_file_extension_allowlist())
+        except Exception:
+            self.logger.exception("Unable to read the file extension allow-list for library %s. "
+                                  "No extension restriction will be applied.", self.library_id)
+            return ()
+
+    def file_extension_is_in_library_scope(self, path):
+        """
+        Is this file's extension within the library's allow-list?
+
+        An empty allow-list allows everything - the default, and what every
+        library gets on upgrade. See trawlarr/libs/extensions.py.
+
+        :param path:
+        :return:
+        """
+        return extensions.extension_is_allowed(path, getattr(self, 'file_extension_allowlist', ()))
+
+    def file_already_completed_successfully(self, path):
+        """
+        Has this exact file already been processed successfully?
+
+        Native counterpart to file_failed_in_history(), and the whole point of
+        issue #33. See trawlarr/libs/donestate.py for what "this exact file"
+        means and what it cannot detect.
+
+        :param path:
+        :return: (bool, message)
+        """
+        if getattr(self, 'ignore_completed_files', False):
+            return False, ''
+        return donestate.file_is_already_completed(path)
 
     def set_file(self):
         pass
@@ -162,6 +254,20 @@ class FileTest(object):
         decision_plugin = None
         file_issues = []
 
+        # --- Tier 0: native platform checks ---------------------------------
+        # These are not overridable by any plugin. Each one that rejects the
+        # file records an issue, which is what /pending/test shows and what
+        # the file tester logs - a file skipped here always says why.
+
+        # Is the file even in scope for this library?
+        if not self.file_extension_is_in_library_scope(path):
+            file_issues.append({
+                'id':      'extensionnotallowed',
+                'message': "File extension is not in this library's allow-list ({}) - '{}'".format(
+                    ', '.join(getattr(self, 'file_extension_allowlist', ())) or 'empty', path),
+            })
+            return_value = False
+
         # TODO: Remove this
         if self.file_in_unmanic_ignore_lockfile(path):
             file_issues.append({
@@ -177,6 +283,16 @@ class FileTest(object):
                 'message': "File found already failed in history - '{}'".format(path),
             })
             return_value = False
+
+        # Check if this exact file has already been completed successfully.
+        if return_value is None:
+            already_completed, completed_message = self.file_already_completed_successfully(path)
+            if already_completed:
+                file_issues.append({
+                    'id':      'alreadycompleted',
+                    'message': completed_message,
+                })
+                return_value = False
 
         # Only run checks with plugins if other tests were not conclusive
         priority_score_modification = 0

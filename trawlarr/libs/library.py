@@ -34,7 +34,7 @@
 import random
 
 from trawlarr.config import Config
-from trawlarr.libs import common
+from trawlarr.libs import common, extensions
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.unmodels import EnabledPlugins, Libraries, LibraryPluginFlow, Plugins, Tags, Tasks
 
@@ -113,6 +113,9 @@ class Library(object):
                 'tags':           [],
             }
             Libraries.create(**default_library)
+            # Reported separately from the create() payload: the column
+            # defaults to '' (no extension restriction, see issue #33).
+            default_library['file_extension_allowlist'] = []
             return [default_library]
 
         # Loop over results
@@ -125,13 +128,15 @@ class Library(object):
                 lib.save()
             # Create library config dictionary
             library_config = {
-                'id':             lib.id,
-                'name':           lib.name,
-                'path':           lib.path,
-                'locked':         lib.locked,
-                'enable_scanner': lib.enable_scanner,
-                'enable_inotify': lib.enable_inotify,
-                'tags':           [],
+                'id':                       lib.id,
+                'name':                     lib.name,
+                'path':                     lib.path,
+                'locked':                   lib.locked,
+                'enable_scanner':           lib.enable_scanner,
+                'enable_inotify':           lib.enable_inotify,
+                'file_extension_allowlist': list(
+                    extensions.parse_allowlist(getattr(lib, 'file_extension_allowlist', ''))),
+                'tags':                     [],
             }
             # Append tags
             for tag in lib.tags.order_by(Tags.name):
@@ -199,11 +204,12 @@ class Library(object):
                 "plugin_flow":     plugin_flow,
             },
             "library_config": {
-                "name":           library_config.get_name(),
-                "path":           library_config.get_path(),
-                'enable_scanner': library_config.get_enable_scanner(),
-                'enable_inotify': library_config.get_enable_inotify(),
-                'tags':           library_config.get_tags(),
+                "name":                     library_config.get_name(),
+                "path":                     library_config.get_path(),
+                'enable_scanner':           library_config.get_enable_scanner(),
+                'enable_inotify':           library_config.get_enable_inotify(),
+                'file_extension_allowlist': library_config.get_file_extension_allowlist(),
+                'tags':                     library_config.get_tags(),
             },
         }
 
@@ -281,6 +287,26 @@ class Library(object):
 
     def set_priority_score(self, value):
         self.model.priority_score = value
+
+    def get_file_extension_allowlist(self):
+        """
+        The library's file extension allow-list, as a list of normalised
+        extensions. An empty list means no restriction (see issue #33 and
+        trawlarr/libs/extensions.py).
+
+        :return:
+        """
+        return list(extensions.parse_allowlist(getattr(self.model, 'file_extension_allowlist', '')))
+
+    def set_file_extension_allowlist(self, value):
+        """
+        Set the library's file extension allow-list. Accepts a list or a
+        user-typed string; both are normalised before storage.
+
+        :param value:
+        :return:
+        """
+        self.model.file_extension_allowlist = extensions.format_allowlist(value)
 
     def get_tags(self):
         return_tags = []
