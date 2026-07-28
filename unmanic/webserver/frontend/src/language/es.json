@@ -25,7 +25,6 @@
     "back": "Atrás",
     "yes": "Sí",
     "copy": "Copiar",
-    "loginWithPatreon": "Iniciar sesión con Patreon",
     "loginWithGitHub": "Iniciar sesión con GitHub",
     "loginWithDiscord": "Iniciar sesión con discordia"
   },
@@ -73,7 +72,6 @@
         "status": "Actualización de estado desconocida del servidor"
       },
       "incompatiblePlugin": "Trawlarr ha dejado de procesar tareas porque ha detectado un complemento incompatible habilitado en una de sus bibliotecas",
-      "libraryEnabledLimits": "Trawlarr ha dejado de procesar tareas porque tiene demasiadas bibliotecas configuradas para un nivel que no es de soporte. Considere patrocinar el proyecto para habilitar más de 2 bibliotecas.",
       "pluginSettingsChangeWorkersStopped": "Trawlarr detuvo a todos los trabajadores porque detectó un cambio en la configuración de los complementos. Cuando esté listo, reanude a los trabajadores desde el panel.",
       "libraryScanProgress": "Exploración de biblioteca en ejecución",
       "pendingTaskHaltedPostProcessorQueueFull": "La cola de posprocesador alcanzó su límite",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "Configurar grupo de trabajadores",
     "selectPlugin": "Seleccione un complemento",
     "selectLibrary": "Seleccione una biblioteca",
-    "login": "Acceso",
     "listEmpty": "Esta lista de tareas está vacía"
   },
   "tooltips": {

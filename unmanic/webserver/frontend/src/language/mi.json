@@ -25,7 +25,6 @@
     "back": "Whakamuri",
     "yes": "Ae",
     "copy": "Tārua",
-    "loginWithPatreon": "Takiuru me Patreon",
     "loginWithGitHub": "Takiuru me GitHub",
     "loginWithDiscord": "Takiuru me Discord"
   },
@@ -73,7 +72,6 @@
         "status": "Whakahōu tūnga tē mōhiotia mai i te tūmau"
       },
       "incompatiblePlugin": "Kua whakamutua e Trawlarr nga mahi mahi na te mea kua kitea he mono hotokore kua whakahohea ki tetahi o o whare pukapuka",
-      "libraryEnabledLimits": "Kua whakamutua e Trawlarr nga mahi mahi na te mea he maha rawa nga whare pukapuka kua whirihorahia mo te taumata kore-tautoko. Whakaarohia te tautoko i te kaupapa kia kaha ake i te 2 whare pukapuka.",
       "pluginSettingsChangeWorkersStopped": "Kua whakamutua e Trawlarr nga kaimahi katoa na te mea kua kitea he huringa ki te whirihoranga mono. Kia reri koe, whakaara ano i nga kaimahi mai i te papatohu.",
       "libraryScanProgress": "E rere ana te karapa whare pukapuka",
       "pendingTaskHaltedPostProcessorQueueFull": "I tae te rarangi Pou-tukatuka ki tona rohe",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "Whirihorahia te roopu kaimahi",
     "selectPlugin": "Tīpakohia he mono",
     "selectLibrary": "Tīpakohia he whare pukapuka",
-    "login": "Takiuru",
     "listEmpty": "Kei te putua tenei rarangi mahi"
   },
   "tooltips": {

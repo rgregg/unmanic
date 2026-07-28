@@ -25,7 +25,6 @@
     "back": "后退",
     "yes": "是的",
     "copy": "复制",
-    "loginWithPatreon": "使用 Patreon 登录",
     "loginWithGitHub": "使用 GitHub 登录",
     "loginWithDiscord": "使用 Discord 登录"
   },
@@ -73,7 +72,6 @@
         "status": "来自服务器的未知状态更新"
       },
       "incompatiblePlugin": "Trawlarr 已停止处理任务，因为它检测到您的库之一启用了不兼容的插件",
-      "libraryEnabledLimits": "Trawlarr 已停止处理任务，因为您为非支持者层配置了太多库。考虑赞助该项目以启用 2 个以上的图书馆。",
       "pluginSettingsChangeWorkersStopped": "Trawlarr 已停止所有工作程序，因为它检测到插件配置发生更改。准备好后，从仪表板恢复工作人员。",
       "libraryScanProgress": "库扫描正在运行",
       "pendingTaskHaltedPostProcessorQueueFull": "后处理器队列达到极限",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "配置工作组",
     "selectPlugin": "选择一个插件",
     "selectLibrary": "选择一个库",
-    "login": "登录",
     "listEmpty": "该任务列表为空"
   },
   "tooltips": {

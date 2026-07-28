@@ -181,109 +181,6 @@
               <!--END EXT DOC LINKS-->
             </div>
           </div>
-
-          <q-separator/>
-
-          <div class="q-pa-md">
-            <h5 class="q-mb-none q-mt-sm">{{ $t('components.settings.support.fundingProposalsTitle') }}</h5>
-            <div class="q-pl-sm">
-              <div class="q-pt-sm q-pb-sm text-caption">
-                {{ $t('components.settings.support.fundingProposalsBody') }}
-              </div>
-              <div class="q-mb-md">
-                <q-btn
-                  flat
-                  dense
-                  color="secondary"
-                  icon-right="open_in_new"
-                  :label="$t('components.settings.support.fundingProposalsPortalLinkLabel')"
-                  @click="openExternalURL(getFundingPortalUrl(true))"
-                />
-              </div>
-
-              <q-tabs
-                v-model="selectedFundingStatus"
-                dense
-                indicator-color="secondary"
-                active-color="secondary"
-                class="text-secondary q-mb-md"
-                align="left"
-              >
-                <q-tab name="active"
-                       :label="$t('components.settings.support.fundingTabActive', { count: fundingTabCounts.active })"/>
-                <q-tab name="funded"
-                       :label="$t('components.settings.support.fundingTabFunded', { count: fundingTabCounts.funded })"/>
-                <q-tab name="in_progress"
-                       :label="$t('components.settings.support.fundingTabInProgress', { count: fundingTabCounts.in_progress })"/>
-                <q-tab name="complete"
-                       :label="$t('components.settings.support.fundingTabComplete', { count: fundingTabCounts.complete })"/>
-              </q-tabs>
-
-              <div v-if="loadingFundingProposals && filteredFundingProposals.length === 0" class="row q-col-gutter-sm">
-                <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="i in 4" :key="i">
-                  <q-card flat bordered class="funding-card">
-                    <q-card-section>
-                      <q-skeleton type="text" width="70%"/>
-                      <q-skeleton type="text" class="q-mt-sm"/>
-                      <q-skeleton type="text" class="q-mt-xs" width="55%"/>
-                    </q-card-section>
-                  </q-card>
-                </div>
-              </div>
-
-              <div v-else-if="fundingProposalsError" class="text-negative">
-                {{ fundingProposalsError }}
-              </div>
-
-              <div v-else-if="displayedFundingProposals.length === 0">
-                {{ fundingEmptyMessage }}
-              </div>
-
-              <div v-else class="row q-col-gutter-sm q-row-gutter-sm">
-                <div
-                  v-for="(proposal, index) in displayedFundingProposals"
-                  :key="proposal.id || proposal.uuid || proposal.slug || index"
-                  class="col-12 col-sm-6 col-md-4 col-lg-3"
-                >
-                  <q-card
-                    flat
-                    bordered
-                    class="funding-card cursor-pointer"
-                    @click="openExternalURL(getFundingPortalUrl(false))"
-                  >
-                    <q-card-section class="q-pa-sm">
-                      <div class="text-subtitle2 ellipsis-2-lines">{{ proposalTitle(proposal, index) }}</div>
-                      <div v-if="proposalDescription(proposal)"
-                           class="text-caption text-secondary ellipsis-3-lines q-mt-xs">
-                        {{ proposalDescription(proposal) }}
-                      </div>
-                      <div class="q-mt-sm">
-                        <q-linear-progress
-                          rounded
-                          size="8px"
-                          color="secondary"
-                          track-color="grey-4"
-                          :value="proposalProgressValue(proposal)"
-                        />
-                      </div>
-                      <div class="row justify-between q-mt-xs">
-                        <div class="text-caption">
-                          {{
-                            $t('components.settings.support.fundingCardFunded', { value: formatFundingCredits(proposalCurrentCredits(proposal)) })
-                          }}
-                        </div>
-                        <div class="text-caption text-secondary">
-                          {{
-                            $t('components.settings.support.fundingCardGoal', { value: formatFundingCredits(proposalTargetCredits(proposal)) })
-                          }}
-                        </div>
-                      </div>
-                    </q-card-section>
-                  </q-card>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -328,47 +225,6 @@ export default {
   data() {
     return {
       debugging: ref(null),
-      loadingFundingProposals: false,
-      fundingProposals: [],
-      fundingProposalsError: null,
-      selectedFundingStatus: 'active',
-    }
-  },
-  computed: {
-    filteredFundingProposals() {
-      return this.fundingProposals.filter((proposal) => this.isUnmanicProposal(proposal));
-    },
-    displayedFundingProposals() {
-      return this.filteredFundingProposals.filter(
-        (proposal) => this.proposalStatusGroup(proposal) === this.selectedFundingStatus
-      );
-    },
-    fundingTabCounts() {
-      const counts = {
-        active: 0,
-        funded: 0,
-        in_progress: 0,
-        complete: 0
-      };
-      this.filteredFundingProposals.forEach((proposal) => {
-        const group = this.proposalStatusGroup(proposal);
-        if (counts[group] !== undefined) {
-          counts[group] += 1;
-        }
-      });
-      return counts;
-    },
-    fundingEmptyMessage() {
-      if (this.selectedFundingStatus === 'funded') {
-        return this.$t('components.settings.support.fundingProposalsEmptyFunded');
-      }
-      if (this.selectedFundingStatus === 'in_progress') {
-        return this.$t('components.settings.support.fundingProposalsEmptyInProgress');
-      }
-      if (this.selectedFundingStatus === 'complete') {
-        return this.$t('components.settings.support.fundingProposalsEmptyComplete');
-      }
-      return this.$t('components.settings.support.fundingProposalsEmptyActive');
     }
   },
   methods: {
@@ -386,16 +242,8 @@ export default {
       this.$emit('hide');
     },
     openExternalURL: function (url) {
-      if (!url) return  // Local fork: getFundingPortalUrl returns null
+      if (!url) return
       openURL(url)
-    },
-    getFundingPortalUrl() {
-      // Local fork: the upstream funding portal at
-      // api.unmanic.app/support-auth-api/portal is supporter-tier only.
-      // The funding-proposals card list will be empty in this fork
-      // (the backend stub returns no proposals), so there is nothing
-      // to link to. Return null so the click handlers no-op.
-      return null;
     },
     fetchSettings: function () {
       // Fetch current settings
@@ -452,124 +300,10 @@ export default {
         })
       });
     },
-    fetchFundingProposals() {
-      this.loadingFundingProposals = true;
-      this.fundingProposalsError = null;
-      axios({
-        method: 'get',
-        url: getUnmanicApiUrl('v2', 'session/funding_proposals')
-      }).then((response) => {
-        const payload = response?.data?.data ?? response?.data ?? {};
-        const proposals = payload.funding_proposals ?? payload.proposals ?? payload.items ?? payload;
-        this.fundingProposals = Array.isArray(proposals) ? proposals : [];
-      }).catch(() => {
-        this.fundingProposals = [];
-        this.fundingProposalsError = this.$t('components.settings.support.fundingProposalsLoadFailed');
-      }).finally(() => {
-        this.loadingFundingProposals = false;
-      });
-    },
-    proposalValue(proposal, keys, fallback = null) {
-      if (!proposal || typeof proposal !== 'object') {
-        return fallback;
-      }
-      for (const key of keys) {
-        if (proposal[key] !== undefined && proposal[key] !== null && proposal[key] !== '') {
-          return proposal[key];
-        }
-      }
-      return fallback;
-    },
-    proposalTitle(proposal, index) {
-      return this.proposalValue(
-        proposal,
-        ['title', 'name', 'proposal_title', 'slug'],
-        this.$t('components.settings.support.fundingProposalUntitled', { number: index + 1 })
-      );
-    },
-    proposalDescription(proposal) {
-      return this.proposalValue(
-        proposal,
-        ['summary', 'description', 'details', 'short_description'],
-        ''
-      );
-    },
-    proposalStatusRaw(proposal) {
-      return String(this.proposalValue(proposal, ['status', 'state'], '')).trim().toLowerCase();
-    },
-    proposalStatusGroup(proposal) {
-      const status = this.proposalStatusRaw(proposal);
-      if (status === 'funded') {
-        return 'funded';
-      }
-      if (status === 'in-progress' || status === 'in_progress' || status === 'in progress') {
-        return 'in_progress';
-      }
-      if (status === 'complete' || status === 'completed') {
-        return 'complete';
-      }
-      if (status === 'active' || status === 'funding' || status === '') {
-        return 'active';
-      }
-      return 'active';
-    },
-    proposalCurrentCredits(proposal) {
-      return this.proposalValue(
-        proposal,
-        ['funded', 'credits_applied', 'total_credits', 'credits', 'votes', 'current_votes'],
-        0
-      );
-    },
-    proposalTargetCredits(proposal) {
-      return this.proposalValue(
-        proposal,
-        ['goal', 'credits_required', 'target_credits', 'goal_credits', 'required_credits'],
-        0
-      );
-    },
-    proposalProgressValue(proposal) {
-      const current = Number(this.proposalCurrentCredits(proposal));
-      const goal = Number(this.proposalTargetCredits(proposal));
-      if (Number.isNaN(current) || Number.isNaN(goal) || goal <= 0) {
-        return 0;
-      }
-      return Math.max(0, Math.min(current / goal, 1));
-    },
-    formatFundingNumber(value) {
-      const num = Number(value);
-      if (Number.isNaN(num)) {
-        return value;
-      }
-      return new Intl.NumberFormat().format(num);
-    },
-    formatFundingCredits(value) {
-      const num = Number(value);
-      if (Number.isNaN(num)) {
-        return value;
-      }
-      return this.$t('components.settings.support.fundingCreditsValue', {
-        value: new Intl.NumberFormat().format(num)
-      });
-    },
-    isUnmanicProposal(proposal) {
-      const keys = [
-        'project', 'project_name', 'product', 'product_name', 'app', 'application',
-        'repository', 'repo', 'namespace', 'owner', 'target', 'service'
-      ];
-      for (const key of keys) {
-        const value = proposal?.[key];
-        if (typeof value === 'string' && value.toLowerCase().includes('unmanic')) {
-          return true;
-        }
-      }
-      const title = this.proposalTitle(proposal, 0);
-      return typeof title === 'string' && title.toLowerCase().includes('unmanic');
-    },
   },
   created() {
     this.fetchSettings();
     this.fetchSystemConfig();
-    this.fetchFundingProposals();
   }
 }
 </script>
@@ -578,9 +312,5 @@ export default {
 .support-link-row {
   min-height: 28px;
   padding: 2px 8px;
-}
-
-.funding-card {
-  height: 100%;
 }
 </style>

@@ -25,7 +25,6 @@
     "back": "Tillbaka",
     "yes": "Ja",
     "copy": "Kopiera",
-    "loginWithPatreon": "Logga in med Patreon",
     "loginWithGitHub": "Logga in med GitHub",
     "loginWithDiscord": "Logga in med Discord"
   },
@@ -73,7 +72,6 @@
         "status": "Okänd statusuppdatering från servern"
       },
       "incompatiblePlugin": "Trawlarr har slutat bearbeta uppgifter eftersom den har upptäckt en inkompatibel plugin aktiverad på ett av dina bibliotek",
-      "libraryEnabledLimits": "Trawlarr har slutat bearbeta uppgifter eftersom du har för många bibliotek konfigurerade för en icke-supporternivå. Överväg att sponsra projektet för att möjliggöra fler än 2 bibliotek.",
       "pluginSettingsChangeWorkersStopped": "Trawlarr har stoppat alla arbetare eftersom de har upptäckt en ändring av plugins-konfigurationen. När du är redo, återuppta arbetarna från instrumentpanelen.",
       "libraryScanProgress": "Bibliotekssökning körs",
       "pendingTaskHaltedPostProcessorQueueFull": "Efterbehandlingskön nådde sin gräns",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "Konfigurera arbetsgrupp",
     "selectPlugin": "Välj ett plugin",
     "selectLibrary": "Välj ett bibliotek",
-    "login": "Logga in",
     "listEmpty": "Den här uppgiftslistan är tom"
   },
   "tooltips": {
