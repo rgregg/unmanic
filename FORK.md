@@ -31,7 +31,7 @@ As it stands the fork has:
 The plugin catalog at `Unmanic/unmanic-plugins` is **not** forked — plugin
 zips are pulled directly from it via `raw.githubusercontent.com`. If
 upstream ever takes the catalog private, point
-`UNMANIC_DEFAULT_PLUGIN_REPO_URL` at a mirror.
+`TRAWLARR_DEFAULT_PLUGIN_REPO_URL` at a mirror.
 
 ## Repo layout
 
@@ -52,7 +52,7 @@ auditing what we've changed:
 
 - `trawlarr/libs/session.py` — every `api.unmanic.app` call is a no-op
   stub. `register_unmanic` pins level to `LOCAL_SESSION_LEVEL` (default 7,
-  override via `UNMANIC_LOCAL_SESSION_LEVEL`). `get_site_url` returns
+  override via `TRAWLARR_LOCAL_SESSION_LEVEL`). `get_site_url` returns
   `https://unmanic-app.disabled.invalid` so a leaked call fails loudly
   at DNS instead of silently hitting the upstream API.
 - `trawlarr/libs/plugins.py` — `fetch_remote_repo_data` reads catalogs

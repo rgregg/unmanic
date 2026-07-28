@@ -11,13 +11,18 @@ Depending on what you are trying to develop, one way may work better than the ot
 
 Regardless of the method you use, you will need to build the frontend component.
 
-> **Note on naming:** the Python package is `trawlarr`, the config directory
-> is `~/.trawlarr/` and the API base path is `/trawlarr/api/v2/`. The CLI
-> entry point and the `UNMANIC_*` environment variables are still `unmanic`;
-> those are the remaining steps of
-> [#49](https://github.com/rgregg/trawlarr/issues/49). `unmanic.*` imports
-> keep resolving through the compatibility shim, so existing plugins are
+> **Note on naming:** the Python package is `trawlarr`, the distribution on
+> disk is `trawlarr`, the config directory is `~/.trawlarr/`, the API base
+> path is `/trawlarr/api/v2/` and environment variables are prefixed
+> `TRAWLARR_`. The console script is `trawlarr`; `unmanic` remains as a
+> legacy alias that runs the same entry point. `unmanic.*` imports keep
+> resolving through the compatibility shim, so existing plugins are
 > unaffected.
+>
+> Environment variables are a clean break: `UNMANIC_*` names are **not**
+> read. If one is set, startup prints a warning naming the `TRAWLARR_*`
+> variable that replaced it — see `trawlarr/libs/envvars.py` for the full
+> list.
 
 
 

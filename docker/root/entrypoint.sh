@@ -36,8 +36,8 @@ run_init_scripts() {
 }
 
 sqlite_maintenance() {
-    local db_path="${UNMANIC_DB_PATH:-/config/.trawlarr/config/trawlarr.db}"
-    local maintenance_mode="${UNMANIC_SQLITE_MAINTENANCE:-basic}"
+    local db_path="${TRAWLARR_DB_PATH:-/config/.trawlarr/config/trawlarr.db}"
+    local maintenance_mode="${TRAWLARR_SQLITE_MAINTENANCE:-basic}"
 
     if [[ "${maintenance_mode}" == "off" ]]; then
         return
@@ -62,7 +62,7 @@ sqlite_maintenance() {
         sqlite3 "${db_path}" "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA optimize; VACUUM;"
         ;;
     *)
-        log "Unknown UNMANIC_SQLITE_MAINTENANCE mode '${maintenance_mode}', skipping"
+        log "Unknown TRAWLARR_SQLITE_MAINTENANCE mode '${maintenance_mode}', skipping"
         ;;
     esac
 }
@@ -166,7 +166,11 @@ main() {
 
     update_source_symlink
 
-    if [[ "$1" == "/usr/bin/unmanic" || "$1" == "unmanic" ]]; then
+    # Both names: /usr/bin/trawlarr is the image CMD, /usr/bin/unmanic is the
+    # legacy wrapper an older compose file may still name (it warns and
+    # forwards). Either way this is "start the application", so the argument
+    # assembly below has to apply to both.
+    if [[ "$1" == "/usr/bin/trawlarr" || "$1" == "trawlarr" || "$1" == "/usr/bin/unmanic" || "$1" == "unmanic" ]]; then
         unmanic_params=()
         if [[ "${DEBUGGING:-}" == 'true' ]]; then
             unmanic_params+=(--dev)
@@ -180,10 +184,10 @@ main() {
             ;;
         esac
         unmanic_cmd=("$1" "${unmanic_params[@]}" "${@:2}")
-        if [[ -n "${UNMANIC_RUN_COMMAND:-}" ]]; then
+        if [[ -n "${TRAWLARR_RUN_COMMAND:-}" ]]; then
             unmanic_cmd_str=$(printf '%q ' "${unmanic_cmd[@]}")
             unmanic_cmd_str=${unmanic_cmd_str% }
-            run_cmd="${UNMANIC_RUN_COMMAND//\{cmd\}/${unmanic_cmd_str}}"
+            run_cmd="${TRAWLARR_RUN_COMMAND//\{cmd\}/${unmanic_cmd_str}}"
             log "Using custom run command: ${run_cmd}"
             if [[ "${EUID}" -eq 0 ]]; then
                 if command -v gosu >/dev/null 2>&1; then

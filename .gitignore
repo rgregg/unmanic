@@ -18,6 +18,8 @@ venv/**
 .eggs/**
 build/**
 dist/**
+trawlarr.egg-info/**
+# Left behind in checkouts that were built before the distribution rename
 unmanic.egg-info/**
 /.coverage
 /htmlcov/

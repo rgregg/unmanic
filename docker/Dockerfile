@@ -310,19 +310,20 @@ RUN \
 ENV HOME_DIR="/config"
 
 
-# Install pre-built Unmanic wheel
-# Must first run `python3 ./setup.py bdist_wheel` on host to build package
+# Install the pre-built Trawlarr wheel.
+# Must first build the package on the host, e.g.
+#   python3 -m build --no-isolation --skip-dependency-check --wheel
 COPY /dist/ /src/
 ENV VIRTUAL_ENV=/opt/venv
 RUN \
-    echo "**** Install Unmanic ****" \
+    echo "**** Install Trawlarr ****" \
         && sleep 2 \
         && \
-        echo "**** Install unmanic from pre-built wheel ****" \
+        echo "**** Install trawlarr from pre-built wheel ****" \
             && ls -l /src/ \
-            && "${VIRTUAL_ENV:?}"/bin/pip install --no-cache-dir /src/*.whl \
+            && "${VIRTUAL_ENV:?}"/bin/pip install --no-cache-dir /src/trawlarr-*.whl \
         && \
-        echo "**** Make default paths for unmanic library ****" \
+        echo "**** Make default paths for trawlarr library ****" \
             && mkdir -p /library
 
 
@@ -330,9 +331,9 @@ RUN \
 COPY /docker/root /
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/usr/bin/unmanic"]
+CMD ["/usr/bin/trawlarr"]
 
-# Unmanic runs on port 8888
+# Trawlarr runs on port 8888
 EXPOSE 8888/tcp
 
 # Health probe. The version endpoint is cheap and is registered before the

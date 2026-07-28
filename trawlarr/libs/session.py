@@ -41,6 +41,7 @@ from urllib.parse import urlparse
 import requests
 
 from trawlarr import config
+from trawlarr.libs import envvars
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 from trawlarr.libs.unmodels import Installation
@@ -49,8 +50,8 @@ from trawlarr.libs.unmodels import Installation
 # replaces the remote level lookup that used to come from
 # api.unmanic.app/support-auth-api/v2/user_info/get and removes the only
 # reason the application had to phone home on a schedule. Override with
-# UNMANIC_LOCAL_SESSION_LEVEL if a different level is needed for testing.
-LOCAL_SESSION_LEVEL = int(os.environ.get("UNMANIC_LOCAL_SESSION_LEVEL", "7"))
+# TRAWLARR_LOCAL_SESSION_LEVEL if a different level is needed for testing.
+LOCAL_SESSION_LEVEL = int(os.environ.get(envvars.LOCAL_SESSION_LEVEL_ENV_VAR, "7"))
 
 
 class RemoteApiException(Exception):
@@ -344,12 +345,12 @@ class Session(object, metaclass=SingletonType):
     def __configure_log_forwarding(self, session_valid=False):
         # Local fork: never forward logs to a remote datastore. The endpoint
         # lookup used to call api.unmanic.app's central_config service; an
-        # explicit UNMANIC_REMOTE_LOGGING_ENDPOINT env var still works for
+        # explicit TRAWLARR_REMOTE_LOGGING_ENDPOINT env var still works for
         # users who want to point at their own log sink.
         settings = config.Config()
         log_buffer_retention = settings.get_log_buffer_retention()
         if session_valid:
-            endpoint = os.environ.get("UNMANIC_REMOTE_LOGGING_ENDPOINT", "")
+            endpoint = os.environ.get(envvars.REMOTE_LOGGING_ENDPOINT_ENV_VAR, "")
             if endpoint and endpoint.startswith("http"):
                 TrawlarrLogging.enable_remote_logging(endpoint, self.uuid, log_buffer_retention)
                 return

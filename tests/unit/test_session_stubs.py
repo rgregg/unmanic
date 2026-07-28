@@ -45,9 +45,9 @@ class TestLocalSessionLevelConstant:
     def test_default_is_seven(self, monkeypatch):
         # Re-importing the module would pick up env at import time, so
         # just verify the runtime constant matches the documented default.
-        # If a user sets UNMANIC_LOCAL_SESSION_LEVEL it overrides; we
+        # If a user sets TRAWLARR_LOCAL_SESSION_LEVEL it overrides; we
         # don't probe that here because the import is one-shot.
-        if not os.environ.get("UNMANIC_LOCAL_SESSION_LEVEL"):
+        if not os.environ.get("TRAWLARR_LOCAL_SESSION_LEVEL"):
             assert LOCAL_SESSION_LEVEL == 7
 
 

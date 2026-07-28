@@ -77,7 +77,7 @@ class TestSchedulerHeartbeatRemoved:
 class TestLogForwardingDoesNotCallCentralApi:
 
     def test_configure_log_forwarding_skips_central_lookup(self, monkeypatch):
-        monkeypatch.delenv("UNMANIC_REMOTE_LOGGING_ENDPOINT", raising=False)
+        monkeypatch.delenv("TRAWLARR_REMOTE_LOGGING_ENDPOINT", raising=False)
         s = Session.__new__(Session)
         s.logger = logging.getLogger("test")
         s.uuid = "test-uuid"
@@ -98,7 +98,7 @@ class TestLogForwardingDoesNotCallCentralApi:
 
     def test_configure_log_forwarding_honours_env_override(self, monkeypatch):
         monkeypatch.setenv(
-            "UNMANIC_REMOTE_LOGGING_ENDPOINT", "http://my-loki.lan/loki/api/v1/push")
+            "TRAWLARR_REMOTE_LOGGING_ENDPOINT", "http://my-loki.lan/loki/api/v1/push")
         s = Session.__new__(Session)
         s.logger = logging.getLogger("test")
         s.uuid = "test-uuid"

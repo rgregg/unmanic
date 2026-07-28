@@ -49,7 +49,7 @@ def read_version_string(version_type='long'):
         return 'UNKNOWN.VERSION'
 
 
-__name = "unmanic"
+__name = "trawlarr"
 __author = "Josh.5"
 __email = "jsunnex@gmail.com"
 
@@ -59,7 +59,7 @@ __description__ = "A simple tool for optimising your video library to a single f
 __disclaimer__ = ""
 __forum__ = ""
 __video__ = ""
-__website__ = "https://github.com/Josh5/unmanic"
+__website__ = "https://github.com/rgregg/trawlarr"
 __description__ = "A simple tool for optimising your video library to a single format"
 __copyright__ = """
     Copyright:

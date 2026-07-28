@@ -151,7 +151,12 @@ class CleanCommand(Command):
         shutil.rmtree(os.path.abspath(os.path.join(os.path.dirname(__file__), 'build')), ignore_errors=True)
         shutil.rmtree(os.path.abspath(os.path.join(os.path.dirname(__file__), 'dist')), ignore_errors=True)
         shutil.rmtree(os.path.abspath(os.path.join(os.path.dirname(__file__), '*.pyc')), ignore_errors=True)
-        shutil.rmtree(os.path.abspath(os.path.join(os.path.dirname(__file__), 'unmanic.egg-info')), ignore_errors=True)
+        # Both names: the distribution was renamed unmanic -> trawlarr in
+        # issue #49 step 4, and a checkout that has been built at least once
+        # under the old name still has the stale egg-info directory sitting
+        # in the project root.
+        for egg_info in ('{}.egg-info'.format(module_name), 'unmanic.egg-info'):
+            shutil.rmtree(os.path.abspath(os.path.join(os.path.dirname(__file__), egg_info)), ignore_errors=True)
         [shutil.rmtree(f) for f in glob.glob(src_dir + "/**/__pycache__", recursive=True)]
 
 
@@ -208,8 +213,7 @@ setup(
     # Fork addition: `alias_dir` is the legacy `unmanic` namespace shim
     # (issue #49 step 2) -- a few lines that redirect into `src_dir`. It has
     # to ship in the wheel or the alias only exists in a source checkout,
-    # and every installed community plugin imports through it. The
-    # distribution metadata still says `unmanic`; renaming it is step 4.
+    # and every installed community plugin imports through it.
     packages=find_namespace_packages(include=[f"{src_dir}*", f"{alias_dir}*"]),
     include_package_data=True,
     entry_points={
@@ -217,12 +221,10 @@ setup(
             # Canonical console script, named for the real package.
             '%s=%s.service:main' % (src_dir, src_dir),
             # Legacy name, kept for the same reason the namespace alias is:
-            # the container CMD, docker/root/usr/bin/unmanic and every
-            # existing install invoke `unmanic`. `module_name` is still
-            # "unmanic" (trawlarr/metadata.py) because it also names the
-            # distribution, which #49 renames in step 4 -- so this entry is
-            # written against `alias_dir` and does not silently disappear
-            # when that constant changes.
+            # existing installs, wrapper scripts and any operator muscle
+            # memory still invoke `unmanic`. Written against `alias_dir`
+            # rather than `module_name` so that renaming the distribution
+            # (step 4, done) could not silently delete it.
             '%s=%s.service:main' % (alias_dir, src_dir),
         ]
     },
