@@ -1,6 +1,11 @@
 name: Test
 
-# Runs the unit test suite on every push to main and on PRs targeting it.
+# Runs the unit test suites on every push to main and on PRs targeting it.
+#
+# Two independent jobs: the Python package, and the Quasar/Vue frontend.
+# Until now nothing checked the frontend before the Docker image build, so a
+# broken import in a .vue file reached image-build time undetected. The
+# frontend job exists to make that failure loud and early.
 #
 # Coverage is reported in the job summary and uploaded as an artifact so
 # we can track the trend over time.
@@ -62,13 +67,18 @@ jobs:
           # --cov-report=term-missing shows uncovered lines in the run log
           # --cov-report=xml uploads a machine-readable artifact
           # --cov-report=html for browsable local viewing of the same data
-          # --cov-fail-under enforces a floor; bump as coverage improves.
+          # --cov-fail-under enforces a floor. It is a ratchet, not a target:
+          # keep it just under the number main actually measures, raise it in
+          # the PR that raises coverage, and never lower it to turn a build
+          # green. main measures 31.78% at 311 tests; the floor was 13, which
+          # meant coverage could have halved unnoticed. Policy lives in
+          # docs/CONTRIBUTING.md ("The coverage ratchet").
           pytest tests/unit/ -v \
             --cov=trawlarr \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
-            --cov-fail-under=13 \
+            --cov-fail-under=30 \
             --junitxml=pytest-results.xml
 
       - name: Coverage summary
@@ -112,3 +122,73 @@ jobs:
           name: pytest-results
           path: pytest-results.xml
           retention-days: 30
+
+  frontend:
+    name: Frontend lint + test + build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: trawlarr/webserver/frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v5
+        with:
+          # Matches the Node used by .github/workflows/build.yml, so a green
+          # run here means the same toolchain that builds the image is happy.
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: trawlarr/webserver/frontend/package-lock.json
+
+      - name: Install dependencies
+        # `npm ci`, not `npm install`: it installs exactly the lockfile, so CI
+        # cannot pass on a dependency tree nobody has committed.
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests with coverage
+        # Thresholds live in vitest.config.js. See the ratchet note there and in
+        # docs/CONTRIBUTING.md before changing them.
+        run: npm run test:coverage
+
+      - name: Build
+        # The real prize. Quasar's webpack build is the only thing that resolves
+        # every import in every .vue file, so this step is what turns "a broken
+        # import reaches the Docker build" into "a broken import fails the PR".
+        run: npm run build
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Frontend coverage"
+            echo ""
+            if [ -f coverage/coverage-summary.json ]; then
+              echo '```'
+              node -e '
+                const s = require("./coverage/coverage-summary.json").total;
+                for (const k of ["statements", "branches", "functions", "lines"]) {
+                  console.log(k.padEnd(12), s[k].pct + "%", `(${s[k].covered}/${s[k].total})`);
+                }
+              '
+              echo '```'
+              echo ""
+              echo "_Statement/line coverage is inflated by modules that are imported but not exercised; \`functions\` is the honest number._"
+            else
+              echo "_No coverage summary produced — the test step likely failed first._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-coverage
+          path: trawlarr/webserver/frontend/coverage/
+          retention-days: 14

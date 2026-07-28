@@ -53,6 +53,12 @@ export default {
         }).then((response) => {
           $unmanic.version = response.data.version;
           resolve($unmanic.version)
+        }).catch((error) => {
+          // Without this the promise never settles: FooterData and
+          // HelpSupportDialog `.then()` it, so a failing version endpoint left
+          // them showing their placeholder forever with nothing logged. Reject
+          // so the failure at least reaches the browser console.
+          reject(error)
         })
       } else {
         resolve($unmanic.version);
@@ -78,8 +84,11 @@ export default {
             uuid: response.data.uuid,
           }
           resolve($unmanic[cacheKey])
-        }).catch(() => {
-          reject()
+        }).catch((error) => {
+          // Pass the reason on. `reject()` with no argument gives every caller
+          // an `undefined` error, so even a caller that does log something logs
+          // nothing useful.
+          reject(error)
         })
       } else {
         resolve($unmanic[cacheKey]);
@@ -96,8 +105,9 @@ export default {
         }).then((response) => {
           $unmanic.docs.privacypolicy = response.data.content.join('')
           resolve($unmanic.docs.privacypolicy)
-        }).catch(() => {
-          reject()
+        }).catch((error) => {
+          // As above: reject with the reason, not with nothing.
+          reject(error)
         })
       } else {
         resolve($unmanic.docs.privacypolicy);
