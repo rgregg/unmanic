@@ -147,7 +147,7 @@ ARG JELLYFIN_FFMPEG_VERSION="7"
 # tags get garbage-collected after a few weeks, so this needs occasional
 # bumps. Newer 8.1 builds are stable; if/when BtbN moves to 8.2, update both
 # values together (the URL filter inside the RUN below uses the version).
-ARG BTBN_FFMPEG_RELEASE="autobuild-2026-05-04-17-29"
+ARG BTBN_FFMPEG_RELEASE="autobuild-2026-07-27-14-00"
 ARG BTBN_FFMPEG_VERSION="8.1"
 ARG NODE_MAJOR="22"
 RUN \
