@@ -38,13 +38,13 @@ def _bare_handler():
 class TestResolveDirectRepoUrl:
 
     def test_default_maps_to_official_public_catalog(self, monkeypatch):
-        monkeypatch.delenv('UNMANIC_DEFAULT_PLUGIN_REPO_URL', raising=False)
+        monkeypatch.delenv('TRAWLARR_DEFAULT_PLUGIN_REPO_URL', raising=False)
         url = PluginsHandler._resolve_direct_repo_url('default')
         assert url == ('https://raw.githubusercontent.com/'
                        'Unmanic/unmanic-plugins/repo/repo.json')
 
     def test_default_respects_env_override(self, monkeypatch):
-        monkeypatch.setenv('UNMANIC_DEFAULT_PLUGIN_REPO_URL',
+        monkeypatch.setenv('TRAWLARR_DEFAULT_PLUGIN_REPO_URL',
                            'https://my-mirror.example.com/repo.json')
         url = PluginsHandler._resolve_direct_repo_url('default')
         assert url == 'https://my-mirror.example.com/repo.json'
@@ -115,7 +115,7 @@ class TestFetchRemoteRepoDataRouting:
         SessionCls.assert_not_called()
 
     def test_default_uses_direct_fetch(self, monkeypatch):
-        monkeypatch.delenv('UNMANIC_DEFAULT_PLUGIN_REPO_URL', raising=False)
+        monkeypatch.delenv('TRAWLARR_DEFAULT_PLUGIN_REPO_URL', raising=False)
         h = _bare_handler()
         body = {'repo': {'name': 'Official'}, 'plugins': []}
         with mock.patch.object(h, '_fetch_repo_data_directly',

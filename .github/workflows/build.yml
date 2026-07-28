@@ -66,6 +66,16 @@ jobs:
           echo "Python version: ${PY_VERSION}"
           python -m build --no-isolation --skip-dependency-check --wheel
           ls -l dist/
+          # The Dockerfile installs dist/trawlarr-*.whl by name. If the
+          # distribution is ever renamed again, that COPY+pip would fail
+          # deep inside a multi-arch buildx run; fail here instead, where
+          # the message is one line and points at the cause.
+          shopt -s nullglob
+          wheels=(dist/trawlarr-*.whl)
+          if [[ ${#wheels[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one dist/trawlarr-*.whl, found ${#wheels[@]}. The Dockerfile installs that glob."
+            exit 1
+          fi
           echo "${PY_VERSION}" > dist/VERSION.txt
           echo "py_version=${PY_VERSION}" >> "$GITHUB_OUTPUT"
 

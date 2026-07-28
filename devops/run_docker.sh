@@ -206,8 +206,8 @@ start_container() {
         -e PGID="$PGID" \
         -e DEBUGGING="$DEBUG" \
         -e USE_CUSTOM_SUPPORT_API="$USE_CUSTOM_SUPPORT_API" \
-        -e UNMANIC_RUN_COMMAND="$RUN_COMMAND" \
-        -e PROFILE_UNMANIC="$ENABLE_PROFILING" \
+        -e TRAWLARR_RUN_COMMAND="$RUN_COMMAND" \
+        -e PROFILE_TRAWLARR="$ENABLE_PROFILING" \
         -p "$EXT_PORT":8888 \
         -v "$PROJECT_BASE":/app:Z \
         -v "$CONFIG_PATH":/config:Z \
@@ -238,11 +238,18 @@ print_access_info() {
 
 ensure_dist_artifacts() {
     local venv_python
-    if [[ -d "$PROJECT_BASE/dist" ]] && ls "$PROJECT_BASE"/dist/* >/dev/null 2>&1; then
+    # The distribution was renamed unmanic -> trawlarr (#49 step 4). Purge
+    # any artifact built under the old name before deciding whether a build
+    # is needed: the Dockerfile installs the wheel by glob, so a stale
+    # unmanic-*.whl left in dist/ is not inert - it is a candidate for
+    # installation, and it would satisfy an "are there artifacts?" check
+    # that matched everything.
+    rm -f "$PROJECT_BASE"/dist/unmanic-*
+    if [[ -d "$PROJECT_BASE/dist" ]] && ls "$PROJECT_BASE"/dist/trawlarr-* >/dev/null 2>&1; then
         return 0
     fi
 
-    echo "--- Building Unmanic package artifacts (dist/) ---"
+    echo "--- Building Trawlarr package artifacts (dist/) ---"
     venv_python="$PROJECT_BASE/venv/bin/python3"
     if [[ ! -x "$venv_python" ]]; then
         echo "--- Creating venv at $PROJECT_BASE/venv ---"
@@ -254,7 +261,7 @@ ensure_dist_artifacts() {
     "$venv_python" -m pip install -U -r "$PROJECT_BASE/requirements.txt" -r "$PROJECT_BASE/requirements-dev.txt"
 
     rm -rf "$PROJECT_BASE/build"
-    rm -f "$PROJECT_BASE"/dist/unmanic-*
+    rm -f "$PROJECT_BASE"/dist/trawlarr-*
     git submodule update --init --recursive
     "$venv_python" -m build --no-isolation --skip-dependency-check --wheel
     "$venv_python" -m build --no-isolation --skip-dependency-check --sdist

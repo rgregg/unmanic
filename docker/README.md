@@ -6,15 +6,16 @@ pipeline and the available tags. You only need the steps below to build locally.
 
 ### Building the Source
 Before building the image, you need to have built the python package. The
-package is still named `unmanic`, inherited from upstream; the rename to
-`trawlarr` is tracked in
-[#49](https://github.com/rgregg/trawlarr/issues/49), so the `dist/unmanic-*`
-paths below will change with it.
+distribution is named `trawlarr`, so the build produces `dist/trawlarr-*`.
+If you have an older checkout, delete any `dist/unmanic-*` left over from
+before the rename ([#49](https://github.com/rgregg/trawlarr/issues/49)) —
+the Dockerfile installs `/src/trawlarr-*.whl` by name, but a stale wheel in
+`dist/` is still copied into the build context.
 
 First build the frontend (`devops/frontend_install.sh`), then:
 
 ```bash
-rm -rfv ./build && rm -fv ./dist/unmanic-*
+rm -rfv ./build && rm -fv ./dist/unmanic-* ./dist/trawlarr-*
 python3 -m build --no-isolation --skip-dependency-check --wheel
 python3 -m build --no-isolation --skip-dependency-check --sdist
 ```

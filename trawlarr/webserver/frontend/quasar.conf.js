@@ -95,8 +95,8 @@ module.exports = configure(function (ctx) {
       port: 8889,
       proxy: (() => {
         // Allow configuring the backend target via .env
-        // Example: UNMANIC_BACKEND_URL=http://localhost:8888
-        const httpTarget = process.env.UNMANIC_BACKEND_URL || 'http://localhost:8888'
+        // Example: TRAWLARR_BACKEND_URL=http://localhost:8888
+        const httpTarget = process.env.TRAWLARR_BACKEND_URL || 'http://localhost:8888'
         // Derive ws target from http target (http -> ws, https -> wss)
         const wsTarget = httpTarget.replace(/^http(s?):/i, (m, s) => (s ? 'wss:' : 'ws:'))
 

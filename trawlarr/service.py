@@ -40,7 +40,7 @@ import threading
 import psutil
 
 from trawlarr import config, metadata
-from trawlarr.libs import libraryscanner, common, eventmonitor, runtimepaths
+from trawlarr.libs import libraryscanner, common, envvars, eventmonitor, runtimepaths
 from trawlarr.libs.db_migrate import Migrations
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
@@ -350,6 +350,28 @@ def guard_against_legacy_config_directory():
     raise SystemExit(1)
 
 
+def warn_about_legacy_env_vars():
+    """
+    Print a warning for any UNMANIC_* environment variable still being set.
+
+    Trawlarr reads TRAWLARR_* names and never falls back to the old ones.
+    Unlike the config directory, a renamed environment variable cannot be
+    detected as "an install that needs migrating" -- there is nothing to
+    migrate, and refusing to start over a stray variable would be absurd.
+    But it also cannot be allowed to pass unremarked: the application would
+    come up healthy, running on a default, while the operator believed their
+    override was in force.
+
+    So: warn, name the replacement, and carry on.
+
+    :return:
+    """
+    message = envvars.check_for_legacy_env_vars()
+    if message is None:
+        return
+    print(message, file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Unmanic")
     parser.add_argument(
@@ -398,6 +420,9 @@ def main():
     # Refuse to start against an unmigrated Unmanic install. Deliberately
     # after parse_args, so `--version` and `--help` still answer.
     guard_against_legacy_config_directory()
+
+    # Renamed environment variables are ignored, not read. Say so out loud.
+    warn_about_legacy_env_vars()
 
     # Configure application from args
     settings = config.Config(port=args.port, address=args.address, unmanic_path=None)

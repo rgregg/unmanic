@@ -40,13 +40,13 @@ The software reaches out to the network in only these situations:
    plugins, Trawlarr fetches the catalog and the plugin archives directly from
    GitHub (`raw.githubusercontent.com`). GitHub will see your IP address for
    these requests, as it would for any download. The catalog URL can be pointed
-   elsewhere with the `UNMANIC_DEFAULT_PLUGIN_REPO_URL` environment variable.
+   elsewhere with the `TRAWLARR_DEFAULT_PLUGIN_REPO_URL` environment variable.
  - **Plugin icons in the web interface.** Plugin listings reference icon images
    hosted on GitHub, which your browser loads directly when you view the plugin
    pages.
  - **Remote log forwarding — off unless you turn it on.** Trawlarr can forward
    its logs to a log sink you operate. This is disabled by default and only
-   activates when you set the `UNMANIC_REMOTE_LOGGING_ENDPOINT` environment
+   activates when you set the `TRAWLARR_REMOTE_LOGGING_ENDPOINT` environment
    variable to your own endpoint. Logs are sent only to the address you specify.
 
 There are no other outbound connections. In particular, there is no contact with

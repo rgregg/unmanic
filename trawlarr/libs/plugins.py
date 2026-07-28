@@ -45,7 +45,7 @@ from operator import attrgetter
 import requests
 
 from trawlarr import config
-from trawlarr.libs import common
+from trawlarr.libs import common, envvars
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
@@ -183,13 +183,13 @@ class PluginsHandler(object, metaclass=SingletonType):
         """
         Return a public catalog URL for ``repo_path`` if one is available,
         otherwise None. The "default" shortname maps to the official public
-        catalog (overridable via the ``UNMANIC_DEFAULT_PLUGIN_REPO_URL``
+        catalog (overridable via the ``TRAWLARR_DEFAULT_PLUGIN_REPO_URL``
         environment variable for self-hosted mirrors). Any path that already
         looks like an http(s) URL is returned as-is.
         """
         if repo_path == PluginsHandler.get_default_repo():
             return os.environ.get(
-                'UNMANIC_DEFAULT_PLUGIN_REPO_URL',
+                envvars.DEFAULT_PLUGIN_REPO_URL_ENV_VAR,
                 'https://raw.githubusercontent.com/Unmanic/unmanic-plugins/repo/repo.json',
             )
         if isinstance(repo_path, str) and (
