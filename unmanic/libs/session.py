@@ -7,6 +7,8 @@ unmanic.session.py
 Written by:               Josh.5 <jsunnex@gmail.com>
 Date:                     10 Mar 2021, (5:20 PM)
 
+Modified 2026 by Ryan Gregg as part of Trawlarr.
+
 Copyright:
        Copyright (C) Josh Sunnex - All Rights Reserved
 
