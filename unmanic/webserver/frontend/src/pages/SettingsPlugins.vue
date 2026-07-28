@@ -19,7 +19,7 @@
         v-bind:prevLabel="$t('navigation.workers')"
         v-bind:prevPath="'/ui/settings-workers'"
         v-bind:nextEnabled="false"
-        v-bind:nextLabel="'none'"
+        v-bind:nextLabel="''"
         v-bind:nextPath="'/ui/settings-plugins'"/>
 
     </div>

@@ -430,6 +430,12 @@ class Foreman(threading.Thread):
         self.worker_threads[worker_id].redundant_flag.set()
 
     def hand_task_to_workers(self, item, worker_id=None):
+        """
+        Assign a task to the given local worker thread.
+
+        Returns nothing. If the worker is not available to collect the task, the task is
+        simply left pending and will be picked up again on the next pass of the run loop.
+        """
         # Assign the task to the worker id provided
         if worker_id in self.worker_threads and self.worker_threads[worker_id].is_alive():
             self.worker_threads[worker_id].set_task(item)
@@ -445,7 +451,6 @@ class Foreman(threading.Thread):
                 plugin_handler = PluginsHandler()
                 plugin_handler.run_event_plugins_for_plugin_type('events.task_scheduled', event_data)
         # If the worker thread specified was not available to collect this task, it will be fetched again in the next loop
-        return True
 
     def run(self):
         self.logger.info('Starting Foreman Monitor loop')
@@ -574,13 +579,7 @@ class Foreman(threading.Thread):
                             continue
 
                         self.logger.info('Processing item - %s', str(source_abspath))
-                        success = self.hand_task_to_workers(next_item_to_process,
-                                                            worker_id=available_worker_id)
-                        if not success:
-                            self.logger.warning("Re-queueing tasks. Unable to find worker capable of processing task '%s'",
-                                                next_item_to_process.get_source_abspath())
-                            # Re-queue item at the bottom
-                            self.task_queue.requeue_tasks_at_bottom(next_item_to_process.get_task_id())
+                        self.hand_task_to_workers(next_item_to_process, worker_id=available_worker_id)
             except Exception as e:
                 raise Exception(e)
 
