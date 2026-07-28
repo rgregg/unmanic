@@ -45,6 +45,7 @@ from trawlarr import config
 from trawlarr.libs import common
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
+from trawlarr.libs import plugin_settings
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.task import TaskDataStore
 
@@ -947,6 +948,51 @@ class Worker(threading.Thread):
         # Set the finish time in the statistics data
         self.current_task.task.finish_time = self.finish_time
 
+    def __refuse_task_on_unconfigured_plugins(self, plugin_modules, library_id, library_name):
+        """
+        Return True when the task may proceed, False when it must be refused.
+
+        Fails OPEN. If the check itself cannot run, the task proceeds exactly
+        as it does today: a bug in a diagnostic must not be able to stop a
+        library being processed. The cost of that choice is that a broken
+        check is silent, which is why the same check also runs at startup
+        through a completely different code path.
+
+        :param plugin_modules: the worker.process modules about to be run
+        :param library_id:
+        :param library_name:
+        :return: bool
+        """
+        try:
+            misconfigured = plugin_settings.check_plugins_before_run(
+                [pm.get("plugin_id") for pm in plugin_modules], library_id=library_id)
+        except Exception:
+            self.logger.exception("Required plugin settings check failed to run; continuing with the task")
+            return True
+
+        if not misconfigured:
+            return True
+
+        try:
+            message = plugin_settings.describe_misconfigured_plugins(
+                misconfigured, library_id=library_id, library_name=library_name)
+            self.logger.error("%s", message)
+            for item in misconfigured:
+                runner_info = self.worker_runners_info.get(item.get("plugin_id"))
+                if runner_info is not None:
+                    runner_info["status"] = "configuration_error"
+                    runner_info["success"] = False
+            # record_task_failure writes the banner into the worker log and
+            # stores a structured record against the task, so the reason
+            # survives into the completed task history rather than living only
+            # in a log file nobody reads.
+            self.record_task_failure('configuration', message)
+            self.current_task.save_command_log(self.worker_log)
+            plugin_settings.raise_configuration_notification(message)
+        except Exception:
+            self.logger.exception("Failed to report the unconfigured plugins that refused this task")
+        return False
+
     def __exec_worker_runners_on_set_task(self):
         """
         Executes the configured plugin runners against the set task.
@@ -975,6 +1021,21 @@ class Worker(threading.Thread):
 
         # Set the absolute path to the original file
         original_abspath = self.current_task.get_source_abspath()
+
+        # PRE-FLIGHT: refuse the task if any plugin about to run is missing a
+        # setting its author declared required (issue #40).
+        #
+        # This sits here, and not inside the runner loop, on purpose. A plugin
+        # with an empty required setting typically returns `data` untouched, so
+        # the worker completes, the postprocessor moves a byte-identical file
+        # back and the task goes green - a misconfiguration that presents as a
+        # successful pipeline. Refusing later, once a runner has produced a
+        # cache file, would swap a silent no-op for a half-processed file. At
+        # this point nothing has been written: no cache file exists, no event
+        # runner has fired and the source file has not been touched. The task
+        # fails with a reason attached instead of succeeding without one.
+        if not self.__refuse_task_on_unconfigured_plugins(plugin_modules, library_id, library_name):
+            return False
 
         # Process item in loop.
         # First process the item for each plugin that configures it, then run the default Unmanic configuration
