@@ -40,7 +40,7 @@ import threading
 import psutil
 
 from trawlarr import config, metadata
-from trawlarr.libs import libraryscanner, common, envvars, eventmonitor, runtimepaths
+from trawlarr.libs import libraryscanner, common, envvars, eventmonitor, plugin_registration, runtimepaths
 from trawlarr.libs.db_migrate import Migrations
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
@@ -222,6 +222,12 @@ class RootService:
         # Clear cache directory
         self.logger.info("Clearing previous cache")
         common.clean_files_in_cache_dir(settings.get_cache_path())
+
+        # Check that the three plugin tables agree with each other before any
+        # worker exists to run a plugin. A plugin registered inconsistently
+        # never fires and says nothing about it (see issue #38). This only
+        # reports - it repairs nothing - and it never raises.
+        plugin_registration.report_plugin_registration()
 
         self.logger.info("Starting all threads")
 
