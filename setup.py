@@ -46,9 +46,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 import versioninfo
 
 project_root_dir = os.path.dirname(os.path.realpath(__file__))
-src_dir = 'unmanic'
-# Fork addition: the `trawlarr` namespace alias shim (see unmanic/namespace_shim.py)
-alias_dir = 'trawlarr'
+src_dir = 'trawlarr'
+# Fork addition: the legacy `unmanic` namespace alias shim
+# (see trawlarr/namespace_shim.py)
+alias_dir = 'unmanic'
 
 module_name = versioninfo.name()
 module_version = versioninfo.version()
@@ -204,15 +205,25 @@ setup(
     extras_require={
         'dev': requirements_dev()
     },
-    # Fork addition: `alias_dir` is the `trawlarr` namespace shim (issue #49
-    # step 1) -- a few lines that redirect into `src_dir`. It has to ship in
-    # the wheel or the alias only exists in a source checkout. The rest of the
-    # packaging metadata still says `unmanic`; renaming it is a later step.
+    # Fork addition: `alias_dir` is the legacy `unmanic` namespace shim
+    # (issue #49 step 2) -- a few lines that redirect into `src_dir`. It has
+    # to ship in the wheel or the alias only exists in a source checkout,
+    # and every installed community plugin imports through it. The
+    # distribution metadata still says `unmanic`; renaming it is step 4.
     packages=find_namespace_packages(include=[f"{src_dir}*", f"{alias_dir}*"]),
     include_package_data=True,
     entry_points={
         'console_scripts': [
-            '%s=%s.service:main' % (module_name, module_name)
+            # Canonical console script, named for the real package.
+            '%s=%s.service:main' % (src_dir, src_dir),
+            # Legacy name, kept for the same reason the namespace alias is:
+            # the container CMD, docker/root/usr/bin/unmanic and every
+            # existing install invoke `unmanic`. `module_name` is still
+            # "unmanic" (trawlarr/metadata.py) because it also names the
+            # distribution, which #49 renames in step 4 -- so this entry is
+            # written against `alias_dir` and does not silently disappear
+            # when that constant changes.
+            '%s=%s.service:main' % (alias_dir, src_dir),
         ]
     },
     cmdclass=cmd_class,

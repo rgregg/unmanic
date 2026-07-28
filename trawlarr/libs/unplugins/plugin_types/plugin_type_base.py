@@ -33,7 +33,7 @@ import inspect
 import json
 from copy import deepcopy
 
-from trawlarr.libs.metadata import UnmanicFileMetadata
+from trawlarr.libs.metadata import TrawlarrFileMetadata
 from trawlarr.libs.task import TaskDataStore
 from trawlarr.libs.unmodels.tasks import Tasks
 
@@ -251,7 +251,7 @@ class PluginType(object):
                 )
 
             metadata_path = test_data_copy.get("path") or test_data_copy.get("file_path")
-            UnmanicFileMetadata.bind_runner_context(
+            TrawlarrFileMetadata.bind_runner_context(
                 plugin_id=plugin_id,
                 task_id=task_id,
                 path=metadata_path,
@@ -271,7 +271,7 @@ class PluginType(object):
             if supports_kwarg("task_data_store"):
                 kwargs["task_data_store"] = TaskDataStore
             if supports_kwarg("file_metadata"):
-                kwargs["file_metadata"] = UnmanicFileMetadata
+                kwargs["file_metadata"] = TrawlarrFileMetadata
 
             if kwargs:
                 plugin_runner_function(test_data_copy, **kwargs)
@@ -284,7 +284,7 @@ class PluginType(object):
                     plugin_runner,
                 )
                 if len(params) >= 3:
-                    plugin_runner_function(test_data_copy, TaskDataStore, UnmanicFileMetadata)
+                    plugin_runner_function(test_data_copy, TaskDataStore, TrawlarrFileMetadata)
                 elif len(params) >= 2:
                     plugin_runner_function(test_data_copy, TaskDataStore)
                 else:

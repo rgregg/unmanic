@@ -34,7 +34,7 @@ import json
 import tornado.log
 
 from trawlarr.libs.plugins import PluginsHandler
-from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.libs.unplugins import PluginExecutor
 from trawlarr.webserver.api_v1.base_api_handler import BaseApiHandler
 from trawlarr.webserver.helpers import plugins as plugin_helpers
@@ -76,7 +76,7 @@ class ApiPluginsHandler(BaseApiHandler):
     def initialize(self, **kwargs):
         self.name = 'plugins_api'
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
 
     def set_default_headers(self):

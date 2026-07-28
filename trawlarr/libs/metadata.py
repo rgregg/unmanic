@@ -39,12 +39,12 @@ from copy import deepcopy
 from datetime import datetime
 
 from trawlarr.libs import common
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.unmodels import FileMetadata, FileMetadataPaths, TaskMetadata, Tasks
 from peewee import fn
 
 
-class UnmanicFileMetadata:
+class TrawlarrFileMetadata:
     """
     Thread-safe metadata access for plugins.
     """
@@ -56,7 +56,7 @@ class UnmanicFileMetadata:
 
     _lock = threading.RLock()
     _ctx = threading.local()
-    _logger = UnmanicLogging.get_logger(name="UnmanicFileMetadata")
+    _logger = TrawlarrLogging.get_logger(name="TrawlarrFileMetadata")
     _main_pid = os.getpid()
 
     _task_cache = {}
@@ -66,7 +66,7 @@ class UnmanicFileMetadata:
     @classmethod
     def _ensure_main_process(cls):
         if os.getpid() != cls._main_pid:
-            raise RuntimeError("UnmanicFileMetadata is only available in the main process")
+            raise RuntimeError("TrawlarrFileMetadata is only available in the main process")
 
     @classmethod
     def bind_runner_context(cls, plugin_id, task_id=None, path=None):
@@ -522,3 +522,8 @@ class UnmanicFileMetadata:
         row.updated_at = datetime.now()
         row.save()
         return True
+
+
+# Fork addition (issue #49, step 2): the plugin-facing name before the
+# rename. See the note in trawlarr/libs/directoryinfo.py.
+UnmanicFileMetadata = TrawlarrFileMetadata

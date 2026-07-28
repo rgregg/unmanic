@@ -42,9 +42,9 @@ import sys
 from trawlarr import config
 from . import plugin_types
 from trawlarr.libs import common
-from ..logs import UnmanicLogging
+from ..logs import TrawlarrLogging
 from ..task import TaskDataStore
-from trawlarr.libs.metadata import UnmanicFileMetadata
+from trawlarr.libs.metadata import TrawlarrFileMetadata
 
 
 class PluginExecutor(object):
@@ -115,7 +115,7 @@ class PluginExecutor(object):
                 'has_flow': False,
             },
         ]
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.settings = config.Config()
 
     def __get_plugin_directory(self, plugin_id):
@@ -303,7 +303,7 @@ class PluginExecutor(object):
                 )
 
             metadata_path = data.get("path") or data.get("file_path")
-            UnmanicFileMetadata.bind_runner_context(
+            TrawlarrFileMetadata.bind_runner_context(
                 plugin_id=plugin_id,
                 task_id=task_id,
                 path=metadata_path,
@@ -336,7 +336,7 @@ class PluginExecutor(object):
             if supports_kwarg("task_data_store"):
                 kwargs["task_data_store"] = TaskDataStore
             if supports_kwarg("file_metadata"):
-                kwargs["file_metadata"] = UnmanicFileMetadata
+                kwargs["file_metadata"] = TrawlarrFileMetadata
 
             if kwargs and not has_required_positional_after_data():
                 runner(data, **kwargs)
@@ -350,7 +350,7 @@ class PluginExecutor(object):
                         plugin_runner,
                     )
                 if len(params) >= 3:
-                    runner(data, TaskDataStore, UnmanicFileMetadata)
+                    runner(data, TaskDataStore, TrawlarrFileMetadata)
                 elif len(params) >= 2:
                     runner(data, TaskDataStore)
                 else:
@@ -361,7 +361,7 @@ class PluginExecutor(object):
             self.logger.exception("Exception while carrying out '%s' plugin runner '%s'", plugin_type, plugin_id)
         finally:
             TaskDataStore.clear_context()
-            UnmanicFileMetadata.clear_context()
+            TrawlarrFileMetadata.clear_context()
 
         return run_successfully
 

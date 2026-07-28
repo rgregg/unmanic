@@ -32,7 +32,7 @@
 
 from trawlarr.libs import task
 from trawlarr.libs import common
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.unmodels import Libraries, LibraryTags, Tags
 from trawlarr.libs.unmodels.tasks import Tasks
 
@@ -167,7 +167,7 @@ class TaskQueue(object):
     def __init__(self, data_queues):
         self.name = 'TaskQueue'
         self.data_queues = data_queues
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
         # Sort fields
         self.sort_by = Tasks.priority

@@ -48,7 +48,7 @@ from trawlarr import config
 from trawlarr.libs import common
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.session import Session
 from trawlarr.libs.singleton import SingletonType
 from trawlarr.libs.unmodels import EnabledPlugins, LibraryPluginFlow, Plugins, PluginRepos
@@ -64,7 +64,7 @@ class PluginsHandler(object, metaclass=SingletonType):
 
     def __init__(self, *args, **kwargs):
         self.settings = config.Config()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
     def _log(self, message, message2='', level="info"):
         message = common.format_message(message, message2)

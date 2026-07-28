@@ -24,7 +24,7 @@ cd "${project_root}"
 # Files that predate the policy and are upstream's, but carry no header of
 # any kind. Grandfathered deliberately — do not add fork-authored files here.
 GRANDFATHERED=(
-    "unmanic/migrations_v1/001_rename_ffmpeg_log_to_log.py"
+    "trawlarr/migrations_v1/001_rename_ffmpeg_log_to_log.py"
 )
 
 is_grandfathered() {
@@ -44,7 +44,7 @@ while read -r file; do
     grep -q 'SPDX-License-Identifier' "${file}" && continue
     grep -q 'Copyright (C) Josh Sunnex' "${file}" && continue
     missing+=("${file}")
-done < <(git ls-files '*.py' | grep -v '^unmanic/webserver/frontend/')
+done < <(git ls-files '*.py' | grep -v '^trawlarr/webserver/frontend/')
 
 if [ ${#missing[@]} -gt 0 ]; then
     echo "The following Python files carry no license header:"
@@ -65,4 +65,4 @@ if [ ${#missing[@]} -gt 0 ]; then
     exit 1
 fi
 
-echo "License headers OK ($(git ls-files '*.py' | grep -cv '^unmanic/webserver/frontend/') Python files checked)"
+echo "License headers OK ($(git ls-files '*.py' | grep -cv '^trawlarr/webserver/frontend/') Python files checked)"

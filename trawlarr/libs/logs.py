@@ -775,7 +775,7 @@ class ForwardLogHandler(logging.Handler):
         super().close()
 
 
-class UnmanicLogging:
+class TrawlarrLogging:
     METRIC = 9
     DATA = 8
     _instance = None
@@ -789,7 +789,7 @@ class UnmanicLogging:
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
-                cls._instance = super(UnmanicLogging, cls).__new__(cls)
+                cls._instance = super(TrawlarrLogging, cls).__new__(cls)
                 cls._instance._logger = logging.getLogger("Unmanic")
                 logging.addLevelName(cls._instance.METRIC, "METRIC")
                 logging.addLevelName(cls._instance.DATA, "DATA")
@@ -802,7 +802,7 @@ class UnmanicLogging:
         """
         Get a child logger. Configure the root logger if 'settings' are provided.
         """
-        logger_instance = UnmanicLogging()
+        logger_instance = TrawlarrLogging()
         if settings and not logger_instance._configured:
             logger_instance.configure(settings)
 
@@ -820,7 +820,7 @@ class UnmanicLogging:
             if self._configured:
                 return
             # Get logger for this class
-            init_logger = logging.getLogger(f"Unmanic.UnmanicLogging")
+            init_logger = logging.getLogger(f"Unmanic.TrawlarrLogging")
 
             # Default formatter
             formatter = logging.Formatter(
@@ -873,7 +873,7 @@ class UnmanicLogging:
         Custom log method for the METRIC level.
         Logs directly to the remote_handler, if enabled.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         if not timestamp:
             timestamp = datetime.now()
         log_record = {
@@ -894,7 +894,7 @@ class UnmanicLogging:
         Custom log method for the DATA level.
         Logs directly to the remote_handler, if enabled.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         if not timestamp:
             timestamp = datetime.now()
         log_record = {
@@ -912,7 +912,7 @@ class UnmanicLogging:
         """
         Enable debugging globally across all threads.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         instance._logger.setLevel(logging.DEBUG)
         instance._logger.info("Log level set to DEBUG")
 
@@ -921,7 +921,7 @@ class UnmanicLogging:
         """
         Disable debugging globally across all threads.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         instance._logger.setLevel(logging.INFO)
         instance._logger.info("Log level set to INFO")
 
@@ -932,7 +932,7 @@ class UnmanicLogging:
 
         :param debugging: If True, sets stream handler to DEBUG level; otherwise INFO level.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
 
         # Remove file handler if it exists
         if instance.file_handler:
@@ -952,7 +952,7 @@ class UnmanicLogging:
 
         :param formatter: A logging.Formatter instance.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         if instance.stream_handler:
             instance.stream_handler.setFormatter(formatter)
             instance._logger.info("Stream handler formatter updated.")
@@ -961,7 +961,7 @@ class UnmanicLogging:
 
     @staticmethod
     def enable_remote_logging(endpoint, app_id, log_buffer_retention):
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         instance.remote_handler.configure_retention(log_buffer_retention)
         instance.remote_handler.configure_endpoint(endpoint, app_id)
 
@@ -969,7 +969,7 @@ class UnmanicLogging:
 
     @staticmethod
     def disable_remote_logging(log_buffer_retention):
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         instance.remote_handler.configure_retention(log_buffer_retention)
         instance.remote_handler.configure_endpoint(None, None)
         instance._logger.info("Remote logging disabled.")
@@ -979,6 +979,13 @@ class UnmanicLogging:
         """
         Enable debugging globally across all threads.
         """
-        instance = UnmanicLogging()
+        instance = TrawlarrLogging()
         instance.remote_handler.configure_retention(log_buffer_retention)
         instance._logger.info("Remote logging buffer retention set to %s days.", log_buffer_retention)
+
+
+# Fork addition (issue #49, step 2): the plugin-facing name before the
+# rename. See the note in trawlarr/libs/directoryinfo.py -- the alias has
+# to live on the module a plugin imports from, and `unmanic.libs.logs` is
+# this very module object.
+UnmanicLogging = TrawlarrLogging

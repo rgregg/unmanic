@@ -41,7 +41,7 @@ from urllib.parse import urlparse
 import requests
 
 from trawlarr import config
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 from trawlarr.libs.unmodels import Installation
 
@@ -144,7 +144,7 @@ class Session(object, metaclass=SingletonType):
     plugin_repo_refresh_retry_thread = None
 
     def __init__(self, *args, **kwargs):
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.timeout = 30
         self.dev_api = kwargs.get("dev_api", None)
         self.requests_session = requests.Session()
@@ -351,9 +351,9 @@ class Session(object, metaclass=SingletonType):
         if session_valid:
             endpoint = os.environ.get("UNMANIC_REMOTE_LOGGING_ENDPOINT", "")
             if endpoint and endpoint.startswith("http"):
-                UnmanicLogging.enable_remote_logging(endpoint, self.uuid, log_buffer_retention)
+                TrawlarrLogging.enable_remote_logging(endpoint, self.uuid, log_buffer_retention)
                 return
-        UnmanicLogging.disable_remote_logging(log_buffer_retention)
+        TrawlarrLogging.disable_remote_logging(log_buffer_retention)
 
     def __reset_session_installation_data(self):
         """

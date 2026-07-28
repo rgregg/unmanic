@@ -38,7 +38,7 @@ import tornado.log
 import tornado.routing
 
 from trawlarr import config
-from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.webserver.api_v1.base_api_handler import BaseApiHandler
 
 from trawlarr.libs import task, common
@@ -74,7 +74,7 @@ class ApiPendingHandler(BaseApiHandler):
         self.config = config.Config()
 
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
 
     def set_default_headers(self):

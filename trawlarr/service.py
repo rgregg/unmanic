@@ -41,7 +41,7 @@ import psutil
 from trawlarr import config, metadata
 from trawlarr.libs import libraryscanner, common, eventmonitor
 from trawlarr.libs.db_migrate import Migrations
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
 from trawlarr.libs.taskqueue import TaskQueue
 from trawlarr.libs.postprocessor import PostProcessor
@@ -89,8 +89,8 @@ class RootService:
         self.developer = None
         self.dev_api = None
 
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
-        UnmanicLogging.metric("root_service_started")
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
+        TrawlarrLogging.metric("root_service_started")
 
         self.event = threading.Event()
 
@@ -182,7 +182,7 @@ class RootService:
                     # Calculate uptime in seconds
                     uptime = int(time.time() - start_time)
 
-                    UnmanicLogging.metric(
+                    TrawlarrLogging.metric(
                         "root_service_resources",
                         pid=pid,
                         uptime=uptime,

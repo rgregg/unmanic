@@ -47,7 +47,7 @@ from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.task import TaskDataStore
 from trawlarr.libs.unplugins import PluginExecutor
 from trawlarr.libs.unplugins.child_process import kill_all_plugin_processes, set_shared_manager
-from ..logs import UnmanicLogging
+from ..logs import TrawlarrLogging
 
 home_directory = common.get_home_dir()
 dev_cache_directory = os.path.join(home_directory, '.unmanic', 'dev', 'cache')
@@ -137,15 +137,15 @@ class PluginsCLI(object):
             plugins_directory = os.path.join(home_directory, '.unmanic', 'plugins')
         self.plugins_directory = plugins_directory
         # Only log to stdout
-        UnmanicLogging.update_stream_formatter(
+        TrawlarrLogging.update_stream_formatter(
             logging.Formatter(
                 '        - {}%(asctime)s:%(levelname)s:%(name)s - %(message)s{}'.format(BColours.RESULTS, BColours.ENDC),
                 datefmt='%Y-%m-%dT%H:%M:%S'
             )
         )
-        UnmanicLogging.disable_file_handler(debugging=True)
-        UnmanicLogging.enable_debugging()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        TrawlarrLogging.disable_file_handler(debugging=True)
+        TrawlarrLogging.enable_debugging()
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
         # Ensure PluginChildProcess has a shared manager during CLI tests.
         self._mgr = Manager()
@@ -290,7 +290,7 @@ class PluginsCLI(object):
             "",
             "import logging",
             "",
-            "from unmanic.libs.unplugins.settings import PluginSettings",
+            "from trawlarr.libs.unplugins.settings import PluginSettings",
             "",
             "# Configure plugin logger",
             "logger = logging.getLogger(\"Unmanic.Plugin.{}\")".format(plugin_details.get('plugin_id')),

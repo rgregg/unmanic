@@ -33,11 +33,11 @@
 """
 import hashlib
 
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.unplugins import PluginExecutor
 
-logger = UnmanicLogging.get_logger(name="webserver.helpers.plugins")
+logger = TrawlarrLogging.get_logger(name="webserver.helpers.plugins")
 
 
 def prepare_filtered_plugins(params):

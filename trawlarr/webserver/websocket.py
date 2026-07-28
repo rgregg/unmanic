@@ -42,7 +42,7 @@ from tornado import gen
 from trawlarr import config
 from trawlarr.libs import common, session
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
-from trawlarr.libs.uiserver import UnmanicDataQueues, UnmanicRunningTreads
+from trawlarr.libs.uiserver import TrawlarrDataQueues, TrawlarrRunningTreads
 from trawlarr.webserver.helpers import completed_tasks, pending_tasks
 
 
@@ -60,8 +60,8 @@ class UnmanicWebsocketHandler(tornado.websocket.WebSocketHandler):
         self.name = 'UnmanicWebsocketHandler'
         self.config = config.Config()
         self.server_id = str(uuid.uuid4())
-        udq = UnmanicDataQueues()
-        urt = UnmanicRunningTreads()
+        udq = TrawlarrDataQueues()
+        urt = TrawlarrRunningTreads()
         self.data_queues = udq.get_unmanic_data_queues()
         self.foreman = urt.get_unmanic_running_thread('foreman')
         self.session = session.Session()

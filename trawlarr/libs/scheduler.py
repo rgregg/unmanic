@@ -37,7 +37,7 @@ from datetime import datetime, timedelta
 import schedule
 
 from trawlarr import config
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.session import Session
 
@@ -49,7 +49,7 @@ class ScheduledTasksManager(threading.Thread):
 
     def __init__(self, event):
         super(ScheduledTasksManager, self).__init__(name='ScheduledTasksManager')
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.event = event
         self.abort_flag = threading.Event()
         self.abort_flag.clear()

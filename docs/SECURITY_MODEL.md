@@ -16,7 +16,7 @@ maintainer if the details shouldn't be public.
 
 ## What the application does today
 
-The web server (`unmanic/libs/uiserver.py`) is a Tornado application
+The web server (`trawlarr/libs/uiserver.py`) is a Tornado application
 with three route groups: the frontend, the v1/v2 REST API under
 `/unmanic/api/`, and the plugin panel/API routes. **None of them are
 wrapped in an authentication or authorization layer.** There is no
@@ -35,7 +35,7 @@ Consequences worth stating explicitly:
 - **The API surface is the whole application.** Swagger UI is served
   at `/unmanic/swagger` and documents every endpoint.
 - **The default bind address is every interface.** `ui_address`
-  defaults to `''` and `ui_port` to `8888` (`unmanic/config.py`), so
+  defaults to `''` and `ui_port` to `8888` (`trawlarr/config.py`), so
   an unconfigured install listens on `0.0.0.0:8888`. Publishing that
   port from Docker exposes it to whatever your host and network let
   through.
@@ -65,7 +65,7 @@ Trawlarr removed upstream Unmanic's central account integration: no
 registration with `api.unmanic.app`, no supporter-tier login, no
 telemetry, no phone-home. `Session.sign_out()` wipes a local DB row,
 `init_device_auth_flow()` is a no-op, and the Patreon/GitHub login
-URLs return empty strings (`unmanic/libs/session.py`).
+URLs return empty strings (`trawlarr/libs/session.py`).
 
 **That was never access control, and removing it did not weaken
 any.** Upstream's account existed to establish a supporter *level*
@@ -79,7 +79,7 @@ also unauthenticated on the local port. So:
 - The security posture of a Trawlarr install and an upstream Unmanic
   install is the same on this axis. What changed is that Trawlarr no
   longer makes outbound calls to a central service; see the
-  [privacy policy](../unmanic/webserver/docs/privacy_policy.md).
+  [privacy policy](../trawlarr/webserver/docs/privacy_policy.md).
 
 Do not read "the account system is gone" as "the account system was
 removed from in front of the UI". There was nothing in front of the

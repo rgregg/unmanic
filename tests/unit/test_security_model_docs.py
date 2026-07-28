@@ -53,7 +53,7 @@ class TestDocumentedAuthBehaviour:
         # There is no login handler and no `@authenticated` route anywhere
         # in the request path. Grep the server module rather than the whole
         # tree: this is a tripwire, not a proof.
-        source = _read('unmanic', 'libs', 'uiserver.py')
+        source = _read('trawlarr', 'libs', 'uiserver.py')
 
         assert 'authenticated' not in source
         assert 'get_current_user' not in source
@@ -61,7 +61,7 @@ class TestDocumentedAuthBehaviour:
     def test_api_handlers_set_no_authentication_headers(self):
         # The only per-request header handling in the v2 API base handler
         # is the JSON content type. No auth challenge, no session cookie.
-        source = _read('unmanic', 'webserver', 'api_v2', 'base_api_handler.py')
+        source = _read('trawlarr', 'webserver', 'api_v2', 'base_api_handler.py')
 
         assert 'WWW-Authenticate' not in source
         assert 'set_secure_cookie' not in source
@@ -122,6 +122,6 @@ class TestDocumentationIsDiscoverable:
 
         for relpath in ('docker/docker-compose-caddy.yml',
                         'docker/Caddyfile.example',
-                        'unmanic/webserver/docs/privacy_policy.md'):
+                        'trawlarr/webserver/docs/privacy_policy.md'):
             assert '../{}'.format(relpath) in doc
             assert os.path.isfile(os.path.join(PROJECT_ROOT, *relpath.split('/')))

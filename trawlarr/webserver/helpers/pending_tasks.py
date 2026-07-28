@@ -32,10 +32,10 @@
 from trawlarr.libs import task
 from trawlarr.libs import filetest
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 
 
-logger = UnmanicLogging.get_logger(name=__name__)
+logger = TrawlarrLogging.get_logger(name=__name__)
 
 
 def prepare_filtered_pending_tasks_for_table(request_dict):

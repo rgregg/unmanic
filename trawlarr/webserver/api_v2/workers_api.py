@@ -31,7 +31,7 @@
 """
 
 import tornado.log
-from trawlarr.libs.uiserver import UnmanicDataQueues, UnmanicRunningTreads
+from trawlarr.libs.uiserver import TrawlarrDataQueues, TrawlarrRunningTreads
 from trawlarr.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
 from trawlarr.webserver.api_v2.schema.schemas import RequestWorkerByIdSchema, WorkerStatusSuccessSchema
 from trawlarr.webserver.helpers import workers
@@ -82,8 +82,8 @@ class ApiWorkersHandler(BaseApiHandler):
 
     def initialize(self, **kwargs):
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
-        urt = UnmanicRunningTreads()
+        udq = TrawlarrDataQueues()
+        urt = TrawlarrRunningTreads()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
         self.foreman = urt.get_unmanic_running_thread('foreman')
 

@@ -43,7 +43,7 @@ import psutil
 
 from trawlarr.libs import common
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 
 
@@ -56,7 +56,7 @@ class WorkerCommandError(Exception):
 class WorkerSubprocessMonitor(threading.Thread):
     def __init__(self, parent_worker):
         super().__init__(daemon=True)
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self._stop_event = threading.Event()
         self._terminate_lock = threading.Lock()
 
@@ -500,7 +500,7 @@ class Worker(threading.Thread):
         self.paused_flag.clear()
 
         # Create logger for this worker
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
     def run(self):
         self.logger.info("Starting worker")
@@ -920,7 +920,7 @@ class Worker(threading.Thread):
                 exec_command = data.get("exec_command")
                 if isinstance(exec_command, list):
                     exec_command = shlex.join(exec_command)
-                UnmanicLogging.metric(
+                TrawlarrLogging.metric(
                     "worker_runner_completed",
                     worker_name=self.name,
                     worker_group_id=self.worker_group_id,

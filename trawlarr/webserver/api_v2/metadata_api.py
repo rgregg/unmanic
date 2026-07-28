@@ -33,7 +33,7 @@
 import tornado.log
 from datetime import datetime
 
-from trawlarr.libs.metadata import UnmanicFileMetadata
+from trawlarr.libs.metadata import TrawlarrFileMetadata
 from trawlarr.libs.unmodels import CompletedTasks, FileMetadata, FileMetadataPaths
 from peewee import fn
 from trawlarr.webserver.api_v2.base_api_handler import BaseApiError, BaseApiHandler
@@ -135,7 +135,7 @@ class ApiMetadataHandler(BaseApiHandler):
                     results.append({
                         'fingerprint': row.fingerprint,
                         'fingerprint_algo': row.fingerprint_algo,
-                        'metadata_json': UnmanicFileMetadata._load_json_dict(row.metadata_json),
+                        'metadata_json': TrawlarrFileMetadata._load_json_dict(row.metadata_json),
                         'last_task_id': row.last_task_id,
                         'paths': path_map.get(row.id, []),
                     })
@@ -207,7 +207,7 @@ class ApiMetadataHandler(BaseApiHandler):
                 results.append({
                     'fingerprint': row.fingerprint,
                     'fingerprint_algo': row.fingerprint_algo,
-                    'metadata_json': UnmanicFileMetadata._load_json_dict(row.metadata_json),
+                    'metadata_json': TrawlarrFileMetadata._load_json_dict(row.metadata_json),
                     'last_task_id': row.last_task_id,
                     'paths': path_map.get(row.id, []),
                 })
@@ -234,7 +234,7 @@ class ApiMetadataHandler(BaseApiHandler):
                 return
 
             try:
-                UnmanicFileMetadata._enforce_plugin_size_limit(json_blob)
+                TrawlarrFileMetadata._enforce_plugin_size_limit(json_blob)
             except ValueError as error:
                 self.set_status(self.STATUS_ERROR_EXTERNAL, reason=str(error))
                 self.write_error()
@@ -246,9 +246,9 @@ class ApiMetadataHandler(BaseApiHandler):
                 self.write_error()
                 return
 
-            data = UnmanicFileMetadata._load_json_dict(row.metadata_json)
+            data = TrawlarrFileMetadata._load_json_dict(row.metadata_json)
             data[plugin_id] = json_blob
-            row.metadata_json = UnmanicFileMetadata._dump_json_dict(data)
+            row.metadata_json = TrawlarrFileMetadata._dump_json_dict(data)
             row.updated_at = datetime.now()
             row.save()
 
@@ -267,7 +267,7 @@ class ApiMetadataHandler(BaseApiHandler):
             fingerprint = json_request.get('fingerprint')
             plugin_id = json_request.get('plugin_id')
 
-            result = UnmanicFileMetadata.delete_for_plugin(fingerprint, plugin_id=plugin_id)
+            result = TrawlarrFileMetadata.delete_for_plugin(fingerprint, plugin_id=plugin_id)
             if not result:
                 self.set_status(self.STATUS_ERROR_EXTERNAL, reason="Fingerprint not found")
                 self.write_error()
@@ -304,7 +304,7 @@ class ApiMetadataHandler(BaseApiHandler):
                 results.append({
                     'fingerprint': row.fingerprint,
                     'fingerprint_algo': row.fingerprint_algo,
-                    'metadata_json': UnmanicFileMetadata._load_json_dict(row.metadata_json),
+                    'metadata_json': TrawlarrFileMetadata._load_json_dict(row.metadata_json),
                     'last_task_id': row.last_task_id,
                     'paths': path_map,
                 })

@@ -32,7 +32,7 @@
 import json
 import os
 
-from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.webserver.api_v1.base_api_handler import BaseApiHandler
 
 
@@ -52,7 +52,7 @@ class ApiFilebrowserHandler(BaseApiHandler):
     def initialize(self, **kwargs):
         self.name = 'file_browser_api'
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
 
     def set_default_headers(self):

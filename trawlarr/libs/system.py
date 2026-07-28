@@ -29,7 +29,7 @@
            OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 
 
@@ -40,7 +40,7 @@ class System(object, metaclass=SingletonType):
     python_version = {}
 
     def __init__(self, *args, **kwargs):
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
     def __get_python_info(self):
         """

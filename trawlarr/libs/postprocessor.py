@@ -40,8 +40,8 @@ from trawlarr import config
 from trawlarr.libs import common, history
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
-from trawlarr.libs.metadata import UnmanicFileMetadata
+from trawlarr.libs.logs import TrawlarrLogging
+from trawlarr.libs.metadata import TrawlarrFileMetadata
 from trawlarr.libs.notifications import Notifications
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.task import TaskDataStore
@@ -73,7 +73,7 @@ class PostProcessor(threading.Thread):
 
     def __init__(self, data_queues, task_queue, event):
         super(PostProcessor, self).__init__(name='PostProcessor')
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.event = event
         self.data_queues = data_queues
         self.settings = config.Config()
@@ -569,7 +569,7 @@ class PostProcessor(threading.Thread):
         destination_files = list(self._last_destination_files or [])
         if not destination_files and destination_data:
             destination_files = [destination_data.get('abspath')]
-        committed = UnmanicFileMetadata.commit_task(
+        committed = TrawlarrFileMetadata.commit_task(
             task_id=self.current_task.get_task_id(),
             task_success=task_success,
             source_path=source_data.get('abspath'),
@@ -620,7 +620,7 @@ class PostProcessor(threading.Thread):
             library_id = None
             library_name = None
 
-        UnmanicLogging.data(
+        TrawlarrLogging.data(
             "completed_task",
             data_search_key=f"{library_id} | {finish_time} | {source_data.get('abspath', '')}",
             task_id=self.current_task.get_task_id(),

@@ -41,7 +41,7 @@ upstream-tracking branch; upstream changes get pulled in selectively via
 `git fetch <upstream-url>` + cherry-pick when something specific is
 worth absorbing.
 
-The frontend (`unmanic/webserver/frontend/`) is a regular tree in this
+The frontend (`trawlarr/webserver/frontend/`) is a regular tree in this
 repo — not a submodule. Originally absorbed via `git subtree add --squash`
 from a now-archived intermediate fork.
 
@@ -50,25 +50,25 @@ from a now-archived intermediate fork.
 For day-to-day development this is incidental detail, but useful when
 auditing what we've changed:
 
-- `unmanic/libs/session.py` — every `api.unmanic.app` call is a no-op
+- `trawlarr/libs/session.py` — every `api.unmanic.app` call is a no-op
   stub. `register_unmanic` pins level to `LOCAL_SESSION_LEVEL` (default 7,
   override via `UNMANIC_LOCAL_SESSION_LEVEL`). `get_site_url` returns
   `https://unmanic-app.disabled.invalid` so a leaked call fails loudly
   at DNS instead of silently hitting the upstream API.
-- `unmanic/libs/plugins.py` — `fetch_remote_repo_data` reads catalogs
+- `trawlarr/libs/plugins.py` — `fetch_remote_repo_data` reads catalogs
   directly from the URL (skipping the upstream proxy);
   `notify_site_of_plugin_install` is a no-op.
-- `unmanic/libs/scheduler.py` — 60-min `register_unmanic` heartbeat
+- `trawlarr/libs/scheduler.py` — 60-min `register_unmanic` heartbeat
   removed; `manage_completed_tasks` dict-vs-model bug fixed (was killing
   the ScheduledTasksManager thread at startup).
-- `unmanic/libs/library.py`, `unmanic/libs/unplugins/executor.py`,
-  `unmanic/webserver/helpers/plugins.py`
+- `trawlarr/libs/library.py`, `trawlarr/libs/unplugins/executor.py`,
+  `trawlarr/webserver/helpers/plugins.py`
   — every supporter-level gate (`s.level <= 1`, `s.level > 1`, `req_lev`)
   removed or returned True.
-- `unmanic/libs/workers.py` — plugin string `exec_command` no longer runs
+- `trawlarr/libs/workers.py` — plugin string `exec_command` no longer runs
   through a shell. Strings are normalised via `_coerce_exec_command_to_argv`
   before reaching `subprocess.Popen`.
-- `unmanic/libs/postprocessor.py` — source files are no longer removed
+- `trawlarr/libs/postprocessor.py` — source files are no longer removed
   before the cache copy succeeds (was a data-loss path).
 - **Link (distributed processing) removed.** `installation_link.py`,
   `webserver/proxy.py`, the `/settings/link/*` and `/upload/pending/file`
@@ -76,7 +76,7 @@ auditing what we've changed:
   Settings > Link page are all gone. Peer discovery came from
   `api.unmanic.app`, which this fork does not talk to, so linking was
   manual-config-only and carried unfixed defects. See issue #52.
-- `unmanic/webserver/api_v2/plugins_api.py` — the community-forks endpoint
+- `trawlarr/webserver/api_v2/plugins_api.py` — the community-forks endpoint
   short-circuits to an empty list.
 - **Central account/auth/funding endpoints retired (HTTP 410).** There is no
   central account service, no remote authentication and no funding portal, so
@@ -90,7 +90,7 @@ auditing what we've changed:
   `unmanic-github-login-url`, `unmanic-discord-login-url`,
   `unmanic-patreon-page`). `GET /session/state` and `POST /session/reload`
   describe the local installation and are unaffected. See issue #21.
-- `unmanic/webserver/frontend/` — footer bar, sign-in/sign-out UI,
+- `trawlarr/webserver/frontend/` — footer bar, sign-in/sign-out UI,
   Unmanic Central nav entry, avatar/name/support button, and funding
   portal click handlers all stripped.
 - Security fixes: zip-slip validation before plugin extract, no `shell=True`
@@ -301,6 +301,6 @@ Tracked in [the issue tracker](https://github.com/rgregg/trawlarr/issues):
 
 The `/library` bind needs full RW. The configured operating model writes
 back to source paths in place via `shutil.move` and `os.remove` in
-`unmanic/libs/postprocessor.py` and `unmanic/libs/workers.py`. A
+`trawlarr/libs/postprocessor.py` and `trawlarr/libs/workers.py`. A
 different operating model (write to a separate output dir, manual
 deletion) could narrow it but isn't worth the workflow change.

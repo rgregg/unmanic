@@ -33,7 +33,7 @@ import os
 
 import tornado.log
 from trawlarr.libs import session
-from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
 from trawlarr.webserver.api_v2.schema.schemas import DocumentContentSuccessSchema
 from trawlarr.webserver.helpers import documents
@@ -61,7 +61,7 @@ class ApiDocsHandler(BaseApiHandler):
     def initialize(self, **kwargs):
         self.session = session.Session()
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
 
     async def get_privacy_policy(self):

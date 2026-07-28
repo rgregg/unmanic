@@ -11,13 +11,13 @@
     test_api_contract_drift.py
 
     The v2 OpenAPI contract is generated from the handler docstrings and
-    checked in under unmanic/webserver/docs/. It is also served to the browser
+    checked in under trawlarr/webserver/docs/. It is also served to the browser
     from those files, so a stale copy is a lie told to every API consumer.
 
     These tests fail when the checked-in JSON/YAML no longer matches what the
     handlers describe. Regenerate with:
 
-        python -c "from unmanic.webserver.api_v2.schema.swagger import \\
+        python -c "from trawlarr.webserver.api_v2.schema.swagger import \\
             generate_swagger_file; generate_swagger_file()"
 
     The retired-endpoint assertions are the documentation half of #21: the

@@ -36,7 +36,7 @@ from operator import attrgetter
 
 from trawlarr import config
 from trawlarr.libs import common
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.unmodels import CompletedTasks, CompletedTasksCommandLogs
 
 try:
@@ -55,7 +55,7 @@ class History(object):
     def __init__(self):
         self.name = __class__.__name__
         self.settings = config.Config()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
     def get_historic_task_list(self, limit=None):
         """

@@ -35,7 +35,7 @@ import json
 
 from trawlarr import metadata
 from trawlarr.libs import common
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 
 try:
@@ -43,7 +43,7 @@ try:
 except ImportError:
     JSONDecodeError = ValueError
 
-logger = UnmanicLogging.get_logger(name="Config")
+logger = TrawlarrLogging.get_logger(name="Config")
 
 #: Configuration keys that the HTTP API is never permitted to write.
 #:
@@ -170,7 +170,7 @@ class Config(object, metaclass=SingletonType):
 
         :return:
         """
-        UnmanicLogging.get_logger(settings=self)
+        TrawlarrLogging.get_logger(settings=self)
 
     def __import_settings_from_env(self):
         """
@@ -380,9 +380,9 @@ class Config(object, metaclass=SingletonType):
         :return:
         """
         if value:
-            UnmanicLogging.enable_debugging()
+            TrawlarrLogging.enable_debugging()
         else:
-            UnmanicLogging.disable_debugging()
+            TrawlarrLogging.disable_debugging()
         self.debugging = value
 
     def get_log_buffer_retention(self):
@@ -407,7 +407,7 @@ class Config(object, metaclass=SingletonType):
             raise ValueError(f"log_buffer_retention must be an integer, got {value!r}")
         try:
             # On Unmanic startup, it may not have yet initialised the logger when this is first run.
-            UnmanicLogging.set_remote_logging_retention(retention_days)
+            TrawlarrLogging.set_remote_logging_retention(retention_days)
         except (AttributeError):
             pass
         self.log_buffer_retention = retention_days

@@ -42,14 +42,14 @@ from trawlarr import config
 from trawlarr.libs.filetest import FileTesterThread
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 
 
 class LibraryScannerManager(threading.Thread):
     def __init__(self, data_queues, event):
         super(LibraryScannerManager, self).__init__(name='LibraryScannerManager')
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.interval = 0
         self.firstrun = True
         self.data_queues = data_queues
@@ -336,14 +336,14 @@ class LibraryScannerManager(threading.Thread):
         scan_end_time = time.time()
         scan_duration = str((scan_end_time - scan_start_time))
         self.logger.warning("Library scan completed in %s seconds", scan_duration)
-        UnmanicLogging.metric("library_scan_completed",
+        TrawlarrLogging.metric("library_scan_completed",
                               library_name=library_name,
                               library_path=library_path,
                               library_id=library_id,
                               scan_start_time=scan_start_time,
                               scan_end_time=scan_end_time,
                               scan_duration=scan_duration)
-        UnmanicLogging.data("last_library_scan",
+        TrawlarrLogging.data("last_library_scan",
                             data_search_key=library_id,  # Key this metric by the library_id
                             library_name=library_name,
                             library_path=library_path,

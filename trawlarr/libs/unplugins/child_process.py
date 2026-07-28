@@ -36,7 +36,7 @@ import time
 
 import psutil
 
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 
 # Configure a global shared manager
 _shared_manager = None
@@ -159,7 +159,7 @@ class PluginChildProcess:
           - data['command_progress_parser'] : callable(line_text, pid=None, proc_start_time=None, unset=False)
           - data['current_command']         : list used to share a "current command" string with the UI
         """
-        self.logger = UnmanicLogging.get_logger(
+        self.logger = TrawlarrLogging.get_logger(
             name=f'Plugin.{plugin_id}.{__class__.__name__}'
         )
         self.data = data

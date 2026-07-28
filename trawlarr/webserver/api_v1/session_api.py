@@ -33,7 +33,7 @@ import json
 import tornado.log
 
 from trawlarr.libs import session
-from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.webserver.api_v1.base_api_handler import BaseApiHandler
 
 # Every route on this handler is an inherited upstream central account
@@ -84,7 +84,7 @@ class ApiSessionHandler(BaseApiHandler):
         self.name = 'plugins_api'
         self.session = session.Session()
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
 
     def set_default_headers(self):

@@ -36,7 +36,7 @@ import time
 
 from trawlarr import config
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 
 try:
@@ -79,7 +79,7 @@ class EventHandler(FileSystemEventHandler):
 
     def __init__(self, files_to_test, library_id):
         self.name = __class__.__name__
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.files_to_test = files_to_test
         self.library_id = library_id
         self.abort_flag = threading.Event()
@@ -111,7 +111,7 @@ class EventMonitorManager(threading.Thread):
     def __init__(self, data_queues, event):
         super(EventMonitorManager, self).__init__(name='EventMonitorManager')
         self.name = __class__.__name__
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.data_queues = data_queues
         self.settings = config.Config()
         self.event = event

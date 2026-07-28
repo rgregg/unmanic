@@ -42,7 +42,7 @@ from playhouse.shortcuts import model_to_dict
 from trawlarr import config
 from trawlarr.libs import common
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.unmodels.tasks import IntegrityError, Tasks
 
 
@@ -76,7 +76,7 @@ class Task(object):
         self.task = None
         self.task_dict = None
         self.settings = config.Config()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.statistics = {}
         self.errors = []
 

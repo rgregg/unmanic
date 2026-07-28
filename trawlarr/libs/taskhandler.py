@@ -38,7 +38,7 @@ from peewee import OperationalError
 
 from trawlarr import config
 from trawlarr.libs import common, task
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.unmodels.tasks import Tasks
 
@@ -63,7 +63,7 @@ class TaskHandler(threading.Thread):
         self.settings = config.Config()
         self.event = event
         self.data_queues = data_queues
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.task_queue = task_queue
         self.inotifytasks = data_queues["inotifytasks"]
         self.scheduledtasks = data_queues["scheduledtasks"]

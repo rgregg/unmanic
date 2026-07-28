@@ -84,7 +84,7 @@ class TestLogForwardingDoesNotCallCentralApi:
         s.requests_session = mock.Mock()  # Catch any HTTP calls
         # Settings is touched for log_buffer_retention.
         with mock.patch("trawlarr.libs.session.config.Config") as cfg, \
-                mock.patch("trawlarr.libs.session.UnmanicLogging") as ul:
+                mock.patch("trawlarr.libs.session.TrawlarrLogging") as ul:
             cfg.return_value.get_log_buffer_retention.return_value = 50
             # Run with session_valid=True (the path that previously did the
             # central API lookup). With our stub it must skip straight to
@@ -104,7 +104,7 @@ class TestLogForwardingDoesNotCallCentralApi:
         s.uuid = "test-uuid"
         s.requests_session = mock.Mock()
         with mock.patch("trawlarr.libs.session.config.Config") as cfg, \
-                mock.patch("trawlarr.libs.session.UnmanicLogging") as ul:
+                mock.patch("trawlarr.libs.session.TrawlarrLogging") as ul:
             cfg.return_value.get_log_buffer_retention.return_value = 100
             s._Session__configure_log_forwarding(session_valid=True)
             ul.enable_remote_logging.assert_called_once_with(

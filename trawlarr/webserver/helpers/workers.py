@@ -29,7 +29,7 @@
            OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-from trawlarr.libs.uiserver import UnmanicRunningTreads
+from trawlarr.libs.uiserver import TrawlarrRunningTreads
 
 
 def pause_worker_by_id(worker_id: int):
@@ -39,7 +39,7 @@ def pause_worker_by_id(worker_id: int):
     :param worker_id:
     :return:
     """
-    urt = UnmanicRunningTreads()
+    urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     return foreman.pause_worker_thread(worker_id)
 
@@ -50,7 +50,7 @@ def pause_all_workers():
 
     :return:
     """
-    urt = UnmanicRunningTreads()
+    urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     return foreman.pause_all_worker_threads()
 
@@ -62,7 +62,7 @@ def resume_worker_by_id(worker_id: int):
     :param worker_id:
     :return:
     """
-    urt = UnmanicRunningTreads()
+    urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     return foreman.resume_worker_thread(worker_id)
 
@@ -73,7 +73,7 @@ def resume_all_workers():
 
     :return:
     """
-    urt = UnmanicRunningTreads()
+    urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     return foreman.resume_all_worker_threads()
 
@@ -85,7 +85,7 @@ def terminate_worker_by_id(worker_id: int):
     :param worker_id:
     :return:
     """
-    urt = UnmanicRunningTreads()
+    urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     return foreman.terminate_worker_thread(worker_id)
 
@@ -96,6 +96,6 @@ def terminate_all_workers():
 
     :return:
     """
-    urt = UnmanicRunningTreads()
+    urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     return foreman.terminate_all_worker_threads()

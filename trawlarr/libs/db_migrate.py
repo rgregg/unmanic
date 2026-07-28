@@ -37,7 +37,7 @@ import sys
 from peewee import Model, SqliteDatabase, Field
 from peewee_migrate import Migrator, Router
 
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.unmodels.lib import BaseModel
 
 
@@ -51,7 +51,7 @@ class Migrations(object):
     database = None
 
     def __init__(self, config):
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
         # Based on configuration, select database to connect to.
         if config['TYPE'] == 'SQLITE':

@@ -34,7 +34,7 @@ import tornado.log
 
 from trawlarr import config
 from trawlarr.libs.library import Library
-from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.libs.worker_group import WorkerGroup
 from trawlarr.webserver.api_v2.base_api_handler import BaseApiError, BaseApiHandler
 from trawlarr.webserver.api_v2.schema.schemas import RequestDatabaseItemByIdSchema, RequestLibraryByIdSchema, \
@@ -120,7 +120,7 @@ class ApiSettingsHandler(BaseApiHandler):
 
     def initialize(self, **kwargs):
         self.params = kwargs.get("params")
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         self.unmanic_data_queues = udq.get_unmanic_data_queues()
         self.config = config.Config()
 

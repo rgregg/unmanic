@@ -7,22 +7,28 @@
 # This file is part of Trawlarr, a fork of Unmanic.
 # See LICENSE for the full license text.
 #
-# Namespace alias shim: make `trawlarr.*` resolve to the *same module
-# objects* as `unmanic.*`.
+# Namespace alias shim: make `unmanic.*` resolve to the *same module
+# objects* as `trawlarr.*`.
 #
-# This is step 1 of the rename tracked in issue #49. Today `unmanic` is
-# still the real package and `trawlarr` is the alias. When the tree moves
-# (step 2) the two names swap, and only the two constants below change --
-# the mechanism is direction-agnostic on purpose.
+# Step 2 of the rename tracked in issue #49 moved the tree, so the two
+# names have now swapped: `trawlarr` is the real package on disk and
+# `unmanic` is the backwards-compatibility alias. The mechanism is
+# direction-agnostic; only the two constants below changed.
 #
-# Why a meta path finder rather than `sys.modules['trawlarr'] = unmanic`:
+# This is no longer a nicety. Every community plugin in the ecosystem --
+# including the ones this deployment runs -- has `from unmanic.libs...`
+# written into its source, and plugins are exec'd inside the running
+# process (see libs/unplugins/executor.py). This shim is the entire
+# reason those keep working.
+#
+# Why a meta path finder rather than `sys.modules['unmanic'] = trawlarr`:
 #
 #   The naive sys.modules entry only covers the top-level name. On
-#   `import trawlarr.libs.filetest`, the import machinery resolves the
-#   parent (`trawlarr` -> the unmanic module object), then goes looking for
-#   a *child* named `trawlarr.libs` using the parent's `__path__`. It finds
-#   unmanic/libs/ on disk and happily builds a second, independent module
-#   object for it. `trawlarr.libs.filetest is not unmanic.libs.filetest`,
+#   `import unmanic.libs.filetest`, the import machinery resolves the
+#   parent (`unmanic` -> the trawlarr module object), then goes looking for
+#   a *child* named `unmanic.libs` using the parent's `__path__`. It finds
+#   trawlarr/libs/ on disk and happily builds a second, independent module
+#   object for it. `unmanic.libs.filetest is not trawlarr.libs.filetest`,
 #   and every module-level singleton in that tree -- logger handles, the
 #   settings object, plugin caches -- silently exists twice. A meta path
 #   finder is consulted *before* the path-based finder for every name at
@@ -34,10 +40,10 @@ import importlib.abc
 import importlib.util
 import sys
 
-# The name callers may use.
-ALIAS_NAME = 'trawlarr'
+# The legacy name callers may still use.
+ALIAS_NAME = 'unmanic'
 # The name that actually exists on disk.
-TARGET_NAME = 'unmanic'
+TARGET_NAME = 'trawlarr'
 
 # Attributes that the import machinery re-initialises on a module handed
 # back by create_module(). `__spec__` is overwritten unconditionally by
@@ -58,6 +64,28 @@ def _target_for(fullname):
     return TARGET_NAME + fullname[len(ALIAS_NAME):]
 
 
+def _target_is_importable(target_name):
+    """
+    Can `target_name` actually be imported?
+
+    A MetaPathFinder must return None for names it cannot supply --
+    `importlib.util.find_spec()` and every `try: import ... except
+    ImportError` in the wild rely on that. Claiming the whole aliased
+    namespace unconditionally would make `find_spec('unmanic.libs.nope')`
+    hand back a truthy spec for a module that does not exist, and the
+    failure would only surface later as an exception from the loader.
+    """
+    if target_name in sys.modules:
+        return True
+    try:
+        return importlib.util.find_spec(target_name) is not None
+    except (ImportError, AttributeError, ValueError):
+        # ImportError: an ancestor package does not exist.
+        # AttributeError/ValueError: an ancestor exists but is not a
+        # package, or carries a broken __spec__.
+        return False
+
+
 class AliasLoader(importlib.abc.Loader):
     """
     Loader that "loads" an aliased module by importing the real one and
@@ -73,7 +101,21 @@ class AliasLoader(importlib.abc.Loader):
         self._saved_attributes = {}
 
     def create_module(self, spec):
-        module = importlib.import_module(_target_for(spec.name))
+        target_name = _target_for(spec.name)
+        try:
+            module = importlib.import_module(target_name)
+        except ModuleNotFoundError as err:
+            if getattr(err, 'name', None) != target_name:
+                # Something *inside* the real module failed to import.
+                # That is the real module's problem, not the alias's.
+                raise
+            # Name the module the caller actually wrote. A plugin author
+            # who typos `unmanic.libs.nope` should not be told that
+            # `trawlarr.libs.nope` is missing -- they never mentioned
+            # `trawlarr` and may not know it exists.
+            raise ModuleNotFoundError(
+                "No module named {!r}".format(spec.name), name=spec.name
+            ) from err
         self._saved_attributes[id(module)] = {
             name: getattr(module, name) for name in _RESTORED_ATTRIBUTES if hasattr(module, name)
         }
@@ -111,10 +153,13 @@ class AliasFinder(importlib.abc.MetaPathFinder):
             return None
         if fullname == ALIAS_NAME and TARGET_NAME not in sys.modules:
             # The alias package is being imported before the real one --
-            # e.g. `python -c "import trawlarr"`. Let the small bootstrap
+            # e.g. `python -c "import unmanic"`. Let the small bootstrap
             # package on disk import the real package, which installs this
             # finder and rebinds the name. Claiming it here instead would
             # recurse.
+            return None
+        if not _target_is_importable(_target_for(fullname)):
+            # Decline rather than promise a module we cannot deliver.
             return None
         return importlib.util.spec_from_loader(fullname, self._loader)
 
@@ -131,10 +176,10 @@ def install():
     Install the alias. Idempotent, and cheap enough to call from a package
     __init__.
 
-    Called from `unmanic/__init__.py`, so the alias is live for anything
+    Called from `trawlarr/__init__.py`, so the alias is live for anything
     that imports the package -- the service, the test suite, and community
     plugins loaded via importlib into the running process, none of which
-    have to know the shim exists. The `trawlarr/` bootstrap package covers
+    have to know the shim exists. The `unmanic/` bootstrap package covers
     the one remaining case: a process that imports the alias name first.
     """
     if not _finder_installed():

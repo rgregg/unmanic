@@ -39,7 +39,7 @@ from datetime import datetime
 from trawlarr.libs import common
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.worker_group import WorkerGroup
 from trawlarr.libs.workers import Worker
@@ -52,7 +52,7 @@ class Foreman(threading.Thread):
         self.event = event
         self.task_queue = task_queue
         self.data_queues = data_queues
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.workers_pending_task_queue = queue.Queue(maxsize=1)
         self.complete_queue = queue.Queue()
         self.worker_threads = {}
@@ -501,7 +501,7 @@ class Foreman(threading.Thread):
                 now = time.time()
                 if now - last_metrics_time >= metrics_interval:
                     for worker_info in workers_info:
-                        UnmanicLogging.metric("worker_info",
+                        TrawlarrLogging.metric("worker_info",
                                               worker_name=worker_info.get('name'),
                                               idle=worker_info.get('idle'),
                                               paused=worker_info.get('paused'),

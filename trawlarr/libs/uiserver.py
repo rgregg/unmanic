@@ -43,7 +43,7 @@ import tornado.web
 
 from trawlarr import config
 from trawlarr.libs import common
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 from trawlarr.webserver.downloads import DownloadsHandler
 
@@ -60,7 +60,7 @@ tornado_settings = {
 }
 
 
-class UnmanicDataQueues(object, metaclass=SingletonType):
+class TrawlarrDataQueues(object, metaclass=SingletonType):
     _unmanic_data_queues = {}
 
     def __init__(self):
@@ -73,7 +73,7 @@ class UnmanicDataQueues(object, metaclass=SingletonType):
         return self._unmanic_data_queues
 
 
-class UnmanicRunningTreads(object, metaclass=SingletonType):
+class TrawlarrRunningTreads(object, metaclass=SingletonType):
     _unmanic_threads = {}
 
     def __init__(self):
@@ -86,6 +86,15 @@ class UnmanicRunningTreads(object, metaclass=SingletonType):
         return self._unmanic_threads.get(name)
 
 
+# Fork addition (issue #49, step 2): the plugin-facing names before the
+# rename. See the note in trawlarr/libs/directoryinfo.py. Both classes are
+# SingletonType, so the alias resolves to the same singleton instance --
+# a plugin holding `UnmanicDataQueues()` and the service holding
+# `TrawlarrDataQueues()` are talking to one object, not two.
+UnmanicDataQueues = TrawlarrDataQueues
+UnmanicRunningTreads = TrawlarrRunningTreads
+
+
 class UIServer(threading.Thread):
     config = None
     started = False
@@ -96,7 +105,7 @@ class UIServer(threading.Thread):
     def __init__(self, unmanic_data_queues, foreman, developer):
         super(UIServer, self).__init__(name='UIServer')
         self.config = config.Config()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
         self.developer = developer
         self.data_queues = unmanic_data_queues
@@ -106,9 +115,9 @@ class UIServer(threading.Thread):
         self.foreman = foreman
         self.set_logging()
         # Add a singleton for handling the data queues for sending data to unmanic's other processes
-        udq = UnmanicDataQueues()
+        udq = TrawlarrDataQueues()
         udq.set_unmanic_data_queues(unmanic_data_queues)
-        urt = UnmanicRunningTreads()
+        urt = TrawlarrRunningTreads()
         urt.set_unmanic_running_threads(
             {
                 'foreman': foreman

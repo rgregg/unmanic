@@ -34,7 +34,7 @@ import os
 import configparser
 
 
-class UnmanicDirectoryInfoException(Exception):
+class TrawlarrDirectoryInfoException(Exception):
     def __init__(self, message, path):
         errmsg = '%s: file %s' % (message, path)
         Exception.__init__(self, errmsg)
@@ -47,9 +47,9 @@ class UnmanicDirectoryInfoException(Exception):
     __str__ = __repr__
 
 
-class UnmanicDirectoryInfo:
+class TrawlarrDirectoryInfo:
     """
-    UnmanicDirectoryInfo
+    TrawlarrDirectoryInfo
 
     Manages the reading and writing of the '.unmanic' files located in the directories
     parsed by Unmanic's library scanner or any plugins.
@@ -93,7 +93,7 @@ class UnmanicDirectoryInfo:
                 pass
         # If we still do not have JSON data at this point, something has gone wrong
         if self.json_data is None:
-            raise UnmanicDirectoryInfoException("Failed to read directory info", self.path)
+            raise TrawlarrDirectoryInfoException("Failed to read directory info", self.path)
 
     def __migrate_to_json(self):
         """
@@ -151,7 +151,7 @@ class UnmanicDirectoryInfo:
                 self.config_parser.add_section(section)
             self.config_parser.set(section, option, value)
             return
-        raise UnmanicDirectoryInfoException("Failed to set section '{}' option '{}' value '{}'".format(section, option, value),
+        raise TrawlarrDirectoryInfoException("Failed to set section '{}' option '{}' value '{}'".format(section, option, value),
                                             self.path)
 
     def get(self, section, option):
@@ -167,7 +167,7 @@ class UnmanicDirectoryInfo:
             return self.json_data.get(section, {}).get(option)
         elif self.config_parser:
             return self.config_parser.get(section, option)
-        raise UnmanicDirectoryInfoException("Failed to get section '{}' option '{}'".format(section, option), self.path)
+        raise TrawlarrDirectoryInfoException("Failed to get section '{}' option '{}'".format(section, option), self.path)
 
     def save(self):
         """
@@ -183,11 +183,21 @@ class UnmanicDirectoryInfo:
             with open(self.path, 'w') as outfile:
                 self.config_parser.write(outfile)
             return
-        raise UnmanicDirectoryInfoException("Failed to save directory info", self.path)
+        raise TrawlarrDirectoryInfoException("Failed to save directory info", self.path)
+
+
+# Fork addition (issue #49, step 2): the plugin-facing name before the
+# rename. Community plugins do `from unmanic.libs.directoryinfo import
+# UnmanicDirectoryInfo` -- `unmanic.libs.directoryinfo` *is* this module
+# object (see trawlarr/namespace_shim.py), so the compatibility alias has
+# to live here, on the module, rather than in the shim itself. Same object,
+# not a subclass: `isinstance` and `is` checks in plugin code hold.
+UnmanicDirectoryInfo = TrawlarrDirectoryInfo
+UnmanicDirectoryInfoException = TrawlarrDirectoryInfoException
 
 
 if __name__ == '__main__':
-    directory_info = UnmanicDirectoryInfo('/tmp/unmanic')
+    directory_info = TrawlarrDirectoryInfo('/tmp/unmanic')
     directory_info.set('test_section', 'key', 'value')
     directory_info.save()
     print(directory_info.get('test_section', 'key'))

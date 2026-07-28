@@ -39,7 +39,7 @@ from copy import deepcopy
 
 from trawlarr import config
 from trawlarr.libs import history, common
-from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
 
 # Trawlarr fork addition (see issue #32).
@@ -100,7 +100,7 @@ class FileTest(object):
 
     def __init__(self, library_id: int):
         self.settings = config.Config()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
 
         # Init plugins
         self.library_id = library_id
@@ -263,7 +263,7 @@ class FileTesterThread(threading.Thread):
     def __init__(self, name, files_to_test, files_to_process, status_updates, library_id, event):
         super(FileTesterThread, self).__init__(name=name)
         self.settings = config.Config()
-        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.logger = TrawlarrLogging.get_logger(name=__class__.__name__)
         self.event = event
         self.files_to_test = files_to_test
         self.files_to_process = files_to_process
