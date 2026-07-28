@@ -17,7 +17,7 @@ sudo chown -R 1000:1000 trawlarr/config trawlarr/cache
 ```yaml
 services:
   trawlarr:
-    image: ghcr.io/rgregg/trawlarr:latest
+    image: ghcr.io/rgregg/trawlarr:dev
     container_name: trawlarr
     restart: unless-stopped
     ports:
@@ -100,12 +100,15 @@ procedure.
 
 CI publishes:
 
-- `latest`: rolling `main`; convenient, but it changes on later pulls;
-- `main-<sha7>`: commit-specific and preferred for an immutable pin;
-- `<application-version>`: release/version convenience tag.
+- `dev`: rolling `main`; test-passing, but it changes on later pulls;
+- `main-<sha7>`: commit-specific and preferred for an immutable
+  development pin;
+- `X.Y.Z`, `X.Y`, `X`, and `latest`: stable release tags.
 
-An image digest is the strongest immutable reference. Avoid unattended
-updates from `latest` when rollback and reproducibility matter.
+Until 1.0.0 is released, `dev` and `main-<sha7>` are the available
+deployment tags; `latest` does not yet exist. After 1.0.0, use `1` for
+the newest compatible 1.x release. An image digest is the strongest
+immutable reference.
 
 ## Upgrades and rollback
 
@@ -226,3 +229,11 @@ docker build --pull -f docker/Dockerfile -t trawlarr:local .
 Run `trawlarr:local` with the same mounts and environment shown above.
 The authoritative production sequence and published tags are in
 [the build workflow](../.github/workflows/build.yml).
+
+The package is still named `unmanic`, inherited from upstream; the
+rename to `trawlarr` is tracked in
+[#49](https://github.com/rgregg/trawlarr/issues/49). The specialized
+Compose files in this directory cover VA-API, NVIDIA, CIFS, SSL, and
+the isolated test instance described in
+[`FORK.md`](../FORK.md#test-instance); review their mounts and network
+exposure before use.

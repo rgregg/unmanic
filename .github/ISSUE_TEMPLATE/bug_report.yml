@@ -2,18 +2,18 @@
 name: Bug Report
 description: Please do not use bug reports for support issues.
 title: "[Bug]: "
-labels: ["status:awaiting-triage", "type:bug"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!** Please use [Discord](https://unmanic.app/discord) for support issues.
+        Trawlarr is a fork of [Unmanic](https://github.com/Unmanic/unmanic). Please check
+        whether the same behaviour happens in upstream Unmanic — if it does, upstream is
+        usually the better place to report it. This fork carries a specific set of changes,
+        documented in [FORK.md](https://github.com/rgregg/trawlarr/blob/main/FORK.md).
 
-        **Plugin-related bug reports opened in this repo will be closed.** Please file plugin bugs against the plugin's source repository.
-
-        Use the correct repo for other issues:
-        - Documentation: https://github.com/Unmanic/unmanic-documentation
-        - Frontend and translations: https://github.com/Unmanic/unmanic-frontend
+        **Plugin bugs belong with the plugin.** Plugins are third-party code; file those
+        against the plugin's own source repository.
   - type: textarea
     id: description
     attributes:
@@ -54,8 +54,10 @@ body:
     id: version
     attributes:
       label: Version
-      description: The version is the first line printed in the Docker log.
-      placeholder: "Build: [10/08/22 03:09:26] [master] [477e25f82c2612b6345ca0c9777345e6b5129965]"
+      description: |
+        The version is the first line printed in the Docker log, and is also shown in the
+        footer of the web UI. If you are running a tagged image, include the tag too.
+      placeholder: "Build: [27/07/26 03:09:26] [main] [477e25f82c2612b6345ca0c9777345e6b5129965]"
     validations:
       required: true
   - type: textarea
@@ -84,7 +86,9 @@ body:
       description: |
         Please copy and paste any relevant log output.
         This will be automatically formatted into code, so no need for backticks.
-        Note: Most relevant logs are found either in the docker logs or inside the container in /home/default/.cache/log/
+        Note: Most relevant logs are found either in the docker logs or inside the container
+        in /config/.unmanic/logs/. Logs contain file paths and file names from your library —
+        review and redact before posting.
       render: Shell
   - type: markdown
     attributes:

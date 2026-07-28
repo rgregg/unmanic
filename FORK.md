@@ -1,15 +1,22 @@
 # Trawlarr — fork notes
 
-A self-hosted, no-phone-home, no-license-tier build of
-[Unmanic](https://github.com/Unmanic/unmanic), branded as Trawlarr.
+Trawlarr is a fully-FOSS media library optimiser built on
+[Unmanic](https://github.com/Unmanic/unmanic).
 
 This file is a developer/operations companion to the user-facing
 [`README.md`](README.md). It documents what the fork carries, the
 build pipeline, the test instance, and the audit trail of changes.
+The product direction lives in the README and the issue tracker; what
+follows is the engineering detail.
 
-## Goals
+## Starting position
 
-GPLv3 lets us exercise the rights it grants. This fork:
+Removing the central-service dependency was the prerequisite, not the
+point — a codebase that has to check in with someone else's API is a
+poor foundation for the rest of the roadmap. GPLv3 grants the right to
+do exactly this, and upstream chose that license knowing so.
+
+As it stands the fork has:
 
 - **No `api.unmanic.app` dependency.** Plugin discovery, plugin downloads,
   registration, token refresh, and "linked installation" sync are all
@@ -81,7 +88,8 @@ auditing what we've changed:
 Every push to `main` runs four workflows:
 
 - **build** (`.github/workflows/build.yml`) — builds the Python wheel
-  and Docker image, pushes to GHCR.
+  and Docker image, pushes to GHCR. Also runs on a published release,
+  where it produces the versioned tags instead (see [Releases](#releases)).
 - **test** (`.github/workflows/test.yml`) — `pytest tests/unit/` plus
   flake8 errors-only lint, with a coverage floor enforced.
 - **smoke** (`.github/workflows/smoke.yml`) — fires after `build`. Pulls
@@ -91,19 +99,72 @@ Every push to `main` runs four workflows:
   release tag pinned in the Dockerfile still exists; opens an issue with
   a proposed bump if it's been pruned.
 
-### Image tags
-
-| Tag | Mutability | When to use |
-|---|---|---|
-| `ghcr.io/rgregg/trawlarr:latest` | rolling | Komodo deployment for "always latest" |
-| `ghcr.io/rgregg/trawlarr:main-<sha7>` | immutable | Pinning a specific build |
-| `ghcr.io/rgregg/trawlarr:<py-version>` | follows setup.py version | When bumping versions intentionally |
-
 ### Trigger a manual rebuild
 
 ```bash
 gh workflow run "Build image" --ref main
 ```
+
+## Releases
+
+Trawlarr releases through **GitHub Releases**, versioned with semver.
+Publishing a release is what produces versioned images; pushes to `main`
+only ever produce development builds.
+
+### Versioning
+
+`MAJOR.MINOR.PATCH`, with the usual meaning:
+
+- **MAJOR** — breaking changes. A config migration, a changed API
+  contract, a dropped plugin interface, anything that needs the operator
+  to read the notes before upgrading.
+- **MINOR** — new capability, backwards compatible. Safe to take
+  automatically.
+- **PATCH** — fixes only. Always safe to take.
+
+The plugin-facing surface (`unmanic.libs.*` imports, the `unmanic` config
+directory, the `/unmanic/api/v2/` paths) counts as public API for this
+purpose. Breaking third-party plugins is a MAJOR change.
+
+Git tags are **unprefixed** — `1.2.3`, not `v1.2.3`. Two reasons: it
+matches the tags already in this repo, and `versioninfo.py` feeds
+`git describe` output straight into the wheel version, where a leading
+`v` is not valid PEP 440. `build.yml` rejects a prefixed tag rather than
+publishing a malformed version.
+
+Trawlarr's own version line starts at **1.0.0**. Tags `0.2.2`–`0.4.0` in
+this repo are upstream Unmanic's and are not part of it.
+
+### Cutting a release
+
+```bash
+# From a green main — check build, test and smoke are all passing first.
+gh release create 1.2.0 --generate-notes --title "1.2.0"
+```
+
+Publishing the release triggers `build.yml`, which builds from the tag
+and pushes the versioned image tags. For a release candidate, add
+`--prerelease` and use a semver prerelease suffix (`1.2.0-rc.1`).
+
+### Image tags
+
+| Tag | Mutability | When to use |
+|---|---|---|
+| `ghcr.io/rgregg/trawlarr:1` | moving | **Recommended for most deployments.** Newest release in the 1.x line — picks up features and fixes, never a breaking change without you choosing it. |
+| `ghcr.io/rgregg/trawlarr:1.2` | moving | Conservative. Patch fixes only within 1.2 — no new features. |
+| `ghcr.io/rgregg/trawlarr:1.2.3` | immutable | Exact pin. Reproducible, never moves, updates are entirely manual. |
+| `ghcr.io/rgregg/trawlarr:latest` | moving | Newest stable release, across major versions. Convenient, but it *will* carry you across a breaking change. |
+| `ghcr.io/rgregg/trawlarr:dev` | rolling | Newest `main` build — test-passing but unreleased. Normally the test instance; also production until 1.0.0 exists (see [Production deployment](#production-deployment)). |
+| `ghcr.io/rgregg/trawlarr:main-<sha7>` | immutable | Pin an exact development build when bisecting. |
+
+Prereleases publish **only** their exact tag. A `1.3.0-rc.1` never moves
+`:1`, `:1.3`, or `:latest`, so pinning a major line will not silently
+put a release candidate into production.
+
+> **Changed behaviour:** `:latest` used to move on every push to `main`.
+> It now tracks releases. Anything that wants the old "newest build"
+> behaviour should track `:dev` instead. Until the first release is cut,
+> `:latest` does not exist.
 
 ## Production deployment
 
@@ -111,13 +172,32 @@ The production container runs on the media-server VM (10.0.0.203) in
 the homelab. See `home-docs/home-lab/apps/unmanic.md` for that side of
 the runbook.
 
+> **Until 1.0.0 is cut, production tracks `:dev`.**
+>
+> The first release is deliberately gated behind the `unmanic` → `trawlarr`
+> rename ([#49](https://github.com/rgregg/trawlarr/issues/49)) so that 1.0.0
+> ships with the internal namespace already correct. Until that lands there
+> are no releases, so `:1` and `:latest` either do not exist or sit frozen at
+> the last build made under the old tagging scheme.
+>
+> Pointing production at `:dev` in the meantime is the difference between
+> continuing to receive fixes and silently receiving nothing. Move it to `:1`
+> once 1.0.0 exists — the steps below describe that end state.
+>
+> `:dev` is the same artifact `:1` will be built from; it is "unreleased",
+> not "untested". Every `:dev` build has passed the test and smoke workflows.
+> The real cost is that it can change under you without a version bump, so
+> read the commit log before pulling if a transcode is mid-flight.
+
 ### Cutover from `josh5/unmanic:latest`
 
 1. Confirm the latest [build](https://github.com/rgregg/trawlarr/actions/workflows/build.yml)
    AND [smoke](https://github.com/rgregg/trawlarr/actions/workflows/smoke.yml)
    runs are green.
 2. In Komodo, edit the unmanic stack's image to
-   `ghcr.io/rgregg/trawlarr:latest` and redeploy.
+   `ghcr.io/rgregg/trawlarr:1` and redeploy. Production tracks the major
+   line, so it picks up releases automatically but never crosses a
+   breaking change on its own.
 3. Bind mounts and env stay identical — same `docker/Dockerfile` and
    `docker/root/` entrypoint.
 4. Verify on the running install:
@@ -139,7 +219,9 @@ before cutting production over.
 ### Layout
 
 - **Host:** media-server VM (10.0.0.203)
-- **Container:** `trawlarr-test`, image `ghcr.io/rgregg/trawlarr:latest`
+- **Container:** `trawlarr-test`, image `ghcr.io/rgregg/trawlarr:dev` — the
+  test instance deliberately tracks unreleased `main` builds, which is the
+  whole point of having it
 - **UI:** http://10.0.0.203:8889
 - **Config / library / cache:** `/mnt/local_ssd/stacks/trawlarr-test/{config,library,cache}` — fully isolated from production
 - **GPU:** none (uncomment `runtime: nvidia` block in the compose to enable)
@@ -149,7 +231,7 @@ before cutting production over.
 
 ```bash
 ssh media-server.lan
-sudo docker pull ghcr.io/rgregg/trawlarr:latest
+sudo docker pull ghcr.io/rgregg/trawlarr:dev
 sudo docker rm -f trawlarr-test
 # Then re-run the compose up command from docker-compose-test-instance.yml
 ```

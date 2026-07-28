@@ -2,15 +2,18 @@
 
 blank_issues_enabled: false
 contact_links:
-  - name: Discord support
-    url: https://streamingtech.co.nz/discord
-    about: Ask questions in Discord.
-  - name: Documentation issues
-    url: https://github.com/Unmanic/unmanic-documentation/issues
-    about: Report documentation issues in the documentation repo.
-  - name: Plugin issues
+  - name: Using the application
+    url: https://docs.unmanic.app/
+    about: >
+      Trawlarr's day-to-day behaviour matches upstream Unmanic. Their
+      documentation covers libraries, plugins, workers and the API.
+  - name: Plugin requests
     url: https://github.com/Unmanic/unmanic-plugins/issues
-    about: New plugin requests only (Plugin bugs should be opened against the plugin's source repo).
-  - name: Frontend and translations issues
-    url: https://github.com/Unmanic/unmanic-frontend/issues
-    about: Report frontend and translations issues in the frontend repo.
+    about: >
+      New plugin requests only. Bugs in an individual plugin belong in that
+      plugin's own source repository, not here.
+  - name: Upstream Unmanic issues
+    url: https://github.com/Unmanic/unmanic/issues
+    about: >
+      If the behaviour also happens in upstream Unmanic, reporting it there
+      means the fix reaches everyone.

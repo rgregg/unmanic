@@ -1,11 +1,12 @@
 # Unit Testing
 
-> **Local fork note:** This file is mostly upstream-inherited. The fork
-> adds a much faster path under `tests/unit/` (no docker, no test-video
-> downloads, no ffmpeg required). For day-to-day work on the fork, use
-> the [Quick start](#quick-start-fork-only) section below. The
-> docker-compose test env and `setup_tests.sh` flow are upstream-only and
-> not used in CI here.
+> **Fork note:** This file is mostly upstream-inherited. Trawlarr adds a
+> much faster path under `tests/unit/` (no docker, no test-video
+> downloads, no ffmpeg required). For day-to-day work, use the
+> [Quick start](#quick-start-fork-only) section below. The docker-compose
+> test env and `setup_tests.sh` flow are upstream-only and not used in CI
+> here — the sections below them are kept for reference and have not been
+> verified against this fork.
 
 ## Quick start (fork only)
 
@@ -15,9 +16,11 @@ python -m venv .venv
 .venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
 ```
 
-CI runs the same command on every push to `local` and every PR targeting
-`local` via `.github/workflows/test_local.yml`. Coverage HTML, coverage
-XML, and JUnit results are uploaded as workflow artifacts.
+CI runs the same command on every push to `main` and every PR targeting
+`main` via `.github/workflows/test.yml`. Coverage HTML, coverage XML, and
+JUnit results are uploaded as workflow artifacts. The same workflow
+enforces a coverage floor and checks license headers via
+`devops/check_license_headers.sh`.
 
 To run a single test file:
 ```bash
@@ -29,7 +32,7 @@ To run a single test:
 .venv/bin/pytest tests/unit/test_session_stubs.py::TestRegisterUnmanicPinsLevel::test_pins_level_to_local_session_level -v
 ```
 
-When adding new patches on `local`, add a regression test alongside.
+When adding new fork patches, add a regression test alongside.
 The pattern in `test_session_stubs.py` and `test_supporter_gates_removed.py`
 shows how to test fork patches without a full DB / config bootstrap:
 construct the singleton bare via `__new__`, mock the logger and any
@@ -42,7 +45,7 @@ collaborators, then assert behaviour.
 
 Before any tests can be run, you need to execute
 ```
-tests/scripts/setup_tests.sh
+tests/scripts_/setup_tests.sh
 ```
 
 
@@ -92,7 +95,7 @@ This is still a WIP but the idea will be to have a series of API calls to determ
 
 To run the test first run a docker environment. You can do this by running
 ```
-tests/scripts/library_scan.sh
+tests/scripts_/library_scan.sh
 ```
 You can export the following variables to configure the test container:
 ```
@@ -103,7 +106,7 @@ RUN_FULL_SCAN_ON_START=true
 ```
 To clean the config run 
 ```
-tests/scripts/library_scan.sh --clean
+tests/scripts_/library_scan.sh --clean
 ```
 
 

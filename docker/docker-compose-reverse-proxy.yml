@@ -11,7 +11,7 @@
 
 services:
   trawlarr:
-    image: ghcr.io/rgregg/trawlarr:latest
+    image: ghcr.io/rgregg/trawlarr:dev
     restart: unless-stopped
     expose:
       - "8888"
