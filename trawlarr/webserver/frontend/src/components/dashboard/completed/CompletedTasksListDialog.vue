@@ -244,6 +244,36 @@
                       <q-badge :color="props.row.status ? 'positive' : 'negative'">
                         {{ props.row.status ? t('status.success') : t('status.failed') }}
                       </q-badge>
+                      <q-badge
+                        v-if="!props.row.status"
+                        class="q-ml-xs"
+                        color="warning"
+                        text-color="black"
+                      >
+                        {{ failureCategoryLabel(props.row.failureCategory) }}
+                      </q-badge>
+                      <q-badge
+                        v-if="!props.row.status && props.row.failureDismissed"
+                        class="q-ml-xs"
+                        color="grey-7"
+                      >
+                        {{ t('components.completedTasks.failureDismissed') }}
+                      </q-badge>
+                    </div>
+                    <div
+                      v-if="!props.row.status"
+                      class="text-caption completed-task-failure-reason"
+                    >
+                      <span class="text-weight-medium">
+                        {{ t('components.completedTasks.failureReason') }}:
+                      </span>
+                      {{ props.row.failureMessage }}
+                    </div>
+                    <div
+                      v-if="!props.row.status && props.row.failureAttempt > 1"
+                      class="text-caption text-negative"
+                    >
+                      {{ t('components.completedTasks.failureAttempt', { count: props.row.failureAttempt }) }}
                     </div>
                   </q-td>
 
@@ -274,6 +304,15 @@
                           @click="openMetadataDialog(props.row.id)"
                           icon="data_object"
                           :tooltip="t('components.completedTasks.metadata')"
+                        />
+
+                        <UnmanicListActionButton
+                          v-if="!props.row.status"
+                          @click="toggleFailureDismissed(props.row)"
+                          :icon="props.row.failureDismissed ? 'notifications_active' : 'notifications_off'"
+                          :tooltip="props.row.failureDismissed
+                            ? t('components.completedTasks.restoreFailure')
+                            : t('components.completedTasks.dismissFailure')"
                         />
                       </div>
                     </div>
@@ -605,6 +644,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
+import emitter from 'tiny-emitter/instance'
 import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import dateTools from 'src/js/dateTools'
 import { useMobile } from 'src/composables/useMobile'
@@ -1155,6 +1195,37 @@ const selectLibraryForRecreateTask = () => {
   })
 }
 
+const KNOWN_FAILURE_CATEGORIES = [
+  'stalled', 'plugin_error', 'command_failed', 'sanity_check',
+  'worker_terminated', 'output_missing', 'postprocessor_error', 'unknown'
+]
+
+const failureCategoryLabel = (category) => {
+  const key = KNOWN_FAILURE_CATEGORIES.includes(category) ? category : 'unknown'
+  return t('components.completedTasks.categories.' + key)
+}
+
+const toggleFailureDismissed = (row) => {
+  const dismissed = !row.failureDismissed
+  axios({
+    method: 'post',
+    url: getTrawlarrApiUrl('v2', 'history/failures/dismiss'),
+    data: { id_list: [row.id], dismissed }
+  }).then(() => {
+    row.failureDismissed = dismissed
+    // Keep the dashboard's outstanding-failure banner honest.
+    emitter.emit('completedTaskFailureAcknowledged')
+  }).catch(() => {
+    $q.notify({
+      color: 'negative',
+      position: 'top',
+      message: t('components.completedTasks.errorDismissFailure'),
+      icon: 'report_problem',
+      actions: [{ icon: 'close', color: 'white' }]
+    })
+  })
+}
+
 const addSelectedToPendingTaskList = () => {
   if (selectedCount.value === 0) {
     $q.notify({
@@ -1167,9 +1238,18 @@ const addSelectedToPendingTaskList = () => {
     return
   }
 
+  postReprocess(false)
+}
+
+// A retry that is refused must say WHY it was refused. The server declines to
+// re-queue a file that has failed the same way too many times in a row, and
+// that refusal is actionable - so it is shown verbatim, with an explicit
+// override, rather than collapsed into a generic error toast.
+const postReprocess = (force) => {
   const data = {
     ...getSelectionPayload(),
     library_id: selectedLibraryId.value,
+    force: force === true,
   }
 
   axios({
@@ -1179,11 +1259,24 @@ const addSelectedToPendingTaskList = () => {
   }).then(() => {
     resetSelection()
     fetchCompletedTasks({ reset: true })
-  }).catch(() => {
+  }).catch((error) => {
+    const reason = error?.response?.data?.error
+    if (reason && !force) {
+      $q.dialog({
+        title: t('components.completedTasks.retryRefused'),
+        message: reason,
+        ok: { label: t('components.completedTasks.retryForce'), color: 'negative' },
+        cancel: true,
+        persistent: false,
+      }).onOk(() => {
+        postReprocess(true)
+      })
+      return
+    }
     $q.notify({
       color: 'negative',
       position: 'top',
-      message: t('components.completedTasks.errorAddSelected'),
+      message: reason || t('components.completedTasks.errorAddSelected'),
       icon: 'report_problem',
       actions: [{ icon: 'close', color: 'white' }]
     })
@@ -1251,7 +1344,11 @@ const fetchCompletedTasks = ({ reset = false, silent = false, refreshTop = false
       dateTimeStarted: dateTools.printDateTimeString(results.start_time),
       dateTimeCompleted: dateTools.printDateTimeString(results.finish_time),
       status: results.task_success,
-      hasMetadata: results.has_metadata
+      hasMetadata: results.has_metadata,
+      failureCategory: results.failure_category,
+      failureMessage: results.failure_message,
+      failureAttempt: results.failure_attempt,
+      failureDismissed: results.failure_dismissed === true
     }))
 
     if (refreshTop) {

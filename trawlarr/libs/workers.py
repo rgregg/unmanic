@@ -46,19 +46,19 @@ from trawlarr.libs import common
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
-from trawlarr.libs.task import TaskDataStore
+from trawlarr.libs import taskfailure
 
 #: CPU seconds the tracked process tree must accumulate between two monitor
 #: samples for the sample to count as a sign of life. Small but non-zero so
 #: that measurement noise cannot masquerade as work.
 STALL_CPU_TIME_EPSILON = 0.05
 
-#: Key under which a stalled task's failure record is stashed in the task data
-#: store. This is the seam for #25 (durable task failure state): today the
-#: record only lives for the lifetime of the task in memory, plus the banner
-#: written into the task's command log. #25 should persist this same structure
-#: rather than introduce a second, competing notion of "why did this fail".
-TASK_FAILURE_STATE_KEY = 'task_failure'
+#: Key under which a task's failure record is stashed in the task data store.
+#: This was the seam left by #15 for #25 (durable task failure state). #25
+#: took it up: the record is now defined and persisted by
+#: trawlarr/libs/taskfailure.py, and this name is re-exported unchanged so
+#: that there is exactly one notion of "why did this fail".
+TASK_FAILURE_STATE_KEY = taskfailure.TASK_FAILURE_STATE_KEY
 
 
 class WorkerCommandError(Exception):
@@ -845,46 +845,36 @@ class Worker(threading.Thread):
             self.logger.error("Worker '%s' subprocess was terminated as stalled: %s", self.name, reason)
         except Exception:
             pass
-        self.record_task_failure('stalled', reason)
+        self.record_task_failure(taskfailure.CATEGORY_STALLED, reason)
 
-    def record_task_failure(self, category, message):
+    def record_task_failure(self, category, message, overwrite=False):
         """
         Attach a failure category and message to the task being processed.
 
-        NOTE (seam for #25 - persist task failure state): today this writes a
-        banner into the worker log, which is saved to the task's command log
-        and is therefore durable and visible in the completed task history,
-        and stores a structured record in the task data store for the lifetime
-        of the task. There is no failure column on the tasks table yet; when
-        #25 adds durable failure state it should persist THIS record rather
-        than introduce a second, competing notion of why a task failed. The
-        structure is intentionally the shape #25 needs: category, message,
-        timestamp.
+        This is the seam #15 left for #25, now wired up: the record it builds
+        is written by trawlarr/libs/taskfailure.py into the task data store
+        and a banner into the worker log, and the postprocessor persists that
+        same record onto the completed_tasks row. There is one notion of why a
+        task failed, not two.
 
-        :param category: Short machine-readable failure category, e.g. 'stalled'
+        By default the FIRST recorded failure wins. The stall detector records
+        'stalled' from the monitor thread and the killed command then exits
+        non-zero; reporting the resulting 'command_failed' instead of the
+        stall would replace the cause with its symptom.
+
+        :param category: A category from trawlarr.libs.taskfailure
         :param message: Human-readable explanation
+        :param overwrite: Replace an earlier record for this task
         :return:
         """
-        record = {
-            'category':  category,
-            'message':   message,
-            'timestamp': time.time(),
-        }
-        # Loud in the log the user actually reads. A task that failed for a
-        # reason nobody can see is the failure mode this is meant to end.
-        try:
-            if self.worker_log is not None:
-                self.worker_log.append(
-                    "\n\nTASK FAILED [{}]\n{}\n".format(category.upper(), message))
-        except Exception:
-            self.logger.exception("Failed to append the task failure banner to the worker log")
+        task_id = None
         try:
             if self.current_task is not None:
-                TaskDataStore.set_task_state(TASK_FAILURE_STATE_KEY, record,
-                                             task_id=self.current_task.get_task_id())
+                task_id = self.current_task.get_task_id()
         except Exception:
-            self.logger.exception("Failed to record the task failure state for the current task")
-        return record
+            self.logger.exception("Failed to read the task ID while recording a task failure")
+        return taskfailure.record(task_id, category, message,
+                                  worker_log=self.worker_log, overwrite=overwrite)
 
     def __unset_current_task(self):
         self.current_task = None
@@ -1086,6 +1076,9 @@ class Worker(threading.Thread):
                     self.worker_runners_info[runner_id]["success"] = False
                     overall_success = False
                     self.worker_log.append("\n\nWORKER TERMINATED!")
+                    self.record_task_failure(
+                        taskfailure.CATEGORY_WORKER_TERMINATED,
+                        "The worker was shut down while plugin '{}' was running.".format(plugin_module.get("name")))
                     break
 
                 # now check the plugin result
@@ -1099,6 +1092,10 @@ class Worker(threading.Thread):
                     self.worker_log.append("\n\nPLUGIN FAILED!")
                     self.worker_log.append("\nFailed to execute Plugin '{}'".format(plugin_module.get("name")))
                     self.worker_log.append("\nCheck Unmanic logs for more information")
+                    self.record_task_failure(
+                        taskfailure.CATEGORY_PLUGIN_ERROR,
+                        "Plugin '{}' ({}) failed while processing this file.".format(
+                            plugin_module.get("name"), runner_id))
                     self.current_command_ref = None
                     data["current_command"] = []
                     break
@@ -1125,6 +1122,10 @@ class Worker(threading.Thread):
                         overall_success = False
                         # Append long entry to say the worker was terminated
                         self.worker_log.append("\n\nWORKER TERMINATED!")
+                        self.record_task_failure(
+                            taskfailure.CATEGORY_WORKER_TERMINATED,
+                            "The worker was shut down while a command from plugin '{}' was running.".format(
+                                plugin_module.get("name")))
                         self.current_command_ref = None
                         data["current_command"] = []
                         # Don't continue
@@ -1166,6 +1167,14 @@ class Worker(threading.Thread):
                         )
                         self.worker_runners_info[runner_id]["success"] = False
                         overall_success = False
+                        # If the stall detector already killed this command it
+                        # has recorded 'stalled'; that is the cause and this
+                        # non-zero exit is only its symptom, so do not
+                        # overwrite it (taskfailure.record keeps the first).
+                        self.record_task_failure(
+                            taskfailure.CATEGORY_COMMAND_FAILED,
+                            "The command requested by plugin '{}' ({}) exited with a non-zero status.".format(
+                                plugin_module.get("name"), runner_id))
                 else:
                     # Ensure the new 'file_in' is set to the previous runner's 'file_in' for the next loop
                     file_in = data.get("file_in")
@@ -1279,6 +1288,9 @@ class Worker(threading.Thread):
                     "Exception in final move operation of file %s to %s: %s", current_file_out, task_cache_path, e
                 )
                 overall_success = False
+                self.record_task_failure(
+                    taskfailure.CATEGORY_OUTPUT_MISSING,
+                    "The processed output could not be moved into the task cache: {}".format(e))
 
         # Execute event plugin runners (only when added to queue)
         plugin_handler.run_event_plugins_for_plugin_type(

@@ -39,8 +39,28 @@ from trawlarr.webserver.api_v2.base_api_handler import BaseApiError, BaseApiHand
 from trawlarr.webserver.api_v2.schema.schemas import CompletedTasksLogRequestSchema, CompletedTasksLogSchema, \
     CompletedTasksSchema, \
     RequestHistoryTableDataSchema, \
-    RequestAddCompletedToPendingTasksSchema, RequestCompletedTasksBulkActionSchema
+    RequestAddCompletedToPendingTasksSchema, RequestCompletedTasksBulkActionSchema, \
+    RequestDismissTaskFailuresSchema, TaskFailureSummarySchema
 from trawlarr.webserver.helpers import completed_tasks
+
+
+def _single_line(text, limit=500):
+    """
+    Flatten a message so it is safe to use as an HTTP status reason.
+
+    Failure messages come from plugin output and sanity reports and may
+    contain newlines; a newline in a status reason would corrupt the response
+    headers. Flattened and truncated rather than dropped - the user still
+    needs to read it.
+
+    :param text:
+    :param limit:
+    :return:
+    """
+    flattened = ' '.join(str(text or '').split())
+    if len(flattened) > limit:
+        flattened = flattened[:limit - 3] + '...'
+    return flattened
 
 
 class ApiHistoryHandler(BaseApiHandler):
@@ -69,6 +89,16 @@ class ApiHistoryHandler(BaseApiHandler):
             "path_pattern":      r"/history/task/log",
             "supported_methods": ["POST"],
             "call_method":       "get_completed_task_log",
+        },
+        {
+            "path_pattern":      r"/history/failures/summary",
+            "supported_methods": ["GET"],
+            "call_method":       "get_task_failure_summary",
+        },
+        {
+            "path_pattern":      r"/history/failures/dismiss",
+            "supported_methods": ["POST"],
+            "call_method":       "dismiss_task_failures",
         }
     ]
 
@@ -302,16 +332,20 @@ class ApiHistoryHandler(BaseApiHandler):
                 self.write_error()
                 return
 
-            errors = completed_tasks.add_historic_tasks_to_pending_tasks_list(id_list, library_id=library_id)
+            errors = completed_tasks.add_historic_tasks_to_pending_tasks_list(
+                id_list, library_id=library_id, force=json_request.get('force', False))
             if errors:
-                failed_ids = ''
+                # Report WHY each retry was refused, not just that something
+                # was refused. The refusal from the consecutive-failure guard
+                # is actionable and the user cannot act on "failed to add".
+                reasons = []
                 for task_id in errors:
-                    failed_ids += " {}".format(task_id)
                     tornado.log.app_log.error(
                         "ApiHistoryHandler.{}: {}".format(self.route.get('call_method'), errors.get(task_id)))
+                    reasons.append("[{}] {}".format(task_id, _single_line(errors.get(task_id))))
                 self.set_status(self.STATUS_ERROR_INTERNAL,
-                                reason="Failed to add the provided completed tasks to the pending task list: '{}'".format(
-                                    failed_ids))
+                                reason="Failed to add the provided completed tasks to the pending task list: {}".format(
+                                    " ".join(reasons)))
                 self.write_error()
                 return
 
@@ -381,6 +415,116 @@ class ApiHistoryHandler(BaseApiHandler):
                 }
             )
             self.write_success(response)
+            return
+        except BaseApiError as bae:
+            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            return
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def get_task_failure_summary(self):
+        """
+        History - failure summary
+        ---
+        description: Returns a summary of task failures that have not been dismissed.
+        responses:
+            200:
+                description: 'Successful request; Returns the outstanding failure summary'
+                content:
+                    application/json:
+                        schema:
+                            TaskFailureSummarySchema
+            404:
+                description: Bad request; Requested endpoint not found
+                content:
+                    application/json:
+                        schema:
+                            BadEndpointSchema
+            405:
+                description: Bad request; Requested method is not allowed
+                content:
+                    application/json:
+                        schema:
+                            BadMethodSchema
+            500:
+                description: Internal error; Check `error` for exception
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            summary = completed_tasks.get_task_failure_summary()
+            response = self.build_response(
+                TaskFailureSummarySchema(),
+                {
+                    'total':                    summary.get('total', 0),
+                    'categories':               summary.get('categories', {}),
+                    'oldest':                   summary.get('oldest'),
+                    'newest':                   summary.get('newest'),
+                    'max_consecutive_failures': summary.get('max_consecutive_failures', 3),
+                }
+            )
+            self.write_success(response)
+            return
+        except BaseApiError as bae:
+            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            return
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def dismiss_task_failures(self):
+        """
+        History - dismiss failures
+        ---
+        description: Acknowledge failed tasks without deleting them or their diagnostics.
+        requestBody:
+            description: Requested list of failures to acknowledge.
+            required: True
+            content:
+                application/json:
+                    schema:
+                        RequestDismissTaskFailuresSchema
+        responses:
+            200:
+                description: 'Successful request; Returns success status'
+                content:
+                    application/json:
+                        schema:
+                            BaseSuccessSchema
+            400:
+                description: Bad request; Check `messages` for any validation errors
+                content:
+                    application/json:
+                        schema:
+                            BadRequestSchema
+            404:
+                description: Bad request; Requested endpoint not found
+                content:
+                    application/json:
+                        schema:
+                            BadEndpointSchema
+            405:
+                description: Bad request; Requested method is not allowed
+                content:
+                    application/json:
+                        schema:
+                            BadMethodSchema
+            500:
+                description: Internal error; Check `error` for exception
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            json_request = self.read_json_request(RequestDismissTaskFailuresSchema())
+            completed_tasks.dismiss_completed_task_failures(
+                json_request.get('id_list', []),
+                dismissed=json_request.get('dismissed', True))
+            self.write_success()
             return
         except BaseApiError as bae:
             tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))

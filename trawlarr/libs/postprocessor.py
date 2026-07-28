@@ -37,7 +37,7 @@ import threading
 import time
 
 from trawlarr import config
-from trawlarr.libs import common, history, sanity
+from trawlarr.libs import common, history, sanity, taskfailure
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
@@ -398,6 +398,16 @@ class PostProcessor(threading.Thread):
             self.current_task.save_command_log(result.report())
         except Exception as e:
             self._log("Unable to append sanity check report to task log", message2=str(e), level="warning")
+
+        # Persist the reason alongside the failed task (issue #25). Forced,
+        # because the worker may already have recorded a reason for a task it
+        # nonetheless returned as successful; the sanity refusal is what
+        # actually decided this task's outcome.
+        taskfailure.record(
+            self.current_task.get_task_id(),
+            taskfailure.CATEGORY_SANITY_CHECK,
+            "; ".join(f.get('message') for f in result.failures if f.get('message')),
+            overwrite=True)
         try:
             self.current_task.set_success(False)
         except Exception as e:
@@ -632,17 +642,31 @@ class PostProcessor(threading.Thread):
 
         self._log_completed_task_data(task_dump, source_data, destination_data)
 
-        history_logging.save_task_history(
-            {
-                'task_label':          task_dump.get('task_label', ''),
-                'abspath':             task_dump.get('abspath', ''),
-                'task_success':        task_dump.get('task_success', False),
-                'start_time':          task_dump.get('start_time', ''),
-                'finish_time':         task_dump.get('finish_time', ''),
-                'processed_by_worker': task_dump.get('processed_by_worker', ''),
-                'log':                 task_dump.get('log', ''),
-            }
+        task_history = {
+            'task_label':          task_dump.get('task_label', ''),
+            'abspath':             task_dump.get('abspath', ''),
+            'task_success':        task_dump.get('task_success', False),
+            'start_time':          task_dump.get('start_time', ''),
+            'finish_time':         task_dump.get('finish_time', ''),
+            'processed_by_worker': task_dump.get('processed_by_worker', ''),
+            'log':                 task_dump.get('log', ''),
+        }
+        # Durable failure state (issue #25). This is the point where the
+        # in-memory record built during processing - by the stall detector,
+        # a failed plugin, a non-zero command or the sanity checks - is
+        # written to the database, which is what makes it survive a restart.
+        task_history.update(
+            taskfailure.build_history_fields(
+                self.current_task.get_task_id(),
+                task_history['task_success'],
+                task_history['abspath'],
+            )
         )
+        if not task_history['task_success']:
+            self._log("Task failed [{}]: {}".format(task_history.get('failure_category'),
+                                                    task_history.get('failure_message')), level='error')
+
+        history_logging.save_task_history(task_history)
 
         # Execute event plugin runners
         plugin_handler = PluginsHandler()
