@@ -1,18 +1,17 @@
 ---
 name: Feature Request
 description: Suggest a new feature.
-labels: ["status:awaiting-triage", "type:enhancement"]
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to help improve!
+        Thanks for taking the time to help improve Trawlarr!
 
-        **Plugin-related feature requests opened in this repo will be closed.** Please file plugin requests at https://github.com/Unmanic/unmanic-plugins
-
-        Use the correct repo for other requests:
-        - Documentation: https://github.com/Unmanic/unmanic-documentation
-        - Frontend and translations: https://github.com/Unmanic/unmanic-frontend
+        A good number of ideas are better served as **plugins** than as core changes.
+        Trawlarr uses the upstream Unmanic plugin architecture and pulls plugin catalogs
+        directly from GitHub, so a plugin usually ships faster and does not need a
+        release. New plugin requests go to https://github.com/Unmanic/unmanic-plugins.
   - type: textarea
     id: problem
     attributes:
