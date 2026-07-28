@@ -43,6 +43,9 @@ class Libraries(BaseModel):
     name = TextField(null=False, unique=True)
     path = TextField(null=False)
     locked = BooleanField(null=False, default=False)
+    # Retained for schema compatibility only. The "receive remote files only" option was
+    # retired with the Link feature (see #52); nothing reads this column any more. Dropping
+    # it would require a migration for no benefit, so it stays at its default.
     enable_remote_only = BooleanField(null=False, default=False)
     enable_scanner = BooleanField(null=False, default=False)
     enable_inotify = BooleanField(null=False, default=False)

@@ -1984,11 +1984,6 @@
                         "description": "If the library is locked and cannot be deleted",
                         "example": false
                     },
-                    "enable_remote_only": {
-                        "type": "boolean",
-                        "description": "If the library is configured for remote files only",
-                        "example": false
-                    },
                     "enable_scanner": {
                         "type": "boolean",
                         "description": "If the library is configured to execute library scans",
@@ -2013,7 +2008,6 @@
                 },
                 "required": [
                     "enable_inotify",
-                    "enable_remote_only",
                     "enable_scanner",
                     "id",
                     "locked",
@@ -5594,7 +5588,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Sample response: Returns the remote installation link configuration.",
+                        "description": "Sample response: Returns the library configuration.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5798,7 +5792,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Sample response: Returns the remote installation link configuration.",
+                        "description": "Sample response: Returns the library plugin configuration.",
                         "content": {
                             "application/json": {
                                 "schema": {

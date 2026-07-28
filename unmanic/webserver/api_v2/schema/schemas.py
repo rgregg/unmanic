@@ -1517,11 +1517,6 @@ class LibraryResultsSchema(BaseSchema):
         description="If the library is locked and cannot be deleted",
         example=False,
     )
-    enable_remote_only = fields.Boolean(
-        required=True,
-        description="If the library is configured for remote files only",
-        example=False,
-    )
     enable_scanner = fields.Boolean(
         required=True,
         description="If the library is configured to execute library scans",
@@ -1563,7 +1558,7 @@ class RequestLibraryByIdSchema(BaseSchema):
 
 
 class SettingsLibraryConfigReadAndWriteSchema(BaseSchema):
-    """Schema to display the data from the remote installation"""
+    """Schema to read and write a library's configuration"""
 
     library_config = fields.Dict(
         required=True,

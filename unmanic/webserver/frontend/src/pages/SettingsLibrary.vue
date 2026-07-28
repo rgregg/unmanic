@@ -56,12 +56,7 @@
                         </span>
                         <!--Indicate library path-->
                         <span class="text-weight-bold">{{ $t('components.settings.library.path') }}:</span>
-                        <span v-if="path.enableRemoteOnly">
-                          ({{ $t('components.settings.library.libraryRemoteOnlyStatus') }})
-                        </span>
-                        <span v-else>
-                          {{ path.path }}
-                        </span>
+                        {{ path.path }}
                         <br>
                         <!--Indicate library tags-->
                         <span class="text-weight-bold">{{ $t('components.settings.common.tags') }}:</span>
@@ -87,12 +82,7 @@
                           class="text-weight-bold">
                           {{ $t('components.settings.library.path') }}:
                         </span>
-                        <span v-if="path.enableRemoteOnly">
-                          ({{ $t('components.settings.library.libraryRemoteOnlyStatus') }})
-                        </span>
-                        <span v-else>
-                          {{ path.path }}
-                        </span>
+                        {{ path.path }}
                       </q-item-label>
 
                       <!--Library Tags-->
@@ -110,8 +100,8 @@
                         <div class="row">
                           <div class="col-6 text-left">
                             <span
-                              :class="path.enableScanner && !path.enableRemoteOnly ? 'text-primary' : 'text-grey-8'">
-                              <q-icon v-if="path.enableScanner && !path.enableRemoteOnly" color="check" name="check"/>
+                              :class="path.enableScanner ? 'text-primary' : 'text-grey-8'">
+                              <q-icon v-if="path.enableScanner" color="check" name="check"/>
                               <q-icon v-else color="close" name="close"/>
                               |
                               {{ $t('components.settings.library.libraryScannerStatusLabel') }}
@@ -123,8 +113,8 @@
                         <div class="row">
                           <div class="col-6 text-left">
                             <span
-                              :class="path.enableInotify && !path.enableRemoteOnly ? 'text-primary' : 'text-grey-8'">
-                              <q-icon v-if="path.enableInotify && !path.enableRemoteOnly" color="check" name="check"/>
+                              :class="path.enableInotify ? 'text-primary' : 'text-grey-8'">
+                              <q-icon v-if="path.enableInotify" color="check" name="check"/>
                               <q-icon v-else color="close" name="close"/>
                               |
                               {{ $t('components.settings.library.libraryFileMonitorStatusLabel') }}
@@ -651,7 +641,6 @@ export default {
             id: libraryPath.id,
             name: libraryPath.name,
             path: libraryPath.path,
-            enableRemoteOnly: libraryPath.enable_remote_only,
             enableScanner: libraryPath.enable_scanner,
             enableInotify: libraryPath.enable_inotify,
             tags: libraryPath.tags,

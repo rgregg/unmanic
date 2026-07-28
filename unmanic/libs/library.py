@@ -107,11 +107,10 @@ class Library(object):
                 'id':                 1,
                 'name':               generate_random_library_name(),
                 'path':               default_library_path,
-                'locked':             False,
-                "enable_remote_only": False,
-                "enable_scanner":     False,
-                "enable_inotify":     False,
-                'tags':               [],
+                'locked':         False,
+                "enable_scanner": False,
+                "enable_inotify": False,
+                'tags':           [],
             }
             Libraries.create(**default_library)
             return [default_library]
@@ -126,14 +125,13 @@ class Library(object):
                 lib.save()
             # Create library config dictionary
             library_config = {
-                'id':                 lib.id,
-                'name':               lib.name,
-                'path':               lib.path,
-                'locked':             lib.locked,
-                'enable_remote_only': lib.enable_remote_only,
-                'enable_scanner':     lib.enable_scanner,
-                'enable_inotify':     lib.enable_inotify,
-                'tags':               [],
+                'id':             lib.id,
+                'name':           lib.name,
+                'path':           lib.path,
+                'locked':         lib.locked,
+                'enable_scanner': lib.enable_scanner,
+                'enable_inotify': lib.enable_inotify,
+                'tags':           [],
             }
             # Append tags
             for tag in lib.tags.order_by(Tags.name):
@@ -201,12 +199,11 @@ class Library(object):
                 "plugin_flow":     plugin_flow,
             },
             "library_config": {
-                "name":               library_config.get_name(),
-                "path":               library_config.get_path(),
-                'enable_remote_only': library_config.get_enable_remote_only(),
-                'enable_scanner':     library_config.get_enable_scanner(),
-                'enable_inotify':     library_config.get_enable_inotify(),
-                'tags':               library_config.get_tags(),
+                "name":           library_config.get_name(),
+                "path":           library_config.get_path(),
+                'enable_scanner': library_config.get_enable_scanner(),
+                'enable_inotify': library_config.get_enable_inotify(),
+                'tags':           library_config.get_tags(),
             },
         }
 
@@ -266,12 +263,6 @@ class Library(object):
 
     def set_locked(self, value):
         self.model.locked = value
-
-    def get_enable_remote_only(self):
-        return self.model.enable_remote_only
-
-    def set_enable_remote_only(self, value):
-        self.model.enable_remote_only = value
 
     def get_enable_scanner(self):
         return self.model.enable_scanner
