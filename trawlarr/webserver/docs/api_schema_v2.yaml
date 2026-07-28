@@ -11,27 +11,70 @@ components:
       type: http
       scheme: basic
   schemas:
-    DocumentContentSuccess:
+    ActivityWorkers:
       type: object
       properties:
-        content:
-          type: array
-          minItems: 1
-          description: Document contents read line-by-line into a list
-          example:
-          - 'First line
-
-            '
-          - 'Second line
-
-            '
-          - '
-
-            '
-          items:
-            type: string
+        total:
+          type: integer
+          description: The number of configured worker threads
+          example: 3
+        busy:
+          type: integer
+          description: The number of workers currently holding a task
+          example: 1
+        paused:
+          type: integer
+          description: The number of workers currently paused
+          example: 0
       required:
-      - content
+      - busy
+      - paused
+      - total
+      additionalProperties: false
+    ActivityTasks:
+      type: object
+      properties:
+        pending:
+          type: integer
+          description: Tasks queued and waiting for a worker
+          example: 12
+        in_progress:
+          type: integer
+          description: Tasks currently assigned to a worker
+          example: 1
+        processed:
+          type: integer
+          description: Tasks transcoded and awaiting or undergoing post-processing
+            file moves
+          example: 0
+      required:
+      - in_progress
+      - pending
+      - processed
+      additionalProperties: false
+    ActivityStatusSuccess:
+      type: object
+      properties:
+        busy:
+          type: boolean
+          description: 'Whether Trawlarr may be touching library files. This is False
+            only when every worker is idle AND all of the task counts below are zero.
+            It is deliberately conservative: post-processing file moves happen after
+            a worker goes idle, so worker state alone is not a safe gate. If the state
+            cannot be determined the endpoint returns 500 rather than reporting False.'
+          example: true
+        workers:
+          description: Worker thread activity
+          allOf:
+          - $ref: '#/components/schemas/ActivityWorkers'
+        tasks:
+          description: Task queue depth by status
+          allOf:
+          - $ref: '#/components/schemas/ActivityTasks'
+      required:
+      - busy
+      - tasks
+      - workers
       additionalProperties: false
     BadRequest:
       type: object
@@ -106,6 +149,28 @@ components:
       required:
       - error
       - messages
+      additionalProperties: false
+    DocumentContentSuccess:
+      type: object
+      properties:
+        content:
+          type: array
+          minItems: 1
+          description: Document contents read line-by-line into a list
+          example:
+          - 'First line
+
+            '
+          - 'Second line
+
+            '
+          - '
+
+            '
+          items:
+            type: string
+      required:
+      - content
       additionalProperties: false
     RequestDirectoryListingData:
       type: object
@@ -1786,6 +1851,64 @@ components:
 security:
 - BasicAuth: []
 paths:
+  /activity/status:
+    get:
+      description: 'Returns whether Trawlarr may currently be touching library files,
+        together with
+
+        the worker and task queue counts that answer was derived from.
+
+
+        This is the supported gate for external tooling that shares storage or hardware
+
+        with Trawlarr. `busy` is False only when every worker is idle and there are
+        no
+
+        pending, in-progress or post-processing tasks. It is intentionally conservative:
+
+        post-processing file moves run after a worker reports idle, so worker state
+        on
+
+        its own is not safe to gate on.
+
+
+        If the activity state cannot be determined - for example while the Foreman
+        thread
+
+        is not running - this returns 500. It never reports an unknown state as idle.
+
+        '
+      responses:
+        '200':
+          description: 'Sample response: Returns the current activity state.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityStatusSuccess'
+        '400':
+          description: Bad request; Check `messages` for any validation errors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequest'
+        '404':
+          description: Bad request; Requested endpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadEndpoint'
+        '405':
+          description: Bad request; Requested method is not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadMethod'
+        '500':
+          description: Internal error; Check `error` for exception
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalError'
   /docs/privacypolicy:
     get:
       description: Returns the privacy policy.

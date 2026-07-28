@@ -245,6 +245,75 @@ class RequestDatabaseItemByIdSchema(BaseSchema):
     )
 
 
+# ACTIVITY
+# ========
+
+class ActivityWorkersSchema(BaseSchema):
+    """Schema for the worker half of the activity state"""
+
+    total = fields.Int(
+        required=True,
+        description="The number of configured worker threads",
+        example=3,
+    )
+    busy = fields.Int(
+        required=True,
+        description="The number of workers currently holding a task",
+        example=1,
+    )
+    paused = fields.Int(
+        required=True,
+        description="The number of workers currently paused",
+        example=0,
+    )
+
+
+class ActivityTasksSchema(BaseSchema):
+    """Schema for the task queue half of the activity state"""
+
+    pending = fields.Int(
+        required=True,
+        description="Tasks queued and waiting for a worker",
+        example=12,
+    )
+    in_progress = fields.Int(
+        required=True,
+        description="Tasks currently assigned to a worker",
+        example=1,
+    )
+    processed = fields.Int(
+        required=True,
+        description="Tasks transcoded and awaiting or undergoing post-processing file moves",
+        example=0,
+    )
+
+
+class ActivityStatusSuccessSchema(BaseSchema):
+    """Schema for returning whether this installation is currently doing work"""
+
+    busy = fields.Boolean(
+        required=True,
+        description=(
+            "Whether Trawlarr may be touching library files. This is False only when every "
+            "worker is idle AND all of the task counts below are zero. It is deliberately "
+            "conservative: post-processing file moves happen after a worker goes idle, so "
+            "worker state alone is not a safe gate. If the state cannot be determined the "
+            "endpoint returns 500 rather than reporting False."
+        ),
+        example=True,
+    )
+    workers = fields.Nested(
+        ActivityWorkersSchema,
+        required=True,
+        description="Worker thread activity",
+    )
+    tasks = fields.Nested(
+        ActivityTasksSchema,
+        required=True,
+        description="Task queue depth by status",
+    )
+
+
 # DOCS
 # ====
 
