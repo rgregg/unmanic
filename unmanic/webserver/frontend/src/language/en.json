@@ -27,7 +27,6 @@
     "back": "Back",
     "yes": "Yes",
     "copy": "Copy",
-    "loginWithPatreon": "Login with Patreon",
     "loginWithGitHub": "Login with GitHub",
     "loginWithDiscord": "Login with Discord"
   },
@@ -78,7 +77,6 @@
         "status": "Unknown status update from server"
       },
       "incompatiblePlugin": "Trawlarr has stopped processing tasks as it has detected an incompatible plugin enabled on one of your libraries",
-      "libraryEnabledLimits": "Trawlarr has stopped processing tasks as you have too many libraries configured for a non-supporter tier. Consider sponsoring the project to enable more than 2 libraries.",
       "pluginSettingsChangeWorkersStopped": "Trawlarr has stopped all workers as it has detected a change to the plugins configuration. When you are ready, resume the workers from the dashboard.",
       "libraryScanProgress": "Library scan running",
       "pendingTaskHaltedPostProcessorQueueFull": "The Post-processor queue reached its limit",
@@ -112,7 +110,6 @@
     "configureWorkerGroup": "Configure worker group",
     "selectPlugin": "Select a plugin",
     "selectLibrary": "Select a library",
-    "login": "Login",
     "listEmpty": "This task list is empty",
     "welcomeToUnmanic": "Welcome to Trawlarr"
   },
@@ -251,39 +248,7 @@
         "support": "Support",
         "unmanicAppSourceRequests": "Request feature in Trawlarr Application",
         "unmanicFrontendSourceRequests": "Request feature in Trawlarr Frontend",
-        "unmanicOfficialPluginRequests": "Request a plugin for Unmanic",
-        "supporterStatus": "Supporter Status",
-        "supporterStatusBody": "Some features are limited when you are not logged in as a supporter. Supporter access can be earned through financial sponsorship, code contributions, or active community participation.",
-        "supporterStatusLifetimeBody": "Financial supporters now unlock lifetime access once cumulative Patreon/GitHub sponsorship reaches $36 USD. Existing supporters who reached this amount in the last 12 months are automatically eligible.",
-        "supporterStatusLinkLabel": "Learn more about supporter features and pricing",
-        "creditPortalLinkLabel": "Open Credit Portal",
-        "fundingProposalsOpen": "View Feature Funding Proposals",
-        "fundingProposalsTitle": "Feature Funding Proposals",
-        "fundingProposalsBody": "Feature funding proposals let the community support and vote on selected future development. Financial supporters automatically earn credits they can assign toward these proposals to fund and prioritize what gets built next. Not all upcoming work requires funding, and standard improvements and bug fixes continue as normal. Some optional features are listed here and may require funding before implementation begins, with different funding goals based on scope and priority.",
-        "fundingProposalsPortalLinkLabel": "Read More About Feature Funding",
-        "fundingProposalsRefresh": "Refresh proposals",
-        "fundingProposalsEmpty": "No active funding proposals are available right now.",
-        "fundingProposalsEmptyActive": "No active funding proposals are available right now.",
-        "fundingProposalsEmptyFunded": "No funded proposals are available right now.",
-        "fundingProposalsEmptyInProgress": "No in-progress proposals are available right now.",
-        "fundingProposalsEmptyComplete": "No completed proposals are available right now.",
-        "fundingProposalsLoadFailed": "Failed to load funding proposals.",
-        "fundingTabActive": "ACTIVE ({count})",
-        "fundingTabFunded": "FUNDED ({count})",
-        "fundingTabInProgress": "IN-PROGRESS ({count})",
-        "fundingTabComplete": "COMPLETE ({count})",
-        "fundingTabActiveLabel": "Funding",
-        "fundingTabFundedLabel": "Funded",
-        "fundingTabInProgressLabel": "In Progress",
-        "fundingTabCompleteLabel": "Complete",
-        "fundingCreditsValue": "{value} credits",
-        "fundingCardFunded": "{value} funded",
-        "fundingCardGoal": "Goal: {value}",
-        "fundingProposalUntitled": "Proposal {number}",
-        "fundingProposalStatus": "Status: {status}",
-        "fundingProposalCredits": "Credits: {current}/{target}",
-        "fundingProposalTargetCredits": "Target credits: {target}",
-        "fundingProposalCurrentCredits": "Current credits: {current}"
+        "unmanicOfficialPluginRequests": "Request a plugin for Unmanic"
       }
     },
     "workers": {
@@ -537,31 +502,6 @@
         "limitationsLinkLabel": "View feature comparison",
         "enjoy": "We hope you enjoy using Trawlarr!"
       }
-    },
-    "loginDialog": {
-      "intro": "Unmanic is a free and open-source product brought to you by Streaming Tech. While basic features can be used without logging in, signing in unlocks additional features if you support any of the Streaming Tech open-source projects.",
-      "supportIntro": "Supporting these projects is simple:",
-      "support": {
-        "github": {
-          "title": "GitHub:",
-          "body": "Contributing, even a small documentation fix, on our repositories (github.com/Unmanic, github.com/Steam-Headless, or github.com/DeckSettings) bumps your account to a supporter tier for a month."
-        },
-        "discord": {
-          "title": "Discord:",
-          "body": "Being active and helpful in our Discord server earns reputation points and upgrades your account to a supporter tier."
-        },
-        "patreon": {
-          "title": "Patreon:",
-          "body": "Financially backing the project on Patreon unlocks exclusive channels in Discord for discussing future developments and elevates your account to a supporter tier."
-        }
-      },
-      "codePrompt": "Your unique login code has been generated below. Please click the button to open a new window where you can enter this code to authenticate and link this installation to your account.",
-      "loginButton": "Login with Streaming Tech",
-      "timeRemaining": "Time remaining: {time}",
-      "noteTitle": "Note:",
-      "noteLineOne": "Streaming Tech is the umbrella organisation for all open-source GitHub projects by Josh Sunnex (Josh.5).",
-      "noteLineTwo": "Sponsorship funds (e.g., via Patreon) are used to hire or contract outside help, maintain infrastructure, and fuel my coffee addiction.",
-      "noteLineThree": "Supporting Trawlarr also sustains our wider free and open-source development."
     }
   }
 }

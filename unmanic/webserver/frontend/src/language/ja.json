@@ -25,7 +25,6 @@
     "back": "戻る",
     "yes": "はい",
     "copy": "コピー",
-    "loginWithPatreon": "Patreonでログイン",
     "loginWithGitHub": "GitHubでログイン",
     "loginWithDiscord": "Discordでログイン"
   },
@@ -73,7 +72,6 @@
         "status": "サーバーからの不明なステータス更新"
       },
       "incompatiblePlugin": "ライブラリの 1 つで互換性のないプラグインが有効になっていることが検出されたため、Trawlarr はタスクの処理を停止しました",
-      "libraryEnabledLimits": "非サポート層に構成されたライブラリが多すぎるため、Trawlarr はタスクの処理を停止しました。 3 つ以上のライブラリを有効にするプロジェクトのスポンサーになることを検討してください。",
       "pluginSettingsChangeWorkersStopped": "Trawlarr はプラグイン設定の変更を検出したため、すべてのワーカーを停止しました。準備ができたら、ダッシュボードからワーカーを再開します。",
       "libraryScanProgress": "ライブラリスキャン実行中",
       "pendingTaskHaltedPostProcessorQueueFull": "ポストプロセッサキューが限界に達しました",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "ワーカーグループの構成",
     "selectPlugin": "プラグインを選択してください",
     "selectLibrary": "ライブラリを選択してください",
-    "login": "ログイン",
     "listEmpty": "このタスクリストは空です"
   },
   "tooltips": {

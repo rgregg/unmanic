@@ -25,7 +25,6 @@
     "back": "Indietro",
     "yes": "SÌ",
     "copy": "copia",
-    "loginWithPatreon": "Accedi con Patreon",
     "loginWithGitHub": "Accedi con GitHub",
     "loginWithDiscord": "Accedi con Discordia"
   },
@@ -73,7 +72,6 @@
         "status": "Aggiornamento dello stato sconosciuto dal server"
       },
       "incompatiblePlugin": "Trawlarr ha interrotto l'elaborazione delle attività poiché ha rilevato un plug-in incompatibile abilitato su una delle tue librerie",
-      "libraryEnabledLimits": "Trawlarr ha interrotto l'elaborazione delle attività perché hai troppe librerie configurate per un livello non supportato. Considera la possibilità di sponsorizzare il progetto per abilitare più di 2 biblioteche.",
       "pluginSettingsChangeWorkersStopped": "Trawlarr ha fermato tutti i lavoratori poiché ha rilevato una modifica alla configurazione dei plugin. Quando sei pronto, riprendi i lavoratori dalla dashboard.",
       "libraryScanProgress": "Scansione della libreria in corso",
       "pendingTaskHaltedPostProcessorQueueFull": "La coda del post-processore ha raggiunto il limite",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "Configura il gruppo di lavoro",
     "selectPlugin": "Seleziona un plug-in",
     "selectLibrary": "Seleziona una libreria",
-    "login": "Login",
     "listEmpty": "Questo elenco di attività è vuoto"
   },
   "tooltips": {

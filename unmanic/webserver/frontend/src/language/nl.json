@@ -25,7 +25,6 @@
     "back": "Rug",
     "yes": "Ja",
     "copy": "Kopiëren",
-    "loginWithPatreon": "Log in met Patreon",
     "loginWithGitHub": "Log in met GitHub",
     "loginWithDiscord": "Log in met Discord"
   },
@@ -73,7 +72,6 @@
         "status": "Onbekende statusupdate van server"
       },
       "incompatiblePlugin": "Trawlarr is gestopt met het verwerken van taken omdat het een incompatibele plug-in heeft gedetecteerd die in een van uw bibliotheken is ingeschakeld",
-      "libraryEnabledLimits": "Trawlarr is gestopt met het verwerken van taken omdat er te veel bibliotheken zijn geconfigureerd voor een niet-ondersteunde laag. Overweeg om het project te sponsoren om meer dan twee bibliotheken mogelijk te maken.",
       "pluginSettingsChangeWorkersStopped": "Trawlarr heeft alle werkers gestopt omdat het een wijziging in de configuratie van de plug-ins heeft gedetecteerd. Wanneer u klaar bent, hervat u de werknemers vanaf het dashboard.",
       "libraryScanProgress": "Bibliotheekscan actief",
       "pendingTaskHaltedPostProcessorQueueFull": "De post-processorwachtrij heeft zijn limiet bereikt",
@@ -104,7 +102,6 @@
     "configureWorkerGroup": "Configureer de werknemersgroep",
     "selectPlugin": "Selecteer een plug-in",
     "selectLibrary": "Selecteer een bibliotheek",
-    "login": "Log in",
     "listEmpty": "Deze takenlijst is leeg"
   },
   "tooltips": {
