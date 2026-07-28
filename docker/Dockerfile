@@ -340,4 +340,4 @@ EXPOSE 8888/tcp
 # Long start-period covers the (slow) first-time DB migrations and plugin
 # repo refresh that run on a clean container.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD curl -fsS --max-time 4 http://127.0.0.1:8888/unmanic/api/v2/version/read || exit 1
+    CMD curl -fsS --max-time 4 http://127.0.0.1:8888/trawlarr/api/v2/version/read || exit 1

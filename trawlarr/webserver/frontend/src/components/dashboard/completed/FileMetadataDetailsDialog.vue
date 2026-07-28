@@ -117,7 +117,7 @@ import { computed, ref, watch } from 'vue'
 import axios from 'axios'
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
 import UnmanicListActionButton from 'components/ui/buttons/UnmanicListActionButton.vue'
 import UnmanicDialogConfirm from 'components/ui/dialogs/UnmanicDialogConfirm.vue'
@@ -235,7 +235,7 @@ const fetchMetadata = () => {
 
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', endpoint),
+    url: getTrawlarrApiUrl('v2', endpoint),
     data: payload,
   }).then((response) => {
     metadataResults.value = response.data.results || []
@@ -300,7 +300,7 @@ const saveAll = () => {
     }
     requests.push(axios({
       method: 'post',
-      url: getUnmanicApiUrl('v2', 'metadata/update'),
+      url: getTrawlarrApiUrl('v2', 'metadata/update'),
       data: {
         fingerprint: selectedEntry.value.fingerprint,
         plugin_id: entry.pluginId,
@@ -370,7 +370,7 @@ const showConfirmDialog = () => {
 const deleteMetadata = (pluginId) => {
   axios({
     method: 'delete',
-    url: getUnmanicApiUrl('v2', 'metadata'),
+    url: getTrawlarrApiUrl('v2', 'metadata'),
     data: {
       fingerprint: selectedEntry.value.fingerprint,
       plugin_id: pluginId,

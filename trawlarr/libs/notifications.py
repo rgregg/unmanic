@@ -60,7 +60,7 @@ class Notifications(Queue, metaclass=SingletonType):
                 'label':      'failedTaskLabel',
                 'message':    'You have a new failed task in your completed tasks list',
                 'navigation': {
-                    'push': '/unmanic/ui/dashboard',
+                    'push': '/ui/dashboard',
                     'events': [
                         'completedTasksShowMore',
                     ],

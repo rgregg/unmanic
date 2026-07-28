@@ -121,7 +121,7 @@
     </q-page-container>
 
     <!-- Local fork: persistent footer with copyright + version removed.
-         Version is available via /unmanic/api/v2/version/read and the
+         Version is available via /trawlarr/api/v2/version/read and the
          settings page; copyright lives in the LICENSE file in the repo. -->
 
   </q-layout>

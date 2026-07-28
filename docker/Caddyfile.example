@@ -6,10 +6,10 @@
 # See ../docs/SECURITY_MODEL.md for why every route has to be covered.
 
 trawlarr.example.com {
-	# Authenticate the whole vhost. Not a subpath: /unmanic/api/* is as
+	# Authenticate the whole vhost. Not a subpath: /trawlarr/api/* is as
 	# powerful as the UI (plugin upload is remote code execution), and the
 	# websocket, Swagger UI, plugin panels and static assets all live under
-	# the same origin. A rule scoped to /unmanic/ui/* protects nothing.
+	# the same origin. A rule scoped to /trawlarr/ui/* protects nothing.
 	basic_auth * {
 		# Generate the hash with:
 		#   docker run --rm caddy caddy hash-password --plaintext 'your-password'

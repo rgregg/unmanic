@@ -92,7 +92,7 @@ for user_init_script in /config/init.d/*.sh; do
 
 done
 
-for plugin_script in /config/.unmanic/plugins/*/init.d/*.sh; do
+for plugin_script in /config/.trawlarr/plugins/*/init.d/*.sh; do
 
     if [[ -e "${plugin_script}" ]]; then
 

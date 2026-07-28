@@ -18,7 +18,7 @@ maintainer if the details shouldn't be public.
 
 The web server (`trawlarr/libs/uiserver.py`) is a Tornado application
 with three route groups: the frontend, the v1/v2 REST API under
-`/unmanic/api/`, and the plugin panel/API routes. **None of them are
+`/trawlarr/api/`, and the plugin panel/API routes. **None of them are
 wrapped in an authentication or authorization layer.** There is no
 login handler, no session cookie, no API key, no token check, and no
 per-route `@authenticated` decorator anywhere in the request path. The
@@ -33,7 +33,7 @@ Consequences worth stating explicitly:
   a page in a user's browser can issue requests to a Trawlarr instance
   that browser can reach.
 - **The API surface is the whole application.** Swagger UI is served
-  at `/unmanic/swagger` and documents every endpoint.
+  at `/trawlarr/swagger` and documents every endpoint.
 - **The default bind address is every interface.** `ui_address`
   defaults to `''` and `ui_port` to `8888` (`trawlarr/config.py`), so
   an unconfigured install listens on `0.0.0.0:8888`. Publishing that
@@ -47,7 +47,7 @@ can reach the port can, among other things:
 
 - **Run arbitrary code on the host.** Plugins execute inside the
   Trawlarr process, and the upload API
-  (`/unmanic/api/v2/upload/plugin`) accepts a plugin zip and installs
+  (`/trawlarr/api/v2/upload/plugin`) accepts a plugin zip and installs
   it. Plugin install is remote code execution as the container user,
   by design.
 - **Browse the filesystem.** The file browser API lists any directory
@@ -135,7 +135,7 @@ The shape of it:
 - A `basic_auth` directive covers the site block — `*`, not a subpath
   — so the API, the websocket, the Swagger UI, the plugin panels and
   the static assets are all behind it. A rule that protects only
-  `/unmanic/ui/*` protects nothing, because `/unmanic/api/*` is the
+  `/trawlarr/ui/*` protects nothing, because `/trawlarr/api/*` is the
   same power.
 
 Read the compose file's header for the generate-a-password-hash and

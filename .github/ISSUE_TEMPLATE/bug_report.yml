@@ -87,7 +87,7 @@ body:
         Please copy and paste any relevant log output.
         This will be automatically formatted into code, so no need for backticks.
         Note: Most relevant logs are found either in the docker logs or inside the container
-        in /config/.unmanic/logs/. Logs contain file paths and file names from your library —
+        in /config/.trawlarr/logs/. Logs contain file paths and file names from your library —
         review and redact before posting.
       render: Shell
   - type: markdown

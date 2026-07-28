@@ -37,6 +37,8 @@ import tornado.routing
 
 from tornado.web import RequestHandler
 
+from trawlarr.libs.runtimepaths import URL_PREFIX
+
 
 class BaseApiHandler(RequestHandler):
     routes = []
@@ -46,7 +48,9 @@ class BaseApiHandler(RequestHandler):
         self.write('404 Not Found')
 
     def action_route(self):
-        request_api_endpoint = re.sub('^/unmanic', '', self.request.uri)
+        # The v1 route patterns are declared relative to the API mount point,
+        # so strip the application's URL prefix before matching.
+        request_api_endpoint = re.sub('^{}'.format(re.escape(URL_PREFIX)), '', self.request.uri)
         for route in self.routes:
             # Check if the rout supports the supported http methods
             supported_methods = route.get("supported_methods")

@@ -184,7 +184,7 @@ import axios from 'axios'
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
 import { useMobile } from 'src/composables/useMobile'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
 import UnmanicStandardButton from 'components/ui/buttons/UnmanicStandardButton.vue'
 import UnmanicStandardButtonDropdown from 'components/ui/buttons/UnmanicStandardButtonDropdown.vue'
@@ -352,7 +352,7 @@ const fetchMetadata = ({ reset = false, silent = false } = {}) => {
 
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'metadata/search'),
+    url: getTrawlarrApiUrl('v2', 'metadata/search'),
     data: payload,
   }).then((response) => {
     const results = response.data.results || []
@@ -401,7 +401,7 @@ const deleteSelected = () => {
   const requests = selectedFingerprints.value.map((fingerprint) => (
     axios({
       method: 'delete',
-      url: getUnmanicApiUrl('v2', 'metadata'),
+      url: getTrawlarrApiUrl('v2', 'metadata'),
       data: { fingerprint }
     })
   ))

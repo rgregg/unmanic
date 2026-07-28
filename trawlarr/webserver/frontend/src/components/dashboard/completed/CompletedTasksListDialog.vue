@@ -605,7 +605,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import dateTools from 'src/js/dateTools'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
@@ -1038,7 +1038,7 @@ const performDeleteSelected = (deleteMetadata) => {
 
   const deleteTasks = () => axios({
     method: 'delete',
-    url: getUnmanicApiUrl('v2', 'history/tasks'),
+    url: getTrawlarrApiUrl('v2', 'history/tasks'),
     data
   })
 
@@ -1051,7 +1051,7 @@ const performDeleteSelected = (deleteMetadata) => {
     const requests = selectedIds.value.map((id) => (
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'metadata/by-task'),
+        url: getTrawlarrApiUrl('v2', 'metadata/by-task'),
         data: {
           task_id: Number(id),
         }
@@ -1070,7 +1070,7 @@ const performDeleteSelected = (deleteMetadata) => {
     const deleteRequests = Array.from(fingerprints).map((fingerprint) => (
       axios({
         method: 'delete',
-        url: getUnmanicApiUrl('v2', 'metadata'),
+        url: getTrawlarrApiUrl('v2', 'metadata'),
         data: {
           fingerprint,
         }
@@ -1121,7 +1121,7 @@ const confirmDeleteSelected = (deleteMetadata) => {
 const selectLibraryForRecreateTask = () => {
   axios({
     method: 'get',
-    url: getUnmanicApiUrl('v2', 'settings/libraries')
+    url: getTrawlarrApiUrl('v2', 'settings/libraries')
   }).then((response) => {
     const libraryPathsList = []
     let defaultSelection
@@ -1174,7 +1174,7 @@ const addSelectedToPendingTaskList = () => {
 
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'history/reprocess'),
+    url: getTrawlarrApiUrl('v2', 'history/reprocess'),
     data
   }).then(() => {
     resetSelection()
@@ -1240,7 +1240,7 @@ const fetchCompletedTasks = ({ reset = false, silent = false, refreshTop = false
 
   return axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'history/tasks'),
+    url: getTrawlarrApiUrl('v2', 'history/tasks'),
     data
   }).then((response) => {
     totalCount.value = response.data.recordsFiltered

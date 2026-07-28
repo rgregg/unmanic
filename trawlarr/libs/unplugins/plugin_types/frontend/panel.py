@@ -42,7 +42,7 @@ class DataPanel(PluginType):
     The 'data' object argument includes:
         content_type                    - The content type to be set when writing back to the browser.
         content                         - The content to print to the browser.
-        path                            - The path received after the '/unmanic/panel' path.
+        path                            - The path received after the '/trawlarr/panel' path.
         arguments                       - A dictionary of GET arguments received.
 
     :param data:

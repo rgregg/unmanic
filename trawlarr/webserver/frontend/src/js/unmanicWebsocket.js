@@ -1,5 +1,5 @@
 import { Notify } from 'quasar'
-import $unmanic from './unmanicGlobals'
+import $unmanic, { urlPrefix } from './unmanicGlobals'
 
 /**
  * Function for handle default WS connection to the Unmanic service.
@@ -61,7 +61,7 @@ export const UnmanicWebsocketHandler = function ($t) {
         } else {
           new_uri = 'ws:';
         }
-        new_uri += '//' + loc.host + '/unmanic/websocket';
+        new_uri += '//' + loc.host + urlPrefix + '/websocket';
 
         // Open WS connection
         $unmanic.ws = new WebSocket(new_uri);

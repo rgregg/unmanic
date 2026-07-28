@@ -140,8 +140,9 @@ only ever produce development builds.
   automatically.
 - **PATCH** — fixes only. Always safe to take.
 
-The plugin-facing surface (`unmanic.libs.*` imports, the `unmanic` config
-directory, the `/unmanic/api/v2/` paths) counts as public API for this
+The plugin-facing surface (`trawlarr.libs.*` imports, still reachable as
+`unmanic.libs.*` through the compatibility shim, the `~/.trawlarr` config
+directory, the `/trawlarr/api/v2/` paths) counts as public API for this
 purpose. Breaking third-party plugins is a MAJOR change.
 
 Git tags are **unprefixed** — `1.2.3`, not `v1.2.3`. Two reasons: it
@@ -218,15 +219,28 @@ the runbook.
    breaking change on its own.
 3. Bind mounts and env stay identical — same `docker/Dockerfile` and
    `docker/root/` entrypoint.
-4. Verify on the running install:
-   - `curl http://10.0.0.203:8888/unmanic/api/v2/version/read` → 200
-   - `curl http://10.0.0.203:8888/unmanic/api/v2/session/state` → `"level": 7`
-   - `docker exec unmanic cat /config/.unmanic/logs/unmanic.log | tail -50` → no `api.unmanic.app` references, no `AttributeError`
-5. Watch one full transcode cycle to confirm runtime ffmpeg layers
+4. **Move the config directory before starting.** Trawlarr reads
+   `/config/.trawlarr/`, not `/config/.unmanic/`, and there is no
+   migration and no fallback. With the container stopped:
+
+   ```
+   mv /config/.unmanic /config/.trawlarr
+   mv /config/.trawlarr/config/unmanic.db /config/.trawlarr/config/trawlarr.db
+   ```
+
+   Skipping this is not silently destructive: the application refuses to
+   start when it finds data in `.unmanic/` and nothing in `.trawlarr/`,
+   and prints both paths and the commands above.
+5. Verify on the running install:
+   - `curl http://10.0.0.203:8888/trawlarr/api/v2/version/read` → 200
+   - `curl http://10.0.0.203:8888/trawlarr/api/v2/session/state` → `"level": 7`
+   - `docker exec unmanic cat /config/.trawlarr/logs/unmanic.log | tail -50` → no `api.unmanic.app` references, no `AttributeError`
+6. Watch one full transcode cycle to confirm runtime ffmpeg layers
    resolve correctly under load.
 
-Rollback: point the image at `josh5/unmanic:latest` and redeploy. DB and
-config are unchanged so the rollback is clean.
+Rollback: point the image at `josh5/unmanic:latest` and redeploy, then
+reverse the two `mv` commands from step 4. The data itself is untouched
+by the rename, so the rollback is a directory move, not a restore.
 
 ## Test instance
 

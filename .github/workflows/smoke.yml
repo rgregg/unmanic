@@ -93,7 +93,7 @@ jobs:
           # Poll the HEALTHCHECK endpoint. Up to 3 minutes — first boot
           # runs DB migrations and initial plugin repo refresh.
           for i in $(seq 1 60); do
-            if curl -fsS --max-time 3 http://127.0.0.1:8888/unmanic/api/v2/version/read >/dev/null 2>&1; then
+            if curl -fsS --max-time 3 http://127.0.0.1:8888/trawlarr/api/v2/version/read >/dev/null 2>&1; then
               echo "Webserver up after ~$((i * 3))s"
               exit 0
             fi
@@ -105,7 +105,7 @@ jobs:
 
       - name: Verify session level is pinned
         run: |
-          STATE=$(curl -fsS http://127.0.0.1:8888/unmanic/api/v2/session/state)
+          STATE=$(curl -fsS http://127.0.0.1:8888/trawlarr/api/v2/session/state)
           echo "session/state: $STATE"
           LEVEL=$(echo "$STATE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("level"))')
           if [[ "$LEVEL" != "7" ]]; then
@@ -118,9 +118,43 @@ jobs:
         run: |
           # Sanity check that the version endpoint returns a real value,
           # not just any-200.
-          VER=$(curl -fsS http://127.0.0.1:8888/unmanic/api/v2/version/read)
+          VER=$(curl -fsS http://127.0.0.1:8888/trawlarr/api/v2/version/read)
           echo "version/read: $VER"
           echo "$VER" | python3 -c 'import json,sys; d=json.load(sys.stdin); v=d.get("version") or d.get("data",{}).get("version"); assert v, "no version field"; print(f"version: {v}")'
+
+      - name: Verify the runtime paths moved and the old ones are gone
+        run: |
+          # The config directory and the API prefix both moved from
+          # unmanic to trawlarr, with no alias for either. Assert the new
+          # locations exist and the old API path is a hard 404 — a silent
+          # fallback to the old names is exactly the failure this rename
+          # is meant not to have.
+          fail=0
+
+          if [[ ! -d "$RUNNER_TEMP/unmanic-config/.trawlarr/config" ]]; then
+            echo "::error::Expected config directory /config/.trawlarr/config was not created"
+            fail=1
+          fi
+          if [[ ! -f "$RUNNER_TEMP/unmanic-config/.trawlarr/config/trawlarr.db" ]]; then
+            echo "::error::Expected database /config/.trawlarr/config/trawlarr.db was not created"
+            fail=1
+          fi
+          if [[ -d "$RUNNER_TEMP/unmanic-config/.unmanic" ]]; then
+            echo "::error::Legacy config directory /config/.unmanic was created"
+            fail=1
+          fi
+
+          OLD_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8888/unmanic/api/v2/version/read)
+          echo "GET /unmanic/api/v2/version/read -> $OLD_STATUS"
+          if [[ "$OLD_STATUS" != "404" ]]; then
+            echo "::error::Legacy API path answered $OLD_STATUS; it must 404"
+            fail=1
+          fi
+
+          if [[ "$fail" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Runtime paths verified."
 
       - name: Check container logs for regressions
         run: |

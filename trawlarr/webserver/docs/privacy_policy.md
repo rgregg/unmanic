@@ -20,7 +20,7 @@ missed call fails immediately rather than reaching a third party.
 ## What is stored, and where
 
 Everything Trawlarr stores stays on the machine you run it on, under your
-configuration directory (`/config/.unmanic/` in the Docker image):
+configuration directory (`/config/.trawlarr/` in the Docker image):
 
  - **Configuration and library settings** — in a local SQLite database.
  - **Installed plugins and their settings** — including any credentials you

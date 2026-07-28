@@ -33,6 +33,7 @@ import tornado.web
 import tornado.websocket
 
 from trawlarr.libs import session
+from trawlarr.libs.runtimepaths import URL_PREFIX
 
 
 class MainUIRequestHandler(tornado.web.RequestHandler):
@@ -55,4 +56,4 @@ class MainUIRequestHandler(tornado.web.RequestHandler):
         self.set_header("Content-Type", "application/json")
         if query == 'login':
             self.session.register_unmanic(force=True)
-            self.redirect("/unmanic/ui/dashboard/")
+            self.redirect("{}/ui/dashboard/".format(URL_PREFIX))

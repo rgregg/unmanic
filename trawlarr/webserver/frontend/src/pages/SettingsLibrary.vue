@@ -363,7 +363,7 @@ import { onMounted, onUnmounted, ref, computed, getCurrentInstance } from "vue";
 import { useQuasar } from 'quasar'
 import { useI18n } from "vue-i18n";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 import MobileSettingsQuickNav from "components/MobileSettingsQuickNav";
 import LibraryConfigDialog from "components/settings/library/LibraryConfigDialog.vue";
 import SelectDirectoryDialog from "components/ui/pickers/SelectDirectoryDialog.vue";
@@ -474,7 +474,7 @@ export default {
         }
         axios({
           method: 'post',
-          url: getUnmanicApiUrl('v2', 'settings/library/write'),
+          url: getTrawlarrApiUrl('v2', 'settings/library/write'),
           data: data
         }).then((response) => {
           // Save success, show feedback
@@ -533,7 +533,7 @@ export default {
         }
         axios({
           method: 'delete',
-          url: getUnmanicApiUrl('v2', 'settings/library/remove'),
+          url: getTrawlarrApiUrl('v2', 'settings/library/remove'),
           data: data
         }).then((response) => {
           // Save success, show feedback
@@ -561,7 +561,7 @@ export default {
       // Fetch current settings
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'settings/read')
+        url: getTrawlarrApiUrl('v2', 'settings/read')
       }).then((response) => {
         this.libraryPath = response.data.settings.library_path
         this.enableLibraryScanner = response.data.settings.enable_library_scanner
@@ -605,7 +605,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'settings/write'),
+        url: getTrawlarrApiUrl('v2', 'settings/write'),
         data: data
       }).then((response) => {
         // Save success, show feedback
@@ -631,7 +631,7 @@ export default {
       // Fetch current settings
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'settings/libraries')
+        url: getTrawlarrApiUrl('v2', 'settings/libraries')
       }).then((response) => {
         let libraryPathsList = []
         // TODO: Rename from library path

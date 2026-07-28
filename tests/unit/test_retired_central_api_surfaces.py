@@ -58,7 +58,7 @@ V2_RETIRED_ROUTES = [
     'session/funding_proposals',
 ]
 
-V1_API_ROOT = '/unmanic/api/v1'
+V1_API_ROOT = '/trawlarr/api/v1'
 
 V1_RETIRED_ROUTES = [
     'session/unmanic-sign-out-url',
@@ -122,7 +122,7 @@ class Response:
         return json.loads(self.body)
 
 
-def call_endpoint(handler_class, endpoint, method='GET', api_root='/unmanic/api/v2'):
+def call_endpoint(handler_class, endpoint, method='GET', api_root='/trawlarr/api/v2'):
     """
     Route a request through the handler exactly as the web server would, and
     capture what it writes back on the connection.

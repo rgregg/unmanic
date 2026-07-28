@@ -152,7 +152,7 @@
 
 <script>
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 
 export default {
   // name: 'ComponentName',
@@ -214,7 +214,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'workers/worker/pause'),
+        url: getTrawlarrApiUrl('v2', 'workers/worker/pause'),
         data: data
       }).then((response) => {
         this.$q.notify({
@@ -240,7 +240,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'workers/worker/resume'),
+        url: getTrawlarrApiUrl('v2', 'workers/worker/resume'),
         data: data
       }).then((response) => {
         this.$q.notify({
@@ -266,7 +266,7 @@ export default {
       }
       axios({
         method: 'delete',
-        url: getUnmanicApiUrl('v2', 'workers/worker/terminate'),
+        url: getTrawlarrApiUrl('v2', 'workers/worker/terminate'),
         data: data
       }).then((response) => {
         this.$q.notify({

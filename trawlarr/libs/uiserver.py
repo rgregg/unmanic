@@ -43,6 +43,7 @@ import tornado.web
 
 from trawlarr import config
 from trawlarr.libs import common
+from trawlarr.libs.runtimepaths import URL_PREFIX
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 from trawlarr.webserver.downloads import DownloadsHandler
@@ -236,10 +237,10 @@ class UIServer(threading.Thread):
         # Start with web application routes
         from trawlarr.webserver.websocket import UnmanicWebsocketHandler
         app = tornado.web.Application([
-            (r"/unmanic/websocket", UnmanicWebsocketHandler),
-            (r"/unmanic/downloads/(.*)", DownloadsHandler),
+            (r"{}/websocket".format(URL_PREFIX), UnmanicWebsocketHandler),
+            (r"{}/downloads/(.*)".format(URL_PREFIX), DownloadsHandler),
             (r"/(.*)", tornado.web.RedirectHandler, dict(
-                url="/unmanic/ui/dashboard/"
+                url="{}/ui/dashboard/".format(URL_PREFIX)
             )),
         ], **tornado_settings)
 
@@ -247,7 +248,7 @@ class UIServer(threading.Thread):
         from trawlarr.webserver.api_request_router import APIRequestRouter
         app.add_handlers(r'.*', [
             (
-                tornado.routing.PathMatches(r"/unmanic/api/.*"),
+                tornado.routing.PathMatches(r"{}/api/.*".format(URL_PREFIX)),
                 APIRequestRouter(app)
             ),
         ])
@@ -255,23 +256,23 @@ class UIServer(threading.Thread):
         # Add frontend routes
         from trawlarr.webserver.main import MainUIRequestHandler
         app.add_handlers(r'.*', [
-            (r"/unmanic/css/(.*)", tornado.web.StaticFileHandler, dict(
+            (r"{}/css/(.*)".format(URL_PREFIX), tornado.web.StaticFileHandler, dict(
                 path=tornado_settings['static_css']
             )),
-            (r"/unmanic/fonts/(.*)", tornado.web.StaticFileHandler, dict(
+            (r"{}/fonts/(.*)".format(URL_PREFIX), tornado.web.StaticFileHandler, dict(
                 path=tornado_settings['static_fonts']
             )),
-            (r"/unmanic/icons/(.*)", tornado.web.StaticFileHandler, dict(
+            (r"{}/icons/(.*)".format(URL_PREFIX), tornado.web.StaticFileHandler, dict(
                 path=tornado_settings['static_icons']
             )),
-            (r"/unmanic/img/(.*)", tornado.web.StaticFileHandler, dict(
+            (r"{}/img/(.*)".format(URL_PREFIX), tornado.web.StaticFileHandler, dict(
                 path=tornado_settings['static_img']
             )),
-            (r"/unmanic/js/(.*)", tornado.web.StaticFileHandler, dict(
+            (r"{}/js/(.*)".format(URL_PREFIX), tornado.web.StaticFileHandler, dict(
                 path=tornado_settings['static_js']
             )),
             (
-                tornado.routing.PathMatches(r"/unmanic/ui/(.*)"),
+                tornado.routing.PathMatches(r"{}/ui/(.*)".format(URL_PREFIX)),
                 MainUIRequestHandler,
             ),
         ])
@@ -282,14 +283,14 @@ class UIServer(threading.Thread):
         from trawlarr.webserver.plugins import PluginAPIRequestHandler
         app.add_handlers(r'.*', [
             (
-                tornado.routing.PathMatches(r"/unmanic/panel/[^/]+(/(?!static/|assets$).*)?$"),
+                tornado.routing.PathMatches(r"{}/panel/[^/]+(/(?!static/|assets$).*)?$".format(URL_PREFIX)),
                 DataPanelRequestHandler
             ),
             (
-                tornado.routing.PathMatches(r"/unmanic/plugin_api/[^/]+(/(?!static/|assets$).*)?$"),
+                tornado.routing.PathMatches(r"{}/plugin_api/[^/]+(/(?!static/|assets$).*)?$".format(URL_PREFIX)),
                 PluginAPIRequestHandler
             ),
-            (r"/unmanic/panel/.*/static/(.*)", PluginStaticFileHandler, dict(
+            (r"{}/panel/.*/static/(.*)".format(URL_PREFIX), PluginStaticFileHandler, dict(
                 path=tornado_settings['static_img']
             )),
         ])
@@ -312,7 +313,7 @@ class UIServer(threading.Thread):
         tornado_api_doc(
             app,
             config_path=os.path.join(os.path.dirname(__file__), "..", "webserver", "docs", "api_schema_v2.json"),
-            url_prefix="/unmanic/swagger",
+            url_prefix="{}/swagger".format(URL_PREFIX),
             title="Unmanic application API"
         )
 

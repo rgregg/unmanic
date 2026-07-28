@@ -110,7 +110,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { date } from 'quasar'
 import { useI18n } from 'vue-i18n'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import UnmanicDialogMenu from 'components/ui/dialogs/UnmanicDialogMenu.vue'
 
 const emit = defineEmits(['hide', 'add-repo'])
@@ -128,7 +128,7 @@ const fetchForks = async () => {
   repos.value = []
 
   try {
-    const response = await axios.get(getUnmanicApiUrl('v2', 'plugins/repos/community'))
+    const response = await axios.get(getTrawlarrApiUrl('v2', 'plugins/repos/community'))
     const items = response.data.repos || []
     repos.value = items.map((repo) => {
       const pushedDate = repo.pushed_at ? new Date(repo.pushed_at) : null

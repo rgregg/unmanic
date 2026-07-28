@@ -34,7 +34,7 @@ import os
 import json
 
 from trawlarr import metadata
-from trawlarr.libs import common
+from trawlarr.libs import common, runtimepaths
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 
@@ -83,10 +83,11 @@ class Config(object, metaclass=SingletonType):
 
         # Set default directories
         home_directory = common.get_home_dir()
-        self.config_path = os.path.join(home_directory, '.unmanic', 'config')
-        self.log_path = os.path.join(home_directory, '.unmanic', 'logs')
-        self.plugins_path = os.path.join(home_directory, '.unmanic', 'plugins')
-        self.userdata_path = os.path.join(home_directory, '.unmanic', 'userdata')
+        app_directory = runtimepaths.app_dir(home_directory)
+        self.config_path = os.path.join(app_directory, 'config')
+        self.log_path = os.path.join(app_directory, 'logs')
+        self.plugins_path = os.path.join(app_directory, 'plugins')
+        self.userdata_path = os.path.join(app_directory, 'userdata')
 
         # Configure debugging
         self.debugging = False

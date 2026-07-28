@@ -234,7 +234,7 @@
 
 <script>
 import { onMounted, watch, ref, nextTick } from 'vue';
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 import { useQuasar } from "quasar";
 import axios from "axios";
 import { bbCodeToHTML } from "src/js/markupParser";
@@ -297,7 +297,7 @@ export default {
         }
         axios({
           method: 'post',
-          url: getUnmanicApiUrl('v2', 'plugins/disable'),
+          url: getTrawlarrApiUrl('v2', 'plugins/disable'),
           data: data
         }).then((response) => {
           onRequest({
@@ -330,7 +330,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'plugins/update'),
+        url: getTrawlarrApiUrl('v2', 'plugins/update'),
         data: data
       }).then((response) => {
         onRequest({
@@ -358,7 +358,7 @@ export default {
       }
       axios({
         method: 'delete',
-        url: getUnmanicApiUrl('v2', 'plugins/remove'),
+        url: getTrawlarrApiUrl('v2', 'plugins/remove'),
         data: data
       }).then((response) => {
         onRequest({
@@ -434,7 +434,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'plugins/installed'),
+        url: getTrawlarrApiUrl('v2', 'plugins/installed'),
         data: data
       }).then((response) => {
         // update rowsCount with appropriate value
@@ -533,7 +533,7 @@ export default {
     }
 
     function getUploadUrl() {
-      return getUnmanicApiUrl('v2', 'upload/plugin/file')
+      return getTrawlarrApiUrl('v2', 'upload/plugin/file')
     }
 
     function onRejectedPluginUpload(rejectedEntries) {

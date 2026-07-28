@@ -224,7 +224,7 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
 import PluginInstallerManageRepos from 'components/settings/plugins/partials/PluginInstallerManageRepos'
@@ -310,7 +310,7 @@ const installPlugin = (pluginId, repoId) => {
 
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'plugins/install'),
+    url: getTrawlarrApiUrl('v2', 'plugins/install'),
     data: data
   }).then(() => {
     $q.notify({
@@ -346,7 +346,7 @@ const installPlugin = (pluginId, repoId) => {
 const loadInstallablePlugins = () => {
   axios({
     method: 'get',
-    url: getUnmanicApiUrl('v2', 'plugins/installable')
+    url: getTrawlarrApiUrl('v2', 'plugins/installable')
   }).then((response) => {
     const allPluginsList = response.data.plugins
     const pluginList = []

@@ -32,7 +32,7 @@
 
 import { ref } from "vue";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl, urlPrefix } from "src/js/unmanicGlobals";
 import { LocalStorage } from "quasar";
 
 export default {
@@ -59,14 +59,15 @@ export default {
     setPageFromParams(pluginId) {
       if (typeof pluginId !== 'undefined') {
         let theme = LocalStorage.getItem('theme');
-        console.debug('setting iframe url to "/unmanic/panel/' + pluginId + '/?theme=' + theme + '"')
-        this.iframeSrc = '/unmanic/panel/' + pluginId + '/?theme=' + theme;
+        let panelUrl = urlPrefix + '/panel/' + pluginId + '/?theme=' + theme;
+        console.debug('setting iframe url to "' + panelUrl + '"')
+        this.iframeSrc = panelUrl;
       }
     },
     setPageAsFirstEnabledPanel() {
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'plugins/panels/enabled'),
+        url: getTrawlarrApiUrl('v2', 'plugins/panels/enabled'),
       }).then((response) => {
         // Success
         if (response.data.results.length > 0) {

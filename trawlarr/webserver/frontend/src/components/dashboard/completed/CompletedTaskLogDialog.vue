@@ -21,7 +21,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from "axios"
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals"
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals"
 import UnmanicDialogWindow from "components/ui/dialogs/UnmanicDialogWindow.vue"
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
@@ -57,7 +57,7 @@ const fetchCompletedTaskLog = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'history/task/log'),
+    url: getTrawlarrApiUrl('v2', 'history/task/log'),
     data: data
   }).then((response) => {
     taskDetails.value = response.data.command_log_lines

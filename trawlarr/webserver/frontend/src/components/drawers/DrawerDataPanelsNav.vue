@@ -29,7 +29,7 @@
 <script>
 import { ref } from "vue";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 
 export default {
   name: 'DrawerDataPanelsNav',
@@ -40,7 +40,7 @@ export default {
     fetchDataPanelList() {
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'plugins/panels/enabled'),
+        url: getTrawlarrApiUrl('v2', 'plugins/panels/enabled'),
       }).then((response) => {
         // Success
         let pluginIds = []

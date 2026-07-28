@@ -162,7 +162,7 @@
 <script>
 import { ref } from "vue";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 import { openURL, useQuasar } from "quasar";
 import CommunityRepos from "components/settings/plugins/CommunityRepos";
 import UnmanicStandardButton from "components/ui/buttons/UnmanicStandardButton.vue";
@@ -187,7 +187,7 @@ export default {
       // Fetch from server
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'plugins/repos/list'),
+        url: getTrawlarrApiUrl('v2', 'plugins/repos/list'),
       }).then((response) => {
         // Set returned data from server results
         let repos = [];
@@ -221,14 +221,14 @@ export default {
       }
       return axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'plugins/repos/update'),
+        url: getTrawlarrApiUrl('v2', 'plugins/repos/update'),
         data: data
       })
     },
     reloadAllReposData: function () {
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'plugins/repos/reload'),
+        url: getTrawlarrApiUrl('v2', 'plugins/repos/reload'),
       }).then((response) => {
         // Notify success
         this.$q.notify({

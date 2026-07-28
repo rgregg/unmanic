@@ -33,13 +33,14 @@ import argparse
 import os
 import queue
 import signal
+import sys
 import time
 import threading
 
 import psutil
 
 from trawlarr import config, metadata
-from trawlarr.libs import libraryscanner, common, eventmonitor
+from trawlarr.libs import libraryscanner, common, eventmonitor, runtimepaths
 from trawlarr.libs.db_migrate import Migrations
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
@@ -57,7 +58,7 @@ def init_db(config_path):
     # Set database connection settings
     database_settings = {
         "TYPE": "SQLITE",
-        "FILE": os.path.join(config_path, "unmanic.db"),
+        "FILE": os.path.join(config_path, runtimepaths.DATABASE_FILE_NAME),
         "MIGRATIONS_DIR": os.path.join(app_dir, "migrations_v1"),
         "MIGRATIONS_HISTORY_VERSION": "v1",
     }
@@ -327,6 +328,28 @@ class RootService:
         self.logger.info("Exit Unmanic")
 
 
+def guard_against_legacy_config_directory():
+    """
+    Refuse to start when an Unmanic install is present and Trawlarr's is not.
+
+    Trawlarr reads ~/.trawlarr/ where Unmanic read ~/.unmanic/. There is no
+    migration and no fallback to the old location, which means an upgraded
+    install would otherwise come up looking brand new: no libraries, no
+    plugins, no settings, no history. Nothing would actually be lost, but
+    the only way to find that out would be to go looking.
+
+    So we stop, print both paths and the commands that move the data, and
+    exit non-zero. The operator moves their own data; we never touch it.
+
+    :return:
+    """
+    message = runtimepaths.check_for_legacy_config_directory(common.get_home_dir())
+    if message is None:
+        return
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Unmanic")
     parser.add_argument(
@@ -369,8 +392,12 @@ def main():
         "--address", nargs="?", help="Specify the address to listen on, to limit connections to a specific interface"
     )
     # parser.add_argument('--unmanic_path', nargs='?',
-    #                    help='Specify the unmanic configuration path instead of ~/.unmanic')
+    #                    help='Specify the trawlarr configuration path instead of ~/.trawlarr')
     args = parser.parse_args()
+
+    # Refuse to start against an unmigrated Unmanic install. Deliberately
+    # after parse_args, so `--version` and `--help` still answer.
+    guard_against_legacy_config_directory()
 
     # Configure application from args
     settings = config.Config(port=args.port, address=args.address, unmanic_path=None)

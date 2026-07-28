@@ -101,7 +101,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
-import unmanicGlobals, { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import unmanicGlobals, { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import UnmanicDialogPopup from 'components/ui/dialogs/UnmanicDialogPopup.vue'
 import UnmanicStandardButton from 'components/ui/buttons/UnmanicStandardButton.vue'
 
@@ -128,7 +128,7 @@ const onDialogHide = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/write'),
+    url: getTrawlarrApiUrl('v2', 'settings/write'),
     data: data
   }).catch((error) => {
     console.error('Failed to save trial_welcome_viewed setting', error)
@@ -146,7 +146,7 @@ const checkAndShow = async () => {
     }
 
     // 2. Get Settings to check if already viewed
-    const response = await axios.get(getUnmanicApiUrl('v2', 'settings/read'))
+    const response = await axios.get(getTrawlarrApiUrl('v2', 'settings/read'))
     const settings = response.data.settings
 
     // Check if explicitly true (it might be undefined if never set)

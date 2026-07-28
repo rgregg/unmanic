@@ -1,6 +1,6 @@
 # this configuration file is suitable for displaying unmanic logs
 # pipe logs to this file.
-# Eg. `tail -f ~/.unmanic/logs/*.log | grcat .grc.conf.unmanic.logs`
+# Eg. `tail -f ~/.trawlarr/logs/*.log | grcat .grc.conf.unmanic.logs`
 
 
 # this is probably a pathname
