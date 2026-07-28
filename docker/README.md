@@ -29,3 +29,11 @@ docker build -f ./docker/Dockerfile -t ghcr.io/rgregg/trawlarr:dev .
 The compose files in this directory cover the common runtime configurations
 (`-vaapi`, `-nvidia`, `-cifs`, `-ssl`). `docker-compose-test-instance.yml` is the
 isolated test instance described in [`FORK.md`](../FORK.md#test-instance).
+
+`docker-compose-caddy.yml` (with `Caddyfile.example`) is the supported
+internet-facing deployment: Trawlarr publishes no host ports and Caddy
+terminates TLS and authenticates every request in front of it. Trawlarr itself
+does not authenticate inbound requests, so port 8888 must never be published to
+the internet — see [`docs/SECURITY_MODEL.md`](../docs/SECURITY_MODEL.md).
+`docker-compose-ssl.yml` is a TLS *test* fixture, not a deployment template; it
+is unauthenticated and binds to loopback.
