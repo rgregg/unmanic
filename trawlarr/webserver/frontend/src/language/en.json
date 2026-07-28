@@ -182,6 +182,8 @@
         "enableInotify": "Enable file monitor for this library",
         "libraryFileMonitorStatusLabel": "File monitor",
         "priorityScore": "Set a priority score modifier for tasks generated for this library",
+        "fileExtensionAllowlist": "File extensions to process in this library",
+        "fileExtensionAllowlistHint": "Leave empty to process files of any extension. Add extensions to limit this library to only those file types.",
         "plugins": "Plugins",
         "pluginFlow": "Plugin Flow",
         "cloneLibrary": "Clone library",

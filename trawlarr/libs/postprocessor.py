@@ -37,7 +37,7 @@ import threading
 import time
 
 from trawlarr import config
-from trawlarr.libs import common, history, sanity
+from trawlarr.libs import common, donestate, history, sanity
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
@@ -132,6 +132,13 @@ class PostProcessor(threading.Thread):
                             self.write_history_log()
                         except Exception as e:
                             self._log("Exception in writing history log", message2=str(e), level="exception")
+                        try:
+                            # Record the file as done so that the next library scan does not
+                            # offer it back to the plugins (issue #33)
+                            self.record_completed_file()
+                        except Exception as e:
+                            self._log("Exception in recording completed file state",
+                                      message2=str(e), level="exception")
                         try:
                             # Commit task metadata to database after all plugin runners
                             self.commit_task_metadata()
@@ -660,6 +667,58 @@ class PostProcessor(threading.Thread):
             'processed_by_worker': task_dump.get('processed_by_worker', ''),
             'log':                 task_dump.get('log', ''),
         })
+
+    def record_completed_file(self):
+        """
+        Record the native "this file is done" state for a successful task.
+
+        This is the write side of issue #33. Its counterpart is
+        FileTest.file_already_completed_successfully(), which is what stops the
+        file being picked up again by the next library scan.
+
+        Only successful tasks are recorded. A failed task is already terminal
+        by a different route - FileTest.file_failed_in_history() - and a task
+        whose output was rejected by the sanity checks has been marked failed
+        by the time we get here, so its (untouched) source file is correctly
+        never recorded as done.
+
+        :return: list of paths recorded
+        """
+        if not self.current_task.get_task_success():
+            return []
+
+        source_data = self.current_task.get_source_data() or {}
+        destination_data = self.current_task.get_destination_data() or {}
+        source_abspath = source_data.get('abspath')
+
+        # Record every file the task actually delivered. A plugin flow may
+        # write the result to more than one place; each of those is a library
+        # file in its own right.
+        destination_files = [p for p in (self._last_destination_files or []) if p]
+        if not destination_files and destination_data.get('abspath'):
+            destination_files = [destination_data.get('abspath')]
+        if not destination_files:
+            self._log("Task reported success but delivered no destination file. Nothing to record as completed.",
+                      level="warning")
+            return []
+
+        library_id = self.current_task.get_task_library_id()
+        task_id = self.current_task.get_task_id()
+
+        recorded = []
+        for destination_abspath in destination_files:
+            if donestate.record_completion(destination_abspath, library_id=library_id, task_id=task_id):
+                recorded.append(destination_abspath)
+
+        # Where the task renamed the file (a container change, say), the path
+        # it came from no longer holds a file. Drop its record so it does not
+        # sit there describing something that is gone - but only once every
+        # destination has been recorded, and only when the source really is
+        # not one of them.
+        if source_abspath and source_abspath not in destination_files:
+            donestate.forget_path(source_abspath)
+        self._log("Recorded completed file state for: {}".format(recorded), level='debug')
+        return recorded
 
     def commit_task_metadata(self):
         """
