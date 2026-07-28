@@ -4,7 +4,7 @@ log_cleanup() {
     echo "**** (legacy-log-cleanup) $*"
 }
 
-buffer_dir="/config/.unmanic/logs/buffer"
+buffer_dir="/config/.trawlarr/logs/buffer"
 state_file="buffer_state.json"
 
 if [[ ! -d "${buffer_dir}" ]]; then

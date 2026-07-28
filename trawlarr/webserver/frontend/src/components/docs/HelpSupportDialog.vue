@@ -95,7 +95,7 @@
                     dense
                     class="q-pl-sm">
                     <q-item clickable dense class="support-link-row rounded-borders"
-                            @click="openExternalURL('/unmanic/swagger')">
+                            @click="openExternalURL(swaggerUrl)">
                       <q-item-section avatar>
                         <q-icon color="primary" name="article" size="18px"/>
                       </q-item-section>
@@ -192,7 +192,7 @@ import { ref } from "vue";
 import { useQuasar } from 'quasar'
 import { useI18n } from "vue-i18n";
 import axios from "axios";
-import unmanicGlobals, { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import unmanicGlobals, { getTrawlarrApiUrl, urlPrefix } from "src/js/unmanicGlobals";
 import { openURL } from 'quasar'
 import UnmanicDialogWindow from "components/ui/dialogs/UnmanicDialogWindow.vue";
 
@@ -220,6 +220,7 @@ export default {
       platform,
       configPath,
       userdataPath,
+      swaggerUrl: urlPrefix + '/swagger',
     }
   },
   data() {
@@ -249,7 +250,7 @@ export default {
       // Fetch current settings
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'settings/read')
+        url: getTrawlarrApiUrl('v2', 'settings/read')
       }).then((response) => {
         this.debugging = response.data.settings.debugging
 
@@ -276,7 +277,7 @@ export default {
       // Fetch system config
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'settings/configuration')
+        url: getTrawlarrApiUrl('v2', 'settings/configuration')
       }).then((response) => {
         let configuration = response.data.configuration;
 

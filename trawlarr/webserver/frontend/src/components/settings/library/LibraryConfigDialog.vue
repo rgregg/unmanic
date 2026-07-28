@@ -288,7 +288,7 @@ import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import { useQuasar, Loading } from 'quasar'
 import { useI18n } from 'vue-i18n'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogMenu from 'components/ui/dialogs/UnmanicDialogMenu.vue'
 import SelectDirectoryDialog from 'components/ui/pickers/SelectDirectoryDialog.vue'
@@ -394,7 +394,7 @@ const fetchLibraryConfig = (libraryId) => {
   const data = { id: libraryId }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/library/read'),
+    url: getTrawlarrApiUrl('v2', 'settings/library/read'),
     data: data
   }).then((response) => {
     const libraryConfig = response.data.library_config
@@ -430,7 +430,7 @@ const saveLibraryConfig = async ({ hideOnSuccess = false } = {}) => {
   try {
     await axios({
       method: 'post',
-      url: getUnmanicApiUrl('v2', 'settings/library/write'),
+      url: getTrawlarrApiUrl('v2', 'settings/library/write'),
       data: data
     })
     $q.notify({
@@ -525,7 +525,7 @@ const exportPluginConfig = () => {
   const data = { id: currentID.value }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/library/export'),
+    url: getTrawlarrApiUrl('v2', 'settings/library/export'),
     data: data
   }).then((response) => {
     $q.dialog({
@@ -576,7 +576,7 @@ const importData = (importString, silent) => {
 
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/library/import'),
+    url: getTrawlarrApiUrl('v2', 'settings/library/import'),
     data: data
   }).then(() => {
     $q.notify({
@@ -622,7 +622,7 @@ const cloneLibrary = () => {
   const data = { id: currentID.value }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/library/export'),
+    url: getTrawlarrApiUrl('v2', 'settings/library/export'),
     data: data
   }).then((response) => {
     const configData = response.data

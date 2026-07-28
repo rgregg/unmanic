@@ -6,7 +6,7 @@
     },
     "servers": [
         {
-            "url": "/unmanic/api/v2/",
+            "url": "/trawlarr/api/v2/",
             "description": "Current environment"
         }
     ],
@@ -979,7 +979,7 @@
                 "properties": {
                     "link_id": {
                         "type": "string",
-                        "description": "The ID used to download the file /unmanic/downloads/{link_id}",
+                        "description": "The ID used to download the file /trawlarr/downloads/{link_id}",
                         "example": "2960645c-a4e2-4b05-8866-7bd469ee9ef8"
                     }
                 },

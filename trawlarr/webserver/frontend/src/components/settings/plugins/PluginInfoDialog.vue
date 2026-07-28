@@ -316,7 +316,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { markdownToHTML } from 'src/js/markupParser'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
@@ -471,7 +471,7 @@ const fetchPluginData = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'plugins/info'),
+    url: getTrawlarrApiUrl('v2', 'plugins/info'),
     data: postData
   }).then((response) => {
     id.value = response.data.id
@@ -513,7 +513,7 @@ const resetPluginLibraryConfig = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'plugins/settings/reset'),
+    url: getTrawlarrApiUrl('v2', 'plugins/settings/reset'),
     data: data
   }).then(() => {
     fetchPluginData()
@@ -554,7 +554,7 @@ const savePluginSettings = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'plugins/settings/update'),
+    url: getTrawlarrApiUrl('v2', 'plugins/settings/update'),
     data: data
   }).then(() => {
     originalSettings.value = cloneSettings(settings.value)

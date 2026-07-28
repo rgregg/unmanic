@@ -38,6 +38,7 @@ from apispec import APISpec
 from apispec.exceptions import APISpecError
 from apispec.ext.marshmallow import MarshmallowPlugin
 
+from trawlarr.libs.runtimepaths import API_URL_PREFIX
 from trawlarr.webserver.api_v2 import list_all_handlers
 from trawlarr.webserver.api_v2.schema.unmanic import UnmanicSpecPlugin
 
@@ -95,7 +96,7 @@ def build_swagger_spec():
         info=dict(description="Documentation for the Unmanic application API"),
         plugins=[UnmanicSpecPlugin(), MarshmallowPlugin()],
         servers=[
-            {"url": "/unmanic/api/v{}/".format(API_VERSION), "description": "Current environment", },
+            {"url": "{}/v{}/".format(API_URL_PREFIX, API_VERSION), "description": "Current environment", },
         ],
         **security_settings
     )

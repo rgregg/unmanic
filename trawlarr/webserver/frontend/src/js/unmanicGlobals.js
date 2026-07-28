@@ -3,6 +3,12 @@ import { Notify, setCssVar } from 'quasar'
 
 let $unmanic = {};
 
+// Every route the backend serves lives under this prefix. It must match
+// `URL_PREFIX` in trawlarr/libs/runtimepaths.py and `build.publicPath` in
+// quasar.conf.js. Upstream Unmanic used '/unmanic'; that path is gone, with
+// no alias, so anything still calling it gets a 404 rather than a surprise.
+export const urlPrefix = '/trawlarr';
+
 export const getUnmanicServerUrl = function () {
   if (typeof $unmanic.serverUrl === 'undefined') {
     let parser = document.createElement('a');
@@ -13,11 +19,11 @@ export const getUnmanicServerUrl = function () {
   return $unmanic.serverUrl;
 }
 
-export const getUnmanicApiUrl = function (api_version, api_endpoint) {
+export const getTrawlarrApiUrl = function (api_version, api_endpoint) {
   if (typeof $unmanic.apiUrl === 'undefined') {
     let serverUrl = getUnmanicServerUrl();
 
-    $unmanic.apiUrl = serverUrl + '/unmanic/api';
+    $unmanic.apiUrl = serverUrl + urlPrefix + '/api';
   }
   return $unmanic.apiUrl + '/' + api_version + '/' + api_endpoint;
 }
@@ -43,7 +49,7 @@ export default {
       if (typeof $unmanic.version === 'undefined') {
         axios({
           method: 'get',
-          url: getUnmanicApiUrl('v2', 'version/read')
+          url: getTrawlarrApiUrl('v2', 'version/read')
         }).then((response) => {
           $unmanic.version = response.data.version;
           resolve($unmanic.version)
@@ -60,7 +66,7 @@ export default {
       if (typeof $unmanic[cacheKey] === 'undefined') {
         axios({
           method: 'get',
-          url: getUnmanicApiUrl('v2', 'session/state'),
+          url: getTrawlarrApiUrl('v2', 'session/state'),
           ...options
         }).then((response) => {
           $unmanic[cacheKey] = {
@@ -86,7 +92,7 @@ export default {
       if (typeof $unmanic.docs.privacypolicy === 'undefined') {
         axios({
           method: 'get',
-          url: getUnmanicApiUrl('v2', 'docs/privacypolicy')
+          url: getTrawlarrApiUrl('v2', 'docs/privacypolicy')
         }).then((response) => {
           $unmanic.docs.privacypolicy = response.data.content.join('')
           resolve($unmanic.docs.privacypolicy)
@@ -104,7 +110,7 @@ export default {
     // Set the UUID
     let uuid = login_data.uuid;
     // Set the current URI
-    let currentUri = window.location.origin + "/unmanic/ui/trigger/?session=reload";
+    let currentUri = window.location.origin + urlPrefix + "/ui/trigger/?session=reload";
 
     let form = '' +
       '<form id="loginForm" action="' + action + '" method="post" class="display:none;">' +
@@ -120,7 +126,7 @@ export default {
   loginGetAppAuthCode($t, callback) {
     axios({
       method: 'get',
-      url: getUnmanicApiUrl('v2', 'session/get_app_auth_code'),
+      url: getTrawlarrApiUrl('v2', 'session/get_app_auth_code'),
     }).then((response) => {
       if (response.data.verification_uri) {
         // If query was successful...
@@ -142,7 +148,7 @@ export default {
   loginWithGitHub($t) {
     axios({
       method: 'get',
-      url: getUnmanicApiUrl('v1', 'session/unmanic-github-login-url'),
+      url: getTrawlarrApiUrl('v1', 'session/unmanic-github-login-url'),
     }).then((response) => {
       if (response.data.success) {
         // If query was successful...
@@ -164,7 +170,7 @@ export default {
   loginWithDiscord($t) {
     axios({
       method: 'get',
-      url: getUnmanicApiUrl('v1', 'session/unmanic-discord-login-url'),
+      url: getTrawlarrApiUrl('v1', 'session/unmanic-discord-login-url'),
     }).then((response) => {
       if (response.data.success) {
         // If query was successful...
@@ -186,7 +192,7 @@ export default {
   logout($t) {
     axios({
       method: 'get',
-      url: getUnmanicApiUrl('v2', 'session/logout'),
+      url: getTrawlarrApiUrl('v2', 'session/logout'),
     }).then((response) => {
       if (response.data.success) {
         location.reload();
@@ -215,7 +221,7 @@ export default {
       $unmanic.notificationsList = (typeof $unmanic.notificationsList === 'undefined') ? [] : $unmanic.notificationsList
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'notifications/read'),
+        url: getTrawlarrApiUrl('v2', 'notifications/read'),
       }).then((response) => {
         // Update success
         let notifications = []
@@ -270,7 +276,7 @@ export default {
       $unmanic.notificationsList = (typeof $unmanic.notificationsList === 'undefined') ? [] : $unmanic.notificationsList
       axios({
         method: 'delete',
-        url: getUnmanicApiUrl('v2', 'notifications/remove'),
+        url: getTrawlarrApiUrl('v2', 'notifications/remove'),
         data: queryData,
       }).then((response) => {
         resolve()

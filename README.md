@@ -150,14 +150,42 @@ A MAJOR bump means something needs your attention before upgrading: a
 config migration, a changed API contract, or a break in the plugin
 interface. MINOR and PATCH are always safe to take.
 
-Internal paths still carry the `unmanic` name — the Python package is
-`unmanic.libs.*`, config lives at `/config/.unmanic/`, the database is
-`unmanic.db`, and the API is served under `/unmanic/api/v2/`. That is
-inherited from upstream rather than chosen, and it is being renamed to
-`trawlarr` ([#49](https://github.com/rgregg/trawlarr/issues/49)).
-Existing community plugins will keep working through a compatibility
-shim; the config directory and API path change, so the rename lands as
-a major version.
+The internal namespace inherited from upstream has been renamed
+([#49](https://github.com/rgregg/trawlarr/issues/49)). The Python
+package is `trawlarr.libs.*`, config lives at `/config/.trawlarr/`, the
+database is `trawlarr.db`, and the API is served under
+`/trawlarr/api/v2/`. Existing community plugins keep working through a
+compatibility shim that still resolves `unmanic.*` imports.
+
+The config directory and the API path are a clean break: there is no
+migration and no alias for the old names. **Upgrading an existing
+install means moving the config directory yourself.** Stop the container
+first, and run this on the host, against whatever you bind-mount at
+`/config` — the container refuses to start, so there is nothing to
+`docker exec` into:
+
+```
+mv /config/.unmanic/config/unmanic.db /config/.unmanic/config/trawlarr.db &&
+{ [ ! -e /config/.unmanic/config/unmanic.db-wal ] || mv /config/.unmanic/config/unmanic.db-wal /config/.unmanic/config/trawlarr.db-wal; } &&
+{ [ ! -e /config/.unmanic/config/unmanic.db-shm ] || mv /config/.unmanic/config/unmanic.db-shm /config/.unmanic/config/trawlarr.db-shm; } &&
+mkdir -p /config/.trawlarr && rmdir /config/.trawlarr &&
+mv /config/.unmanic /config/.trawlarr
+```
+
+Paste it whole. It is one `&&`-chained command so that a failure stops
+the sequence rather than scrolling past. The database is renamed in place
+first, so that a failure leaves everything under the old name and the
+guard fires again next time. The `mkdir`/`rmdir` pair is not redundant:
+the Docker entrypoint creates `/config/.trawlarr` before the application
+starts, and `mv old new` onto an existing directory moves `old` *inside*
+`new` rather than becoming it. `rmdir` removes the destination only while
+it is empty, so if it turns out to hold anything the sequence stops
+instead of burying your installation one level down.
+
+If you forget, nothing is lost and nothing starts: Trawlarr refuses to
+boot when it finds a populated `.unmanic/` and an empty `.trawlarr/`, and
+prints exactly the commands above. Anything calling the old
+`/unmanic/api/v2/` path gets a 404.
 
 ## Documentation
 

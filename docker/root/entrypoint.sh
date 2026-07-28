@@ -36,7 +36,7 @@ run_init_scripts() {
 }
 
 sqlite_maintenance() {
-    local db_path="${UNMANIC_DB_PATH:-/config/.unmanic/config/unmanic.db}"
+    local db_path="${UNMANIC_DB_PATH:-/config/.trawlarr/config/trawlarr.db}"
     local maintenance_mode="${UNMANIC_SQLITE_MAINTENANCE:-basic}"
 
     if [[ "${maintenance_mode}" == "off" ]]; then
@@ -68,10 +68,14 @@ sqlite_maintenance() {
 }
 
 ensure_runtime_paths() {
+    # Note: creating /config/.trawlarr here is deliberately harmless. The
+    # legacy-config guard in trawlarr/libs/runtimepaths.py tests whether the
+    # directory holds anything, not whether it exists, precisely so that
+    # this mkdir cannot mask an unmigrated /config/.unmanic install.
     mkdir -p \
         /config \
         /config/.local/bin \
-        /config/.unmanic \
+        /config/.trawlarr \
         /tmp/unmanic
 
     if [[ "${EUID}" -eq 0 ]]; then

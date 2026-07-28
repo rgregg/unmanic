@@ -3,7 +3,7 @@
 ensure_paths() {
     mkdir -p \
         /app \
-        /config/.unmanic \
+        /config/.trawlarr \
         /tmp/unmanic
 }
 
@@ -15,11 +15,11 @@ permissions_config() {
     echo "**** (permission-config) Setting permissions ****"
     chown -R ${PUID}:${PGID} \
         /app \
-        /config/.unmanic \
+        /config/.trawlarr \
         /tmp/unmanic || true
     chmod -R a+w \
         /app \
-        /config/.unmanic \
+        /config/.trawlarr \
         /tmp/unmanic || true
 }
 

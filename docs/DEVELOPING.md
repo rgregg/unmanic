@@ -11,12 +11,13 @@ Depending on what you are trying to develop, one way may work better than the ot
 
 Regardless of the method you use, you will need to build the frontend component.
 
-> **Note on naming:** the project brand is Trawlarr, but the Python package,
-> the CLI entry point, the config directory (`~/.unmanic/`) and the API base
-> path are all still `unmanic`. That is inherited from upstream, not a
-> decision — it is being cleaned up, tracked in
-> [#49](https://github.com/rgregg/trawlarr/issues/49). Commands and import
-> paths below still use `unmanic` until that lands.
+> **Note on naming:** the Python package is `trawlarr`, the config directory
+> is `~/.trawlarr/` and the API base path is `/trawlarr/api/v2/`. The CLI
+> entry point and the `UNMANIC_*` environment variables are still `unmanic`;
+> those are the remaining steps of
+> [#49](https://github.com/rgregg/trawlarr/issues/49). `unmanic.*` imports
+> keep resolving through the compatibility shim, so existing plugins are
+> unaffected.
 
 
 

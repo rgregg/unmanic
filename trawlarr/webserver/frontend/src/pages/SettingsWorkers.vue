@@ -175,7 +175,7 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { useQuasar } from 'quasar'
 import { useI18n } from "vue-i18n";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 import MobileSettingsQuickNav from "components/MobileSettingsQuickNav";
 import WorkerGroupConfigDialog from "components/settings/workers/WorkerGroupConfigDialog.vue";
 import SelectDirectoryDialog from "components/ui/pickers/SelectDirectoryDialog.vue";
@@ -243,7 +243,7 @@ export default {
       // Fetch current settings
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'settings/read')
+        url: getTrawlarrApiUrl('v2', 'settings/read')
       }).then((response) => {
         // Set the cache path value
         this.cachePath = response.data.settings.cache_path
@@ -261,7 +261,7 @@ export default {
       // Fetch current settings
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'settings/worker_groups')
+        url: getTrawlarrApiUrl('v2', 'settings/worker_groups')
       }).then((response) => {
         let workerGroupsList = []
         for (let i = 0; i < response.data.worker_groups.length; i++) {
@@ -307,7 +307,7 @@ export default {
         }
         axios({
           method: 'delete',
-          url: getUnmanicApiUrl('v2', 'settings/worker_group/remove'),
+          url: getTrawlarrApiUrl('v2', 'settings/worker_group/remove'),
           data: data
         }).then((response) => {
           // Save success, show feedback
@@ -340,7 +340,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'settings/write'),
+        url: getTrawlarrApiUrl('v2', 'settings/write'),
         data: data
       }).then((response) => {
         // Save success, show feedback

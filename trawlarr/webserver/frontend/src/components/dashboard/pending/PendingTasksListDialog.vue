@@ -341,7 +341,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
 import axios from 'axios'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
 import UnmanicStandardButton from 'components/ui/buttons/UnmanicStandardButton.vue'
@@ -516,7 +516,7 @@ const toggleActionsExpanded = () => {
 const fetchLibraryOptions = () => {
   return axios({
     method: 'get',
-    url: getUnmanicApiUrl('v2', 'settings/libraries')
+    url: getTrawlarrApiUrl('v2', 'settings/libraries')
   }).then((response) => {
     const options = response.data.libraries.map((library) => ({
       label: library.name,
@@ -645,7 +645,7 @@ const getSelectionPayload = () => {
 const rescanLibrary = () => {
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'pending/rescan')
+    url: getTrawlarrApiUrl('v2', 'pending/rescan')
   }).then(() => {
     $q.notify({
       color: 'positive',
@@ -701,7 +701,7 @@ const moveTo = (position) => {
 
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'pending/reorder'),
+    url: getTrawlarrApiUrl('v2', 'pending/reorder'),
     data
   }).then(() => {
     resetSelection()
@@ -732,7 +732,7 @@ const deleteSelected = () => {
   const data = getSelectionPayload()
   axios({
     method: 'delete',
-    url: getUnmanicApiUrl('v2', 'pending/tasks'),
+    url: getTrawlarrApiUrl('v2', 'pending/tasks'),
     data
   }).then(() => {
     resetSelection()
@@ -772,7 +772,7 @@ const fetchPendingTasks = ({ reset = false, silent = false, refreshTop = false }
 
   return axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'pending/tasks'),
+    url: getTrawlarrApiUrl('v2', 'pending/tasks'),
     data
   }).then((response) => {
     totalCount.value = response.data.recordsFiltered

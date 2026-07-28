@@ -44,7 +44,7 @@ class PluginAPI(PluginType):
         content                         - The content to print to the browser.
         status                          - The HTTP status code for the response.
         method                          - The request method.
-        path                            - The path received after the '/unmanic/panel' path.
+        path                            - The path received after the '/trawlarr/panel' path.
         uri                             - The request uri.
         query                           - The request query.
         arguments                       - A dictionary of GET arguments received.
@@ -97,7 +97,7 @@ class PluginAPI(PluginType):
         'status':       200,
         'method':       "GET",
         'path':         "/webhook",
-        'uri':          "/unmanic/plugin_api/test_plugin/webhook?param=true&foo=ba",
+        'uri':          "/trawlarr/plugin_api/test_plugin/webhook?param=true&foo=ba",
         'query':        "param=true&foo=ba",
         'arguments':    {'param': [b'true'], 'foo': [b'ba']},
         'body':         b'{"param": "true", "foo": "ba"}',

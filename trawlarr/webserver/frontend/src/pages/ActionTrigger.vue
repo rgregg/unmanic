@@ -8,7 +8,7 @@
 import { onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 
 export default {
   setup() {
@@ -22,7 +22,7 @@ export default {
     function reloadSession() {
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'session/reload')
+        url: getTrawlarrApiUrl('v2', 'session/reload')
       }).then((response) => {
         navigateToDashboard();
       }).catch(() => {

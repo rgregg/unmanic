@@ -202,7 +202,7 @@ import axios from 'axios'
 import draggable from 'vuedraggable'
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogMenu from 'components/ui/dialogs/UnmanicDialogMenu.vue'
 import WorkerEventCreateDialog from 'components/settings/workers/WorkerEventCreateDialog.vue'
@@ -316,7 +316,7 @@ const fetchWorkerGroupConfig = (workerGroupId) => {
   const data = { id: workerGroupId }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/worker_group/read'),
+    url: getTrawlarrApiUrl('v2', 'settings/worker_group/read'),
     data: data
   }).then((response) => {
     currentID.value = response.data.id
@@ -355,7 +355,7 @@ const saveWorkerGroupConfig = async () => {
   try {
     await axios({
       method: 'post',
-      url: getUnmanicApiUrl('v2', 'settings/worker_group/write'),
+      url: getTrawlarrApiUrl('v2', 'settings/worker_group/write'),
       data: data
     })
     $q.notify({

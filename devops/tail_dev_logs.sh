@@ -33,7 +33,7 @@
 SCRIPT_PATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd );
 
 config_dir=${SCRIPT_PATH}/../dev_environment/config
-unmanic_dev_logs_dir=${config_dir}/.unmanic/logs
+unmanic_dev_logs_dir=${config_dir}/.trawlarr/logs
 
 
 if ! command -v grcat &> /dev/null; then
@@ -52,7 +52,7 @@ logfiles="unmanic.log"
 for ARG in ${@}; do
     case ${ARG} in
         --local)
-            log_dir="${HOME}/.unmanic/logs";
+            log_dir="${HOME}/.trawlarr/logs";
             ;;
         --tornado)
             logfiles="${logfiles} tornado.log";

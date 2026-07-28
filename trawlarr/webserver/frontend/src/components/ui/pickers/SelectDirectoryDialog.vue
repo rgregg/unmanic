@@ -46,7 +46,7 @@
 import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import { useI18n } from 'vue-i18n'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import UnmanicDialogPopup from 'components/ui/dialogs/UnmanicDialogPopup.vue'
 
 const props = defineProps({
@@ -84,7 +84,7 @@ const fetchDirectoryListing = (path) => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'filebrowser/list'),
+    url: getTrawlarrApiUrl('v2', 'filebrowser/list'),
     data: data
   }).then((response) => {
     directories.value = response.data.directories

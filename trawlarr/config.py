@@ -34,7 +34,7 @@ import os
 import json
 
 from trawlarr import metadata
-from trawlarr.libs import common
+from trawlarr.libs import common, runtimepaths
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.singleton import SingletonType
 
@@ -45,25 +45,44 @@ except ImportError:
 
 logger = TrawlarrLogging.get_logger(name="Config")
 
-#: Configuration keys that the HTTP API is never permitted to write.
+#: Runtime paths, which are derived state rather than user settings.
 #:
-#: These four paths are resolved once during startup from command-line
-#: arguments and environment variables, and every subsystem (logging, the
-#: plugin loader, the userdata store) caches its location from them. Writing
-#: one over the API does not move anything on disk; it only desynchronises the
-#: running process from its own files, and because the whole config dict is
-#: dumped to settings.json the bogus value survives a restart.
+#: These four are resolved during startup from the home directory, the
+#: command line and the environment, and every subsystem (logging, the plugin
+#: loader, the userdata store) caches its location from them.
 #:
-#: They remain freely writable by internal callers via `set_config_item()` /
-#: `set_bulk_config_items()` — the restriction is a property of the API
-#: boundary, not of the config object. Requests naming any of these keys are
-#: rejected with a 400; see `ApiSettingsHandler.write_settings()`.
-API_PROTECTED_CONFIG_KEYS = frozenset({
+#: They are deliberately **not persisted to settings.json and ignored when it
+#: is read back**. Persisting them makes the application's own settings file
+#: pin it to whatever absolute path it happened to use when the file was last
+#: written — which is exactly how the ``.unmanic`` -> ``.trawlarr`` move used
+#: to undo itself. A correctly migrated install whose settings.json had ever
+#: been written would come up, read ``<HOME>/.unmanic/...`` out of its own
+#: settings, recreate the legacy directory, and run entirely from it: new
+#: empty database, new logs, new plugins directory, migrated data ignored. On
+#: the next restart both directories hold data, so the legacy-config guard
+#: stays quiet forever. Recomputing them on every start makes the location a
+#: function of how the process was launched, which is what it always was.
+#:
+#: Overriding them is still supported, but only through the launch surface -
+#: `--config`/`unmanic_path` on the command line, or the environment (see
+#: `Config.__import_settings_from_env`). Those are re-applied on every start.
+DERIVED_PATH_CONFIG_KEYS = frozenset({
     'config_path',
     'log_path',
     'plugins_path',
     'userdata_path',
 })
+
+#: Configuration keys that the HTTP API is never permitted to write.
+#:
+#: Writing one over the API does not move anything on disk; it only
+#: desynchronises the running process from its own files.
+#:
+#: They remain freely writable by internal callers via `set_config_item()` /
+#: `set_bulk_config_items()` — the restriction is a property of the API
+#: boundary, not of the config object. Requests naming any of these keys are
+#: rejected with a 400; see `ApiSettingsHandler.write_settings()`.
+API_PROTECTED_CONFIG_KEYS = DERIVED_PATH_CONFIG_KEYS
 
 
 class Config(object, metaclass=SingletonType):
@@ -83,10 +102,11 @@ class Config(object, metaclass=SingletonType):
 
         # Set default directories
         home_directory = common.get_home_dir()
-        self.config_path = os.path.join(home_directory, '.unmanic', 'config')
-        self.log_path = os.path.join(home_directory, '.unmanic', 'logs')
-        self.plugins_path = os.path.join(home_directory, '.unmanic', 'plugins')
-        self.userdata_path = os.path.join(home_directory, '.unmanic', 'userdata')
+        app_directory = runtimepaths.app_dir(home_directory)
+        self.config_path = os.path.join(app_directory, 'config')
+        self.log_path = os.path.join(app_directory, 'logs')
+        self.plugins_path = os.path.join(app_directory, 'plugins')
+        self.userdata_path = os.path.join(app_directory, 'userdata')
 
         # Configure debugging
         self.debugging = False
@@ -177,6 +197,12 @@ class Config(object, metaclass=SingletonType):
         Read configuration from environment variables.
         This is useful for running in a docker container or for unit testing.
 
+        This runs before settings.json is read, and it is the supported way to
+        override the runtime paths in `DERIVED_PATH_CONFIG_KEYS`. Because those
+        keys are neither written to nor read from settings.json, an override
+        set here is not shadowed by a stale absolute path in the settings file,
+        and it is re-applied identically on every start.
+
         :return:
         """
         for setting in self.get_config_keys():
@@ -203,6 +229,10 @@ class Config(object, metaclass=SingletonType):
                     data = json.load(infile)
             except Exception as e:
                 logger.exception("Exception in reading saved settings from file: %s", e)
+            # Drop the derived runtime paths. Older settings.json files (and
+            # any written by an older build) carry absolute paths in them; the
+            # values already computed for this process are authoritative.
+            data = {key: value for key, value in data.items() if key not in DERIVED_PATH_CONFIG_KEYS}
             # Set data to Config class
             self.set_bulk_config_items(data, save_settings=False)
 
@@ -217,12 +247,18 @@ class Config(object, metaclass=SingletonType):
         """
         Dump current settings to the settings JSON file.
 
+        The derived runtime paths are excluded. See `DERIVED_PATH_CONFIG_KEYS`.
+
         :return:
         """
         if not os.path.exists(self.get_config_path()):
             os.makedirs(self.get_config_path())
         settings_file = os.path.join(self.get_config_path(), 'settings.json')
-        data = self.get_config_as_dict()
+        data = {
+            key: value
+            for key, value in self.get_config_as_dict().items()
+            if key not in DERIVED_PATH_CONFIG_KEYS
+        }
         result = common.json_dump_to_file(data, settings_file)
         if not result['success']:
             for message in result['errors']:

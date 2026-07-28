@@ -115,7 +115,7 @@
 
 <script>
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 import draggable from "vuedraggable";
 import { ref } from "vue";
 
@@ -136,7 +136,7 @@ export default {
       // Fetch from server
       axios({
         method: 'get',
-        url: getUnmanicApiUrl('v2', 'plugins/flow/types'),
+        url: getTrawlarrApiUrl('v2', 'plugins/flow/types'),
       }).then((response) => {
         let results = response.data.results;
         let pluginTypes = []
@@ -163,7 +163,7 @@ export default {
         }
         axios({
           method: 'post',
-          url: getUnmanicApiUrl('v2', 'plugins/flow'),
+          url: getTrawlarrApiUrl('v2', 'plugins/flow'),
           data: data
         }).then((response) => {
           this.pluginFlowByType[this.pluginTypes[i].type] = response.data.results;
@@ -178,7 +178,7 @@ export default {
       }
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'plugins/flow/save'),
+        url: getTrawlarrApiUrl('v2', 'plugins/flow/save'),
         data: data
       }).then((response) => {
         // Notify save

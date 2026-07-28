@@ -140,8 +140,9 @@ only ever produce development builds.
   automatically.
 - **PATCH** — fixes only. Always safe to take.
 
-The plugin-facing surface (`unmanic.libs.*` imports, the `unmanic` config
-directory, the `/unmanic/api/v2/` paths) counts as public API for this
+The plugin-facing surface (`trawlarr.libs.*` imports, still reachable as
+`unmanic.libs.*` through the compatibility shim, the `~/.trawlarr` config
+directory, the `/trawlarr/api/v2/` paths) counts as public API for this
 purpose. Breaking third-party plugins is a MAJOR change.
 
 Git tags are **unprefixed** — `1.2.3`, not `v1.2.3`. Two reasons: it
@@ -218,15 +219,51 @@ the runbook.
    breaking change on its own.
 3. Bind mounts and env stay identical — same `docker/Dockerfile` and
    `docker/root/` entrypoint.
-4. Verify on the running install:
-   - `curl http://10.0.0.203:8888/unmanic/api/v2/version/read` → 200
-   - `curl http://10.0.0.203:8888/unmanic/api/v2/session/state` → `"level": 7`
-   - `docker exec unmanic cat /config/.unmanic/logs/unmanic.log | tail -50` → no `api.unmanic.app` references, no `AttributeError`
-5. Watch one full transcode cycle to confirm runtime ffmpeg layers
+4. **Move the config directory before starting.** Trawlarr reads
+   `/config/.trawlarr/`, not `/config/.unmanic/`, and there is no
+   migration and no fallback. With the container stopped, on the host,
+   against the directory bind-mounted at `/config`:
+
+   ```
+   mv /config/.unmanic/config/unmanic.db /config/.unmanic/config/trawlarr.db &&
+   { [ ! -e /config/.unmanic/config/unmanic.db-wal ] || mv /config/.unmanic/config/unmanic.db-wal /config/.unmanic/config/trawlarr.db-wal; } &&
+   { [ ! -e /config/.unmanic/config/unmanic.db-shm ] || mv /config/.unmanic/config/unmanic.db-shm /config/.unmanic/config/trawlarr.db-shm; } &&
+   mkdir -p /config/.trawlarr && rmdir /config/.trawlarr &&
+   mv /config/.unmanic /config/.trawlarr
+   ```
+
+   One `&&` chain, so a failure stops it. Database renamed in place first,
+   so a failure leaves everything under the old name with the guard still
+   armed. `mkdir -p` then `rmdir` because the entrypoint pre-creates
+   `/config/.trawlarr`, and `mv old new` onto an existing directory nests
+   `old` inside `new` instead of becoming it — which would come up as a
+   fresh install with the real data one level down.
+
+   Skipping this is not silently destructive: the application refuses to
+   start when it finds data in `.unmanic/` and nothing in `.trawlarr/`,
+   and prints both paths and the commands above.
+5. Verify on the running install:
+   - `curl http://10.0.0.203:8888/trawlarr/api/v2/version/read` → 200
+   - `curl http://10.0.0.203:8888/trawlarr/api/v2/session/state` → `"level": 7`
+   - `docker exec unmanic cat /config/.trawlarr/logs/unmanic.log | tail -50` → no `api.unmanic.app` references, no `AttributeError`
+6. Watch one full transcode cycle to confirm runtime ffmpeg layers
    resolve correctly under load.
 
-Rollback: point the image at `josh5/unmanic:latest` and redeploy. DB and
-config are unchanged so the rollback is clean.
+Rollback: point the image at `josh5/unmanic:latest` and redeploy, then
+run step 4 backwards — same shape, same reasons, and note that the
+`mkdir`/`rmdir` pair matters in this direction too, because Unmanic's own
+entrypoint pre-creates `/config/.unmanic`:
+
+```
+mv /config/.trawlarr/config/trawlarr.db /config/.trawlarr/config/unmanic.db &&
+{ [ ! -e /config/.trawlarr/config/trawlarr.db-wal ] || mv /config/.trawlarr/config/trawlarr.db-wal /config/.trawlarr/config/unmanic.db-wal; } &&
+{ [ ! -e /config/.trawlarr/config/trawlarr.db-shm ] || mv /config/.trawlarr/config/trawlarr.db-shm /config/.trawlarr/config/unmanic.db-shm; } &&
+mkdir -p /config/.unmanic && rmdir /config/.unmanic &&
+mv /config/.trawlarr /config/.unmanic
+```
+
+The data itself is untouched by the rename, so the rollback is a
+directory move, not a restore.
 
 ## Test instance
 

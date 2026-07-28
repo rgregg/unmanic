@@ -118,7 +118,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from "vue-i18n";
 import { UnmanicWebsocketHandler } from "src/js/unmanicWebsocket";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 import ReleaseNotesDialog from "components/docs/ReleaseNotesDialog.vue";
 import TrialWelcomeDialog from "components/docs/TrialWelcomeDialog.vue";
 
@@ -382,7 +382,7 @@ export default {
     pauseAllWorkers: function () {
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'workers/worker/pause/all'),
+        url: getTrawlarrApiUrl('v2', 'workers/worker/pause/all'),
         data: {}
       }).then((response) => {
         this.$q.notify({
@@ -405,7 +405,7 @@ export default {
     resumeAllWorkers: function () {
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'workers/worker/resume/all'),
+        url: getTrawlarrApiUrl('v2', 'workers/worker/resume/all'),
         data: {}
       }).then((response) => {
         this.$q.notify({
@@ -431,7 +431,7 @@ export default {
       }
       axios({
         method: 'delete',
-        url: getUnmanicApiUrl('v2', 'workers/worker/terminate'),
+        url: getTrawlarrApiUrl('v2', 'workers/worker/terminate'),
         data: data
       }).then((response) => {
         this.$q.notify({

@@ -92,7 +92,7 @@
 import { defineComponent, ref } from "vue";
 import PendingTasksListDialog from "components/dashboard/pending/PendingTasksListDialog.vue";
 import axios from "axios";
-import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 
 export default defineComponent({
   name: 'PendingTasks',
@@ -117,7 +117,7 @@ export default defineComponent({
     rescanLibrary: function () {
       axios({
         method: 'post',
-        url: getUnmanicApiUrl('v2', 'pending/rescan')
+        url: getTrawlarrApiUrl('v2', 'pending/rescan')
       }).then((response) => {
         this.$q.notify({
           color: 'positive',

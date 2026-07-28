@@ -16,7 +16,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
-import unmanicGlobals, { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import unmanicGlobals, { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { markdownToHTML } from 'src/js/markupParser'
 import UnmanicDialogPopup from 'components/ui/dialogs/UnmanicDialogPopup.vue'
 
@@ -44,7 +44,7 @@ const markAsViewed = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/write'),
+    url: getTrawlarrApiUrl('v2', 'settings/write'),
     data: data
   }).then((response) => {
     // Save success, Don't show feedback, just close
@@ -67,7 +67,7 @@ const displayReleaseNotes = () => {
   // Fetch current settings
   axios({
     method: 'get',
-    url: getUnmanicApiUrl('v2', 'settings/read')
+    url: getTrawlarrApiUrl('v2', 'settings/read')
   }).then((response) => {
     const releaseNotesViewed = response.data.settings.release_notes_viewed
     unmanicGlobals.getUnmanicVersion().then((version) => {

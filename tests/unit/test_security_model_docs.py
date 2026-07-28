@@ -92,7 +92,7 @@ class TestReverseProxyExample:
         caddyfile = _read('docker', 'Caddyfile.example')
 
         # `basic_auth *` covers the whole vhost. Scoping it to a path would
-        # leave /unmanic/api/* — which can install plugins — wide open.
+        # leave /trawlarr/api/* — which can install plugins — wide open.
         assert 'basic_auth *' in caddyfile
         assert 'reverse_proxy trawlarr:8888' in caddyfile
 

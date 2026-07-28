@@ -76,7 +76,7 @@
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import axios from 'axios'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import { useMobile } from 'src/composables/useMobile'
 import UnmanicDialogPopup from 'components/ui/dialogs/UnmanicDialogPopup.vue'
 import PluginInstallerDialog from 'components/settings/plugins/PluginInstallerDialog.vue'
@@ -115,7 +115,7 @@ const fetchPluginsList = () => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'plugins/installed'),
+    url: getTrawlarrApiUrl('v2', 'plugins/installed'),
     data: data
   }).then((response) => {
     const results = response.data.results || []

@@ -60,8 +60,8 @@ module.exports = configure(function (ctx) {
 
       // transpile: false,
 
-      // Set the root public path to /unmanic/*
-      publicPath: 'unmanic',
+      // Set the root public path to /trawlarr/*
+      publicPath: 'trawlarr',
 
       // Add dependencies for transpiling with Babel (Array of string/regex)
       // (from node_modules, which are by default not transpiled).
@@ -101,16 +101,16 @@ module.exports = configure(function (ctx) {
         const wsTarget = httpTarget.replace(/^http(s?):/i, (m, s) => (s ? 'wss:' : 'ws:'))
 
         return {
-          '/unmanic/api': {
+          '/trawlarr/api': {
             target: httpTarget
           },
-          '/unmanic/panel': {
+          '/trawlarr/panel': {
             target: httpTarget
           },
-          '/unmanic/swagger': {
+          '/trawlarr/swagger': {
             target: httpTarget
           },
-          '/unmanic/websocket': {
+          '/trawlarr/websocket': {
               target: wsTarget,
               ws: true
           }

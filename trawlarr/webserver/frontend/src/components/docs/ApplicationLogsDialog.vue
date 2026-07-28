@@ -101,7 +101,7 @@ import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 import axios from 'axios'
 import { UnmanicWebsocketHandler } from 'src/js/unmanicWebsocket'
-import { getUnmanicApiUrl } from 'src/js/unmanicGlobals'
+import { getTrawlarrApiUrl } from 'src/js/unmanicGlobals'
 import UnmanicDialogWindow from 'components/ui/dialogs/UnmanicDialogWindow.vue'
 
 const emit = defineEmits(['hide'])
@@ -227,7 +227,7 @@ const closeUnmanicWebsocket = () => {
 const fetchSettings = () => {
   axios({
     method: 'get',
-    url: getUnmanicApiUrl('v2', 'settings/read')
+    url: getTrawlarrApiUrl('v2', 'settings/read')
   }).then((response) => {
     debugging.value = response.data.settings.debugging
     logsPath.value = response.data.settings.log_path
@@ -246,7 +246,7 @@ const fetchSettings = () => {
 const toggleDebugging = (value) => {
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/write'),
+    url: getTrawlarrApiUrl('v2', 'settings/write'),
     data: {
       settings: {
         debugging: value
@@ -279,7 +279,7 @@ const setLogRetention = (value) => {
   }
   axios({
     method: 'post',
-    url: getUnmanicApiUrl('v2', 'settings/write'),
+    url: getTrawlarrApiUrl('v2', 'settings/write'),
     data: {
       settings: {
         log_buffer_retention: retention
@@ -308,7 +308,7 @@ const setLogRetention = (value) => {
 const downloadLogs = () => {
   axios({
     method: 'get',
-    url: getUnmanicApiUrl('v2', 'docs/logs/zip'),
+    url: getTrawlarrApiUrl('v2', 'docs/logs/zip'),
     responseType: 'blob'
   }).then((response) => {
     const url = window.URL.createObjectURL(new Blob([response.data]))
