@@ -8,44 +8,44 @@ include requirements.txt
 include requirements-dev.txt
 
 # Include module files
-recursive-include unmanic **
-# Fork addition: the `trawlarr` namespace alias shim
 recursive-include trawlarr **
+# Fork addition: the legacy `unmanic` namespace alias shim
+recursive-include unmanic **
 include versioninfo.py
 
 # Exclude compiled files
 global-exclude *.py[cod]
 
 # Exclude frontend development files
-recursive-exclude unmanic/webserver/frontend **/*.git*
-recursive-exclude unmanic/webserver/frontend **/dist/**
-recursive-exclude unmanic/webserver/frontend **/node_modules/**
-recursive-exclude unmanic/webserver/frontend **/.quasar/**
+recursive-exclude trawlarr/webserver/frontend **/*.git*
+recursive-exclude trawlarr/webserver/frontend **/dist/**
+recursive-exclude trawlarr/webserver/frontend **/node_modules/**
+recursive-exclude trawlarr/webserver/frontend **/.quasar/**
 # Exclude cordova related directories and files
-recursive-exclude unmanic/webserver/frontend **/src-cordova/node_modules/**
-recursive-exclude unmanic/webserver/frontend **/src-cordova/platforms/**
-recursive-exclude unmanic/webserver/frontend **/src-cordova/plugins/**
-recursive-exclude unmanic/webserver/frontend **/src-cordova/www/**
+recursive-exclude trawlarr/webserver/frontend **/src-cordova/node_modules/**
+recursive-exclude trawlarr/webserver/frontend **/src-cordova/platforms/**
+recursive-exclude trawlarr/webserver/frontend **/src-cordova/plugins/**
+recursive-exclude trawlarr/webserver/frontend **/src-cordova/www/**
 # Exclude capacitor related directories and files
-recursive-exclude unmanic/webserver/frontend **/src-capacitor/www/**
-recursive-exclude unmanic/webserver/frontend **/src-capacitor/node_modules/**
+recursive-exclude trawlarr/webserver/frontend **/src-capacitor/www/**
+recursive-exclude trawlarr/webserver/frontend **/src-capacitor/node_modules/**
 # Exclude BEX related directories and files
-recursive-exclude unmanic/webserver/frontend **/src-bex/www/**
-recursive-exclude unmanic/webserver/frontend **/src-bex/js/core/**
+recursive-exclude trawlarr/webserver/frontend **/src-bex/www/**
+recursive-exclude trawlarr/webserver/frontend **/src-bex/js/core/**
 # Exclude any log files
-recursive-exclude unmanic/webserver/frontend **/npm-debug.log*
-recursive-exclude unmanic/webserver/frontend **/yarn-debug.log*
-recursive-exclude unmanic/webserver/frontend **/yarn-error.log*
+recursive-exclude trawlarr/webserver/frontend **/npm-debug.log*
+recursive-exclude trawlarr/webserver/frontend **/yarn-debug.log*
+recursive-exclude trawlarr/webserver/frontend **/yarn-error.log*
 # Exclude editor directories and files
-recursive-exclude unmanic/webserver/frontend **/*.suo
-recursive-exclude unmanic/webserver/frontend **/*.ntvs*
-recursive-exclude unmanic/webserver/frontend **/*.njsproj
-recursive-exclude unmanic/webserver/frontend **/*.sln
-recursive-exclude unmanic/webserver/frontend **/.idea/**
+recursive-exclude trawlarr/webserver/frontend **/*.suo
+recursive-exclude trawlarr/webserver/frontend **/*.ntvs*
+recursive-exclude trawlarr/webserver/frontend **/*.njsproj
+recursive-exclude trawlarr/webserver/frontend **/*.sln
+recursive-exclude trawlarr/webserver/frontend **/.idea/**
 # Exclude tests
 recursive-exclude tests **
 # Exclude virtual env
 recursive-exclude venv **
 
 # Remove all frontend compiled assets
-prune unmanic/webserver/public
+prune trawlarr/webserver/public

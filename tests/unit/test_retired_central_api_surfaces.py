@@ -47,10 +47,10 @@ import requests
 import tornado.httputil
 import tornado.web
 
-from unmanic.libs.session import LOCAL_SESSION_LEVEL, Session
-from unmanic.webserver.api_v1.session_api import ApiSessionHandler as V1SessionHandler
-from unmanic.webserver.api_v2.base_api_handler import BaseApiHandler
-from unmanic.webserver.api_v2.session_api import ApiSessionHandler as V2SessionHandler
+from trawlarr.libs.session import LOCAL_SESSION_LEVEL, Session
+from trawlarr.webserver.api_v1.session_api import ApiSessionHandler as V1SessionHandler
+from trawlarr.webserver.api_v2.base_api_handler import BaseApiHandler
+from trawlarr.webserver.api_v2.session_api import ApiSessionHandler as V2SessionHandler
 
 V2_RETIRED_ROUTES = [
     'session/logout',

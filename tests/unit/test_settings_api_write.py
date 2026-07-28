@@ -41,8 +41,8 @@ import asyncio
 
 import pytest
 
-from unmanic import config
-from unmanic.webserver.api_v2.settings_api import ApiSettingsHandler
+from trawlarr import config
+from trawlarr.webserver.api_v2.settings_api import ApiSettingsHandler
 
 
 class RecordingConfig:

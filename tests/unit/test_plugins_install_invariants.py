@@ -38,7 +38,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.plugins import PluginsHandler
+from trawlarr.libs.plugins import PluginsHandler
 
 
 def _bare_handler():
@@ -71,7 +71,7 @@ class TestInstallPluginCallsAssertBeforeExtract:
         with mock.patch.object(h, "get_plugin_path", return_value=plugin_dir), \
                 mock.patch.object(h, "_assert_zip_members_safe",
                                   side_effect=lambda zr, dd: call_order.append("assert")), \
-                mock.patch("unmanic.libs.plugins.zipfile.ZipFile") as MockZip, \
+                mock.patch("trawlarr.libs.plugins.zipfile.ZipFile") as MockZip, \
                 mock.patch.object(h, "get_plugin_info",
                                   return_value={"id": "testplug"}), \
                 mock.patch.object(h, "install_plugin_requirements"):
@@ -97,7 +97,7 @@ class TestInstallPluginCallsAssertBeforeExtract:
         with mock.patch.object(h, "get_plugin_path", return_value=plugin_dir), \
                 mock.patch.object(h, "_assert_zip_members_safe",
                                   side_effect=Exception("zip-slip detected")), \
-                mock.patch("unmanic.libs.plugins.zipfile.ZipFile") as MockZip:
+                mock.patch("trawlarr.libs.plugins.zipfile.ZipFile") as MockZip:
             zip_ref = MockZip.return_value.__enter__.return_value
             zip_ref.read.return_value = json.dumps(
                 {"id": "testplug", "version": "1.0"}).encode()
@@ -135,7 +135,7 @@ class TestDownloadPluginUsesPackageUrlDirectly:
 
         with mock.patch.object(h, "get_plugin_download_cache_path",
                                return_value=download_dest), \
-                mock.patch("unmanic.libs.plugins.Session", return_value=fake_session):
+                mock.patch("trawlarr.libs.plugins.Session", return_value=fake_session):
             result = h.download_plugin(plugin)
 
         assert result == download_dest
@@ -167,7 +167,7 @@ class TestDownloadPluginUsesPackageUrlDirectly:
 
         with mock.patch.object(h, "get_plugin_download_cache_path",
                                return_value=download_dest), \
-                mock.patch("unmanic.libs.plugins.Session", return_value=fake_session):
+                mock.patch("trawlarr.libs.plugins.Session", return_value=fake_session):
             h.download_plugin(plugin)
 
         kwargs = fake_session.requests_session.get.call_args.kwargs
@@ -187,8 +187,8 @@ class TestNotifyPluginInstallIsPureNoop:
 
     def test_returns_none_for_valid_plugin(self):
         h = _bare_handler()
-        with mock.patch("unmanic.libs.plugins.Session") as session_cls, \
-                mock.patch("unmanic.libs.plugins.requests") as req:
+        with mock.patch("trawlarr.libs.plugins.Session") as session_cls, \
+                mock.patch("trawlarr.libs.plugins.requests") as req:
             assert h.notify_site_of_plugin_install(
                 {"plugin_id": "p", "author": "a", "version": "1.0"}) is None
         session_cls.assert_not_called()
@@ -199,8 +199,8 @@ class TestNotifyPluginInstallIsPureNoop:
         """Upstream would have crashed (or sent {None: None} JSON) with
         an empty dict. Stub must be defensive."""
         h = _bare_handler()
-        with mock.patch("unmanic.libs.plugins.Session") as session_cls, \
-                mock.patch("unmanic.libs.plugins.requests") as req:
+        with mock.patch("trawlarr.libs.plugins.Session") as session_cls, \
+                mock.patch("trawlarr.libs.plugins.requests") as req:
             assert h.notify_site_of_plugin_install({}) is None
             assert h.notify_site_of_plugin_install({"plugin_id": "x"}) is None
         session_cls.assert_not_called()

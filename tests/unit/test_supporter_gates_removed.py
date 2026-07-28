@@ -17,7 +17,7 @@
 """
 from unittest import mock
 
-from unmanic.libs.library import Library
+from trawlarr.libs.library import Library
 
 
 class TestLibraryCountLimits:
@@ -26,7 +26,7 @@ class TestLibraryCountLimits:
         # Upstream gated this on `s.level <= 1` and capped at 2 libraries.
         # Local fork: returns True regardless. Patch FrontendPushMessages
         # because it touches a singleton at module scope.
-        with mock.patch("unmanic.libs.library.FrontendPushMessages") as fpm:
+        with mock.patch("trawlarr.libs.library.FrontendPushMessages") as fpm:
             assert Library.within_library_count_limits() is True
             # Must not consult Session at all — register_unmanic / level
             # checks should be entirely gone.
@@ -39,8 +39,8 @@ class TestLibraryCountLimits:
         # be touched. Patch the module reference rather than the import,
         # because the upstream version did `from ... import Session`
         # inside the function body.
-        with mock.patch("unmanic.libs.library.FrontendPushMessages"), \
-                mock.patch("unmanic.libs.session.Session") as sess:
+        with mock.patch("trawlarr.libs.library.FrontendPushMessages"), \
+                mock.patch("trawlarr.libs.session.Session") as sess:
             Library.within_library_count_limits()
         sess.assert_not_called()
 
@@ -52,7 +52,7 @@ class TestPluginSettingsReqLevGateRemoved:
         # session.level and silently reset values the user wasn't entitled
         # to. Local fork: no req_lev gating. Verify save_plugin_settings
         # writes whatever value the caller supplies, regardless of meta.
-        from unmanic.libs.unplugins.executor import PluginExecutor
+        from trawlarr.libs.unplugins.executor import PluginExecutor
         executor = PluginExecutor.__new__(PluginExecutor)
         executor.logger = mock.Mock()
 

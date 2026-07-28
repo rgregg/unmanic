@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    unmanic.mock_jobqueue_class.py
+    trawlarr.mock_jobqueue_class.py
 
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     08 May 2020, (1:00 PM)

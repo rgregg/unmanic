@@ -29,7 +29,7 @@ import logging
 
 import pytest
 
-from unmanic.libs.filetest import FileTest
+from trawlarr.libs.filetest import FileTest
 
 
 def _bare_file_test(plugin_votes):

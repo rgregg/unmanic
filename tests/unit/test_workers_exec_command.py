@@ -18,7 +18,7 @@ import logging
 
 import pytest
 
-from unmanic.libs.workers import Worker
+from trawlarr.libs.workers import Worker
 
 
 class TestCoerceExecCommandToArgv:
@@ -71,12 +71,12 @@ class TestCoerceExecCommandToArgv:
         like ffmpeg -i C:\\temp\\file.mkv out.mkv would become
         ['ffmpeg', '-i', 'C:tempfile.mkv', 'out.mkv']. The coercer must use
         Windows-style splitting when os.name == 'nt'."""
-        monkeypatch.setattr("unmanic.libs.workers.os.name", "nt")
+        monkeypatch.setattr("trawlarr.libs.workers.os.name", "nt")
         result = Worker._coerce_exec_command_to_argv(
             r'ffmpeg -i C:\temp\file.mkv out.mkv')
         assert result == ["ffmpeg", "-i", r"C:\temp\file.mkv", "out.mkv"]
 
     def test_posix_string_split_unchanged_off_windows(self, monkeypatch):
-        monkeypatch.setattr("unmanic.libs.workers.os.name", "posix")
+        monkeypatch.setattr("trawlarr.libs.workers.os.name", "posix")
         result = Worker._coerce_exec_command_to_argv("ffmpeg -i in.mkv out.mkv")
         assert result == ["ffmpeg", "-i", "in.mkv", "out.mkv"]

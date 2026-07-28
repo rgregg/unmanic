@@ -41,7 +41,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.postprocessor import PostProcessor
+from trawlarr.libs.postprocessor import PostProcessor
 
 
 def _build_postprocessor(cache_path, source_abspath, dest_path, *, task_success=True):
@@ -206,7 +206,7 @@ class TestPostProcessFileSourceRemovalOrdering:
         # No file_move plugins, no task_result plugins.
         plugin_handler.get_enabled_plugin_modules_by_type.return_value = []
 
-        with mock.patch("unmanic.libs.postprocessor.PluginsHandler",
+        with mock.patch("trawlarr.libs.postprocessor.PluginsHandler",
                         return_value=plugin_handler), \
                 mock.patch.object(pp, "_PostProcessor__cleanup_cache_files"):
             pp.post_process_file()
@@ -235,7 +235,7 @@ class TestPostProcessFileSourceRemovalOrdering:
         plugin_handler = mock.Mock()
         plugin_handler.get_enabled_plugin_modules_by_type.return_value = []
 
-        with mock.patch("unmanic.libs.postprocessor.PluginsHandler",
+        with mock.patch("trawlarr.libs.postprocessor.PluginsHandler",
                         return_value=plugin_handler), \
                 mock.patch.object(pp, "_PostProcessor__cleanup_cache_files"):
             pp.post_process_file()
@@ -259,7 +259,7 @@ class TestPostProcessFileSourceRemovalOrdering:
         plugin_handler = mock.Mock()
         plugin_handler.get_enabled_plugin_modules_by_type.return_value = []
 
-        with mock.patch("unmanic.libs.postprocessor.PluginsHandler",
+        with mock.patch("trawlarr.libs.postprocessor.PluginsHandler",
                         return_value=plugin_handler), \
                 mock.patch.object(pp, "_PostProcessor__cleanup_cache_files"):
             pp.post_process_file()

@@ -17,7 +17,7 @@ TEST_DATABASE_FILE=$(realpath "${SCRIPT_DIR}/../tests/tmp/config/.unmanic/config
 if [[ -f ${TEST_DATABASE_FILE} ]]; then
     DATABASE_FILE=${TEST_DATABASE_FILE}
 fi
-MIGRATIONS_PATH=$(realpath "${SCRIPT_DIR}/../unmanic/migrations");
+MIGRATIONS_PATH=$(realpath "${SCRIPT_DIR}/../trawlarr/migrations");
 NAME=$(echo ${@} | awk '{print tolower($0)}' | tr ' ' '_');
 
 

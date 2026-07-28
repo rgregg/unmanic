@@ -1,51 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Ryan Gregg
+#
+# This file is part of Trawlarr, a fork of Unmanic.
+# See LICENSE for the full license text.
+#
+# Backwards-compatibility bootstrap for the legacy `unmanic` namespace
+# (issue #49, step 2).
+#
+# `trawlarr` is the real package; this is nothing but a doorway into it
+# for a process that reaches for the old name first -- most importantly a
+# community plugin, whose source says `from unmanic.libs... import ...`
+# and which is exec'd inside the running service. Importing the real
+# package installs the alias finder (see trawlarr/namespace_shim.py),
+# which then serves every `unmanic.*` submodule from the real module
+# objects.
+#
+# In the common case this file is never executed at all: the service and
+# the test suite import `trawlarr` first, the finder is already on
+# sys.meta_path by the time any plugin runs, and it claims the `unmanic`
+# name before the path-based finder ever looks in this directory.
 
-"""
-    unmanic.__init__.py
- 
-    Written by:               Josh.5 <jsunnex@gmail.com>
-    Date:                     04 May 2020, (11:20 AM)
- 
-    Copyright:
-           Copyright (C) Josh Sunnex - All Rights Reserved
- 
-           Permission is hereby granted, free of charge, to any person obtaining a copy
-           of this software and associated documentation files (the "Software"), to deal
-           in the Software without restriction, including without limitation the rights
-           to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-           copies of the Software, and to permit persons to whom the Software is
-           furnished to do so, subject to the following conditions:
-  
-           The above copyright notice and this permission notice shall be included in all
-           copies or substantial portions of the Software.
-  
-           THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-           EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-           MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-           IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-           DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-           OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
-           OR OTHER DEALINGS IN THE SOFTWARE.
+import sys
 
-"""
+import trawlarr
+from trawlarr.namespace_shim import install
 
-import warnings
+install()
 
-# Fork addition: register `trawlarr` as an alias of this package, so that
-# `trawlarr.<anything>` resolves to the very same module objects as
-# `unmanic.<anything>`. Installed here rather than in a helper that
-# callers must remember to import, so it is live for anything that
-# touches the package at all. See unmanic/namespace_shim.py and issue #49.
-from .namespace_shim import install as _install_namespace_alias
-
-_install_namespace_alias()
-
-from .metadata import __author__
-from .metadata import __version__
-from .metadata import __description__
-from .metadata import __disclaimer__
-from .metadata import __forum__
-from .metadata import __video__
-from .metadata import __website__
-from .metadata import __copyright__
+# Replace this bootstrap module with the real package, so that
+# `unmanic is trawlarr` and there is only ever one module object. The
+# import machinery re-reads sys.modules[__name__] after executing a
+# module, so callers of `import unmanic` receive the replacement.
+sys.modules[__name__] = trawlarr

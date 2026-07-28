@@ -74,7 +74,7 @@ Shipped, as of now:
   no plugin-install reporting, no central directory of your
   installations. Plugin catalogs come straight from GitHub; linked
   installations talk only to the addresses you configure. The
-  [privacy policy](unmanic/webserver/docs/privacy_policy.md) documents
+  [privacy policy](trawlarr/webserver/docs/privacy_policy.md) documents
   every outbound connection the software makes.
 
 A detailed audit of what differs from upstream, and why, is in

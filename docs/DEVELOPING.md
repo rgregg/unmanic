@@ -88,7 +88,7 @@ unmanic --version
 
 ## Building the Frontend
 
-The frontend UI lives at `unmanic/webserver/frontend/`. It is a regular part of
+The frontend UI lives at `trawlarr/webserver/frontend/`. It is a regular part of
 this repository — **not** a submodule. (Upstream keeps it in a separate repo;
 this fork absorbed it via `git subtree`, so there is nothing to initialise or
 pull separately.)
@@ -99,7 +99,7 @@ Run the frontend_install.sh script.
 devops/frontend_install.sh
 ```
 
-This will install the NPM modules and build the frontend package. The end result will be located in `unmanic/webserver/public`
+This will install the NPM modules and build the frontend package. The end result will be located in `trawlarr/webserver/public`
 
 ## Profiling and testing
 

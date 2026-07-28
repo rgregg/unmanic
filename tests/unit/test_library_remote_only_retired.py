@@ -36,8 +36,8 @@ import logging
 import threading
 from unittest import mock
 
-from unmanic.libs.eventmonitor import EventMonitorManager
-from unmanic.libs.libraryscanner import LibraryScannerManager
+from trawlarr.libs.eventmonitor import EventMonitorManager
+from trawlarr.libs.libraryscanner import LibraryScannerManager
 
 
 class _RemoteOnlyLibrary:
@@ -83,7 +83,7 @@ class TestLibraryScannerScansRemoteOnlyLibraries:
         manager.system_configuration_is_valid = mock.Mock(return_value=True)
 
         library = _RemoteOnlyLibrary()
-        with mock.patch("unmanic.libs.libraryscanner.Library") as LibraryCls:
+        with mock.patch("trawlarr.libs.libraryscanner.Library") as LibraryCls:
             LibraryCls.get_all_libraries.return_value = [{'id': 7}]
             LibraryCls.return_value = library
             manager.scheduled_job()
@@ -104,9 +104,9 @@ class TestEventMonitorMonitorsRemoteOnlyLibraries:
 
         observer = mock.Mock()
         library = _RemoteOnlyLibrary()
-        with mock.patch("unmanic.libs.eventmonitor.Library") as LibraryCls, \
-                mock.patch("unmanic.libs.eventmonitor.Observer", return_value=observer), \
-                mock.patch("unmanic.libs.eventmonitor.os.path.exists", return_value=True):
+        with mock.patch("trawlarr.libs.eventmonitor.Library") as LibraryCls, \
+                mock.patch("trawlarr.libs.eventmonitor.Observer", return_value=observer), \
+                mock.patch("trawlarr.libs.eventmonitor.os.path.exists", return_value=True):
             LibraryCls.get_all_libraries.return_value = [{'id': 7}]
             LibraryCls.return_value = library
             manager.start_event_processor()
@@ -132,7 +132,7 @@ class TestEventMonitorMonitorsRemoteOnlyLibraries:
 
         library = _RemoteOnlyLibrary()
 
-        with mock.patch("unmanic.libs.eventmonitor.Library") as LibraryCls, \
+        with mock.patch("trawlarr.libs.eventmonitor.Library") as LibraryCls, \
                 mock.patch.object(manager.event, 'wait'):
             LibraryCls.get_all_libraries.return_value = [{'id': 7}]
             LibraryCls.return_value = library

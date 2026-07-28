@@ -26,7 +26,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.plugins import PluginsHandler
+from trawlarr.libs.plugins import PluginsHandler
 
 GOOD_CATALOG = {'repo': {'name': 'Official'}, 'plugins': [{'id': 'x'}]}
 STALE_CATALOG = {'repo': {'name': 'Official'}, 'plugins': [{'id': 'stale'}]}

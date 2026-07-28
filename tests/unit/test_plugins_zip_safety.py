@@ -21,7 +21,7 @@ import zipfile
 
 import pytest
 
-from unmanic.libs.plugins import PluginsHandler
+from trawlarr.libs.plugins import PluginsHandler
 
 
 def _make_zip(tmp_path, entries):

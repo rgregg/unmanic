@@ -51,17 +51,20 @@ jobs:
           # E9 syntax errors, F63 invalid is/in comparisons, F7 forward
           # ref syntax, F82 undefined names. Style/E5xx noise from
           # upstream code is intentionally ignored.
-          flake8 unmanic tests --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 trawlarr tests --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Run unit tests with coverage
         run: |
-          # --cov=unmanic narrows coverage to our package (skips dep noise)
+          # --cov=trawlarr narrows coverage to our package (skips dep noise).
+          # It must name the real package, not the `unmanic` compatibility
+          # alias -- that is a three-line bootstrap, and pointing coverage
+          # at it would silently report ~100% of nothing.
           # --cov-report=term-missing shows uncovered lines in the run log
           # --cov-report=xml uploads a machine-readable artifact
           # --cov-report=html for browsable local viewing of the same data
           # --cov-fail-under enforces a floor; bump as coverage improves.
           pytest tests/unit/ -v \
-            --cov=unmanic \
+            --cov=trawlarr \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \

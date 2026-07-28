@@ -107,7 +107,7 @@ activate_venv() {
 }
 
 update_source_symlink() {
-    if [[ ! -e /app/unmanic/service.py ]]; then
+    if [[ ! -e /app/trawlarr/service.py ]]; then
         return
     fi
 
@@ -116,16 +116,26 @@ update_source_symlink() {
         return
     fi
 
-    log "Update container to running Unmanic from source"
+    log "Update container to running Trawlarr from source"
     local venv="${VIRTUAL_ENV:-/opt/venv}"
     local python_version=$("${venv}/bin/python3" --version 2>&1 | grep -oP 'Python \K\d+\.\d+')
-    local target="${venv}/lib/python${python_version:?}/site-packages/unmanic"
-    if [[ -e "${target}" && ! -L "${target}" ]]; then
-        log "Move container unmanic install"
-        mv "${target}" "${target}-installed"
-    fi
-    ln -sf /app/unmanic "${target}"
-    log "Source symlink set: ${target} -> $(readlink -f "${target}")"
+    local site_packages="${venv}/lib/python${python_version:?}/site-packages"
+
+    # Both the real package and the legacy `unmanic` alias bootstrap are
+    # directories in the source tree, and both are installed into
+    # site-packages by the wheel. Symlink both, or a source-mounted
+    # container runs new code under `trawlarr` and the installed copy
+    # under `unmanic` -- two module trees, one process.
+    local package
+    for package in trawlarr unmanic; do
+        local target="${site_packages}/${package}"
+        if [[ -e "${target}" && ! -L "${target}" ]]; then
+            log "Move container ${package} install"
+            mv "${target}" "${target}-installed"
+        fi
+        ln -sfn "/app/${package}" "${target}"
+        log "Source symlink set: ${target} -> $(readlink -f "${target}")"
+    done
 }
 
 install_custom_venv_requirements() {
