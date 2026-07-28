@@ -159,13 +159,28 @@ compatibility shim that still resolves `unmanic.*` imports.
 
 The config directory and the API path are a clean break: there is no
 migration and no alias for the old names. **Upgrading an existing
-install means moving the config directory yourself**, with the container
-stopped:
+install means moving the config directory yourself.** Stop the container
+first, and run this on the host, against whatever you bind-mount at
+`/config` — the container refuses to start, so there is nothing to
+`docker exec` into:
 
 ```
+mv /config/.unmanic/config/unmanic.db /config/.unmanic/config/trawlarr.db &&
+{ [ ! -e /config/.unmanic/config/unmanic.db-wal ] || mv /config/.unmanic/config/unmanic.db-wal /config/.unmanic/config/trawlarr.db-wal; } &&
+{ [ ! -e /config/.unmanic/config/unmanic.db-shm ] || mv /config/.unmanic/config/unmanic.db-shm /config/.unmanic/config/trawlarr.db-shm; } &&
+mkdir -p /config/.trawlarr && rmdir /config/.trawlarr &&
 mv /config/.unmanic /config/.trawlarr
-mv /config/.trawlarr/config/unmanic.db /config/.trawlarr/config/trawlarr.db
 ```
+
+Paste it whole. It is one `&&`-chained command so that a failure stops
+the sequence rather than scrolling past. The database is renamed in place
+first, so that a failure leaves everything under the old name and the
+guard fires again next time. The `mkdir`/`rmdir` pair is not redundant:
+the Docker entrypoint creates `/config/.trawlarr` before the application
+starts, and `mv old new` onto an existing directory moves `old` *inside*
+`new` rather than becoming it. `rmdir` removes the destination only while
+it is empty, so if it turns out to hold anything the sequence stops
+instead of burying your installation one level down.
 
 If you forget, nothing is lost and nothing starts: Trawlarr refuses to
 boot when it finds a populated `.unmanic/` and an empty `.trawlarr/`, and

@@ -221,12 +221,23 @@ the runbook.
    `docker/root/` entrypoint.
 4. **Move the config directory before starting.** Trawlarr reads
    `/config/.trawlarr/`, not `/config/.unmanic/`, and there is no
-   migration and no fallback. With the container stopped:
+   migration and no fallback. With the container stopped, on the host,
+   against the directory bind-mounted at `/config`:
 
    ```
+   mv /config/.unmanic/config/unmanic.db /config/.unmanic/config/trawlarr.db &&
+   { [ ! -e /config/.unmanic/config/unmanic.db-wal ] || mv /config/.unmanic/config/unmanic.db-wal /config/.unmanic/config/trawlarr.db-wal; } &&
+   { [ ! -e /config/.unmanic/config/unmanic.db-shm ] || mv /config/.unmanic/config/unmanic.db-shm /config/.unmanic/config/trawlarr.db-shm; } &&
+   mkdir -p /config/.trawlarr && rmdir /config/.trawlarr &&
    mv /config/.unmanic /config/.trawlarr
-   mv /config/.trawlarr/config/unmanic.db /config/.trawlarr/config/trawlarr.db
    ```
+
+   One `&&` chain, so a failure stops it. Database renamed in place first,
+   so a failure leaves everything under the old name with the guard still
+   armed. `mkdir -p` then `rmdir` because the entrypoint pre-creates
+   `/config/.trawlarr`, and `mv old new` onto an existing directory nests
+   `old` inside `new` instead of becoming it — which would come up as a
+   fresh install with the real data one level down.
 
    Skipping this is not silently destructive: the application refuses to
    start when it finds data in `.unmanic/` and nothing in `.trawlarr/`,
@@ -239,8 +250,20 @@ the runbook.
    resolve correctly under load.
 
 Rollback: point the image at `josh5/unmanic:latest` and redeploy, then
-reverse the two `mv` commands from step 4. The data itself is untouched
-by the rename, so the rollback is a directory move, not a restore.
+run step 4 backwards — same shape, same reasons, and note that the
+`mkdir`/`rmdir` pair matters in this direction too, because Unmanic's own
+entrypoint pre-creates `/config/.unmanic`:
+
+```
+mv /config/.trawlarr/config/trawlarr.db /config/.trawlarr/config/unmanic.db &&
+{ [ ! -e /config/.trawlarr/config/trawlarr.db-wal ] || mv /config/.trawlarr/config/trawlarr.db-wal /config/.trawlarr/config/unmanic.db-wal; } &&
+{ [ ! -e /config/.trawlarr/config/trawlarr.db-shm ] || mv /config/.trawlarr/config/trawlarr.db-shm /config/.trawlarr/config/unmanic.db-shm; } &&
+mkdir -p /config/.unmanic && rmdir /config/.unmanic &&
+mv /config/.trawlarr /config/.unmanic
+```
+
+The data itself is untouched by the rename, so the rollback is a
+directory move, not a restore.
 
 ## Test instance
 

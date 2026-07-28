@@ -144,10 +144,35 @@ jobs:
             fail=1
           fi
 
+          # settings.json must not carry absolute runtime paths. If it does,
+          # the next start reads them back and pins the install to whatever
+          # directory it happened to be using when the file was written —
+          # which is how a completed .unmanic -> .trawlarr move undoes
+          # itself, silently, one restart later.
+          SETTINGS="$RUNNER_TEMP/unmanic-config/.trawlarr/config/settings.json"
+          if [[ -f "$SETTINGS" ]]; then
+            echo "--- settings.json ---"
+            cat "$SETTINGS"
+            echo
+            LEAKED=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(" ".join(sorted({"config_path","log_path","plugins_path","userdata_path"} & set(d))))' "$SETTINGS")
+            if [[ -n "$LEAKED" ]]; then
+              echo "::error::settings.json persists derived runtime paths: $LEAKED"
+              fail=1
+            fi
+          fi
+
           OLD_STATUS=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8888/unmanic/api/v2/version/read)
           echo "GET /unmanic/api/v2/version/read -> $OLD_STATUS"
           if [[ "$OLD_STATUS" != "404" ]]; then
             echo "::error::Legacy API path answered $OLD_STATUS; it must 404"
+            fail=1
+          fi
+          # Specifically not a redirect: RedirectHandler is permanent by
+          # default, and a cached 301 hands an API client HTML in place of
+          # JSON long after the server stops sending it.
+          OLD_LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' http://127.0.0.1:8888/unmanic/api/v2/version/read)
+          if [[ -n "$OLD_LOCATION" ]]; then
+            echo "::error::Legacy API path redirected to $OLD_LOCATION; it must not redirect"
             fail=1
           fi
 

@@ -121,12 +121,76 @@ def legacy_config_directory_conflict(home_directory):
     )
 
 
+def legacy_config_migration_command_lines(home_directory):
+    """
+    The migration, as shell lines an operator can paste verbatim.
+
+    Three things about this sequence are load-bearing, and all three were
+    got wrong the obvious way first:
+
+    1. **The database is renamed in place, under the legacy path, before
+       anything moves.** If a later step fails, everything is still where
+       it was and the guard fires again on the next start. Relocating
+       first and renaming second leaves a half-migrated install that the
+       guard can no longer see, because the new directory now holds data.
+
+    2. **The destination is removed with `rmdir` before the move.** The
+       Docker entrypoint runs `mkdir -p /config/.trawlarr` before the
+       application starts — including on the run that refuses — so the
+       destination almost always exists. `mv src existing_dir` does not
+       fail: it moves src *inside* it, producing
+       `/config/.trawlarr/.unmanic/`, and the next start comes up as a
+       brand new install with the real data one level down. `mkdir -p`
+       then `rmdir` succeeds whether or not the destination existed, and
+       refuses (loudly) if it turns out to hold anything.
+
+    3. **Every step is chained with `&&`.** A failure stops the sequence
+       instead of scrolling one line past an operator who is already
+       looking at the next command.
+
+    The `-wal` and `-shm` sidecars are renamed with the database. The
+    schema sets `journal_mode=wal`, so a database whose write-ahead log
+    was left behind under the old name silently loses whatever had not
+    been checkpointed.
+
+    :param home_directory:
+    :return:
+    """
+    legacy_dir = legacy_app_dir(home_directory)
+    new_dir = app_dir(home_directory)
+    legacy_config_dir = os.path.join(legacy_dir, 'config')
+
+    def _legacy_db(suffix=''):
+        return os.path.join(legacy_config_dir, LEGACY_DATABASE_FILE_NAME + suffix)
+
+    def _new_db(suffix=''):
+        return os.path.join(legacy_config_dir, DATABASE_FILE_NAME + suffix)
+
+    lines = ['mv {} {} &&'.format(_legacy_db(), _new_db())]
+    for suffix in ('-wal', '-shm'):
+        lines.append('{{ [ ! -e {0} ] || mv {0} {1}; }} &&'.format(_legacy_db(suffix), _new_db(suffix)))
+    lines.append('mkdir -p {0} && rmdir {0} &&'.format(new_dir))
+    lines.append('mv {} {}'.format(legacy_dir, new_dir))
+    return lines
+
+
+def legacy_config_migration_command(home_directory):
+    """
+    The migration as a single shell command string.
+
+    :param home_directory:
+    :return:
+    """
+    return '\n'.join(legacy_config_migration_command_lines(home_directory))
+
+
 def legacy_config_directory_message(home_directory):
     """
     Build the operator-facing refuse-to-start message.
 
-    Names both directories in full, gives the command that moves the data,
-    and names the database rename that goes with it.
+    Names both directories in full, says where the migration has to be run,
+    and gives a command sequence that is correct whether or not the
+    destination directory already exists.
 
     :param home_directory:
     :return:
@@ -144,13 +208,21 @@ def legacy_config_directory_message(home_directory):
         'installation - no libraries, no plugins, no settings, no task history - while your',
         'existing data sat untouched in the old directory. Refusing to start instead.',
         '',
-        'Nothing has been moved or deleted. To carry the existing installation across:',
+        'Nothing has been moved or deleted. To carry the existing installation across, run',
+        'the following on the HOST. Trawlarr is refusing to start, so there is no running',
+        'container to "docker exec" into; if these paths are inside a container, apply the',
+        'same sequence to the host directory you bind-mount at /config.',
         '',
-        '    mv {} {}'.format(legacy_dir, new_dir),
-        '    mv {} {}'.format(
-            os.path.join(new_dir, 'config', LEGACY_DATABASE_FILE_NAME),
-            os.path.join(new_dir, 'config', DATABASE_FILE_NAME),
-        ),
+    ] + [
+        '    {}'.format(line) for line in legacy_config_migration_command_lines(home_directory)
+    ] + [
+        '',
+        'Paste it whole. It is one "&&"-chained command on purpose: if any step fails the',
+        'rest do not run, and everything is still where it was. The mkdir/rmdir pair is not',
+        'redundant - the destination directory usually already exists and is empty, and',
+        '"mv old new" would then move the old directory INSIDE the new one rather than',
+        'becoming it. rmdir removes it only while it is empty, so if it turns out to hold',
+        'anything the sequence stops rather than burying your installation one level down.',
         '',
         'The API also moved, from {}/api/v2/ to {}/api/v2/. Update any'.format(
             '/{}'.format(LEGACY_APP_DIR_NAME.lstrip('.')), URL_PREFIX),

@@ -49,6 +49,32 @@ from trawlarr.libs.singleton import SingletonType
 from trawlarr.webserver.downloads import DownloadsHandler
 
 public_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "webserver", "public"))
+
+
+class NotFoundHandler(tornado.web.RequestHandler):
+    """
+    Terminal 404 for anything Trawlarr does not serve.
+
+    The application used to end its route list with a catch-all
+    ``(r"/(.*)", RedirectHandler, ...)`` pointing at the dashboard. That
+    looked like a convenience and was in fact a trap. Tornado's
+    ``Application.add_handlers`` does ``default_router.rules.insert(-1, rule)``,
+    so every group added after the constructor goes *ahead* of the
+    constructor's own rules — the catch-all stays last no matter what, and
+    nothing can ever 404. The retired ``/unmanic/api/v2/`` prefix therefore
+    answered ``301`` to the dashboard instead of failing, and because
+    ``RedirectHandler`` is permanent by default, a browser or a ``curl -L``
+    would cache that redirect and hand an API client HTML where it asked for
+    JSON. A clean break has to break cleanly.
+
+    Wired in as ``default_handler_class``, which Tornado consults only after
+    every registered route has declined, so it cannot shadow a real route.
+    """
+
+    def prepare(self):
+        raise tornado.web.HTTPError(404)
+
+
 tornado_settings = {
     'template_loader': tornado.template.Loader(public_directory),
     'static_css':      os.path.join(public_directory, "css"),
@@ -58,6 +84,7 @@ tornado_settings = {
     'static_js':       os.path.join(public_directory, "js"),
     'debug':           True,
     'autoreload':      False,
+    'default_handler_class': NotFoundHandler,
 }
 
 
@@ -239,8 +266,20 @@ class UIServer(threading.Thread):
         app = tornado.web.Application([
             (r"{}/websocket".format(URL_PREFIX), UnmanicWebsocketHandler),
             (r"{}/downloads/(.*)".format(URL_PREFIX), DownloadsHandler),
-            (r"/(.*)", tornado.web.RedirectHandler, dict(
-                url="{}/ui/dashboard/".format(URL_PREFIX)
+            # Convenience redirects, and nothing wider. Landing on the site
+            # root or on the bare prefix should get you to the dashboard;
+            # every other unknown path has to reach `NotFoundHandler` and
+            # 404. These are temporary redirects: a permanent one is cached
+            # by browsers and by `curl -L`, and the destination of "the
+            # front page" is not a promise worth making permanently.
+            (r"/", tornado.web.RedirectHandler, dict(
+                url="{}/ui/dashboard/".format(URL_PREFIX), permanent=False
+            )),
+            (r"{}/?".format(URL_PREFIX), tornado.web.RedirectHandler, dict(
+                url="{}/ui/dashboard/".format(URL_PREFIX), permanent=False
+            )),
+            (r"{}/ui/?".format(URL_PREFIX), tornado.web.RedirectHandler, dict(
+                url="{}/ui/dashboard/".format(URL_PREFIX), permanent=False
             )),
         ], **tornado_settings)
 
