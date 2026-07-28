@@ -20,7 +20,7 @@
                     <q-uploader
                       :style="$q.platform.is.mobile ?  'max-width: 210px' : 'max-width: 300px'"
                       :url="getUploadUrl()"
-                      label="Upload ZIP file..."
+                      :label="$t('components.plugins.uploadZipFile')"
                       color="secondary"
                       accept=".zip, application/zip"
                       auto-upload
@@ -52,7 +52,39 @@
 
     <q-card-section class="q-px-none">
       <div class="q-gutter-sm">
+        <ActionableState
+          v-if="loading"
+          loading
+          :title="$t('components.states.loadingPlugins')"
+          :message="$t('components.states.loadingMessage')"
+        />
+        <ActionableState
+          v-else-if="requestError"
+          icon="cloud_off"
+          color="negative"
+          :title="$t('components.states.pluginsErrorTitle')"
+          :message="$t('components.states.requestErrorMessage')"
+          :action-label="$t('buttons.retry')"
+          @action="retryRequest"
+        />
+        <ActionableState
+          v-else-if="listedPlugins.length === 0 && filter"
+          icon="search_off"
+          :title="$t('components.states.noPluginMatchesTitle')"
+          :message="$t('components.states.noPluginMatchesMessage')"
+          :action-label="$t('components.states.clearSearch')"
+          @action="filter = ''"
+        />
+        <ActionableState
+          v-else-if="listedPlugins.length === 0"
+          icon="extension_off"
+          :title="$t('components.states.noPluginsTitle')"
+          :message="$t('components.states.noPluginsMessage')"
+          :action-label="$t('components.plugins.installPluginFromRepo')"
+          @action="openPluginInstaller"
+        />
         <q-list
+          v-else
           bordered
           separator
           class="rounded-borders">
@@ -76,7 +108,7 @@
               <q-item-label lines="1">
                 <div class="row">
                   <div class="col-6 text-right">
-                    <span class="text-weight-medium">Author</span>
+                    <span class="text-weight-medium">{{ $t('components.plugins.author') }}</span>
                   </div>
                   <div class="col-6 q-px-sm">
                       <span
@@ -89,7 +121,7 @@
               <q-item-label lines="1">
                 <div class="row">
                   <div class="col-6 text-right">
-                    <span class="text-weight-medium">Version</span>
+                    <span class="text-weight-medium">{{ $t('components.plugins.version') }}</span>
                   </div>
                   <div class="col-6 q-px-sm">
                       <span
@@ -108,6 +140,10 @@
                   class="gt-xs"
                   color="info"
                   icon="update"
+                  :tooltip="$t('components.plugins.clickToUpdatePlugin')"
+                  :aria-label="$t('components.plugins.updateNamedPlugin', {
+                    plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                  })"
                   @click="updateSinglePlugin(plugin.id)"
                 />
                 <UnmanicListActionButton
@@ -116,6 +152,10 @@
                   class="gt-xs no-pointer-events"
                   color="positive"
                   icon="download_done"
+                  :tooltip="$t('components.plugins.pluginUpToDate')"
+                  :aria-label="$t('components.plugins.namedPluginUpToDate', {
+                    plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                  })"
                 />
               </div>
               <q-tooltip class="bg-white text-primary">
@@ -141,7 +181,11 @@
                   size="12px"
                   color="secondary"
                   no-icon-animation
-                  dropdown-icon="more_vert">
+                  dropdown-icon="more_vert"
+                  :aria-label="$t('components.plugins.actionsForPlugin', {
+                    plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                  })"
+                  :title="$t('navigation.options')">
                   <q-list>
 
                     <q-item clickable v-close-popup @click="openPluginInfo(plugin.id)">
@@ -190,6 +234,9 @@
                   color="info"
                   icon="info"
                   :tooltip="$t('headers.pluginInfo')"
+                  :aria-label="$t('components.plugins.viewNamedPluginInfo', {
+                    plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                  })"
                   @click="openPluginInfo(plugin.id)"
                 />
                 <UnmanicListActionButton
@@ -198,6 +245,9 @@
                   color="grey-8"
                   icon="tune"
                   :tooltip="$t('components.plugins.globalConfiguration')"
+                  :aria-label="$t('components.plugins.configureNamedPlugin', {
+                    plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                  })"
                   @click="openPluginInfo(plugin.id, 'settings')"
                 />
                 <UnmanicListActionButton
@@ -205,6 +255,9 @@
                   color="negative"
                   icon="delete"
                   :tooltip="$t('components.plugins.removePlugin')"
+                  :aria-label="$t('components.plugins.removeNamedPlugin', {
+                    plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                  })"
                   @click="removeSinglePlugin(plugin.id)"
                 />
 
@@ -244,6 +297,7 @@ import PluginInstallerDialog from "components/settings/plugins/PluginInstallerDi
 import UnmanicListActionButton from "components/ui/buttons/UnmanicListActionButton.vue";
 import UnmanicStandardButton from "components/ui/buttons/UnmanicStandardButton.vue";
 import UnmanicStandardButtonDropdown from "components/ui/buttons/UnmanicStandardButtonDropdown.vue";
+import ActionableState from "components/ui/ActionableState.vue";
 
 export default {
   components: {
@@ -251,14 +305,16 @@ export default {
     PluginInstallerDialog,
     UnmanicListActionButton,
     UnmanicStandardButton,
-    UnmanicStandardButtonDropdown
+    UnmanicStandardButtonDropdown,
+    ActionableState
   },
   setup() {
     const $q = useQuasar();
     const { t: $t } = useI18n();
     const rows = ref([]);
     const filter = ref('');
-    const loading = ref(false);
+    const loading = ref(true);
+    const requestError = ref(false);
     const pagination = ref({
       sortBy: 'name',
       descending: false,
@@ -274,11 +330,15 @@ export default {
     const pluginInfoDialogRef = ref(null)
     const selectedPluginId = ref('')
     const pluginInfoTab = ref('info')
+    let requestGeneration = 0
 
     function getSelectedString() {
       let return_value = ''
       if (selected.value.length !== 0) {
-        return_value = `${selected.value.length} record${selected.value.length > 1 ? 's' : ''} selected of ${rows.value.length}`
+        return_value = $t('components.plugins.selectedRecords', {
+          count: selected.value.length,
+          total: rows.value.length
+        })
       }
       return return_value
     }
@@ -308,7 +368,7 @@ export default {
           $q.notify({
             color: 'negative',
             position: 'top',
-            message: 'An error was encountered while requesting the selected plugins be disabled',
+            message: $t('components.plugins.errorDisablingSelected'),
             icon: 'report_problem',
             actions: [{ icon: 'close', color: 'white' }]
           })
@@ -317,7 +377,7 @@ export default {
         $q.notify({
           color: 'warning',
           position: 'top',
-          message: 'Nothing selected',
+          message: $t('components.plugins.nothingSelected'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
@@ -341,7 +401,7 @@ export default {
         $q.notify({
           color: 'negative',
           position: 'top',
-          message: 'An error was encountered while requesting the selected plugins be updated',
+          message: $t('components.plugins.errorUpdatingSelected'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
@@ -369,7 +429,7 @@ export default {
         $q.notify({
           color: 'negative',
           position: 'top',
-          message: 'An error was encountered while requesting the selected plugins be removed',
+          message: $t('components.plugins.errorRemovingSelected'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
@@ -394,7 +454,7 @@ export default {
         $q.notify({
           color: 'warning',
           position: 'top',
-          message: 'Nothing selected',
+          message: $t('components.plugins.nothingSelected'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
@@ -413,10 +473,12 @@ export default {
     }
 
     function onRequest(props) {
+      const generation = ++requestGeneration;
       const { page, rowsPerPage, sortBy, descending } = props.pagination;
       const filter = props.filter;
 
       loading.value = true;
+      requestError.value = false;
 
       // get all rows if "All" (0) is selected
       const fetchCount = rowsPerPage === 0 ? pagination.value.rowsNumber : rowsPerPage;
@@ -437,6 +499,9 @@ export default {
         url: getUnmanicApiUrl('v2', 'plugins/installed'),
         data: data
       }).then((response) => {
+        if (generation !== requestGeneration) {
+          return;
+        }
         // update rowsCount with appropriate value
         pagination.value.rowsNumber = response.data.recordsFiltered;
 
@@ -470,13 +535,25 @@ export default {
         // ...and turn of loading indicator
         loading.value = false;
       }).catch(() => {
+        if (generation !== requestGeneration) {
+          return;
+        }
+        loading.value = false;
+        requestError.value = true;
         $q.notify({
           color: 'negative',
           position: 'top',
-          message: 'An error was encountered while requesting the installed plugins list',
+          message: $t('notifications.failedToFetchInstalledPlugins'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
+      })
+    }
+
+    function retryRequest() {
+      onRequest({
+        pagination: pagination.value,
+        filter: filter.value
       })
     }
 
@@ -498,7 +575,7 @@ export default {
         $q.notify({
           color: 'negative',
           position: 'top',
-          message: 'An error was encountered while attempting to open plugin info',
+          message: $t('components.plugins.failedToOpenPluginInfo'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
@@ -593,6 +670,7 @@ export default {
       selected,
       filter,
       loading,
+      requestError,
       pagination,
       rows,
 
@@ -604,6 +682,7 @@ export default {
 
       getSelectedString,
       onRequest,
+      retryRequest,
       disableSelected,
       updateSinglePlugin,
       removeSinglePlugin,

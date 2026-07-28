@@ -43,6 +43,7 @@ from .plugins import Plugins
 from .libraries import Libraries, LibraryTags
 from .librarypluginflow import LibraryPluginFlow
 from .tags import Tags
+from .tasklifecycle import TaskLifecycle
 from .taskmetadata import TaskMetadata
 from .tasks import Tasks
 from .workergroups import WorkerGroupTags, WorkerGroups

@@ -17,7 +17,9 @@
             dense
             round
             flat
-            icon="open_in_full">
+            icon="open_in_full"
+            :aria-label="$t('components.completedTasks.showCompletedTaskDetails')"
+            :title="$t('navigation.showMore')">
             <q-tooltip class="bg-white text-primary">{{ $t('navigation.showMore') }}</q-tooltip>
           </q-btn>
         </div>
@@ -26,6 +28,26 @@
 
     <!--MINIMAL SCREEN-->
     <q-card-section class="completed-tasks-card-body">
+      <AdmonitionBanner
+        v-if="failureCount > 0"
+        type="caution"
+        :title="$t('components.completedTasks.activeFailuresTitle', { count: failureCount })"
+        class="q-mb-md"
+      >
+        <div class="row items-center justify-between q-col-gutter-sm">
+          <div class="col">
+            {{ $t('components.completedTasks.activeFailuresMessage') }}
+          </div>
+          <div class="col-auto">
+            <q-btn
+              outline
+              color="negative"
+              :label="$t('components.completedTasks.reviewFailures')"
+              @click="showFailures"
+            />
+          </div>
+        </div>
+      </AdmonitionBanner>
       <div class="completed-tasks-list-wrap">
         <q-list
           separator>
@@ -69,6 +91,9 @@
             </q-item-section>
             <q-item-section>
               <q-item-label>{{ task.label }}</q-item-label>
+              <q-item-label v-if="!task.success && task.failureMessage" caption class="text-negative">
+                {{ task.failureMessage }}
+              </q-item-label>
             </q-item-section>
             <q-item-section side top>
               <div class="row">
@@ -103,12 +128,13 @@
 </template>
 
 <script>
-import { defineComponent, ref } from "vue";
+import { defineComponent, nextTick, ref } from "vue";
 import CompletedTasksListDialog from "components/dashboard/completed/CompletedTasksListDialog.vue";
+import AdmonitionBanner from "components/ui/AdmonitionBanner.vue";
 
 export default defineComponent({
   name: 'CompletedTasks',
-  components: { CompletedTasksListDialog },
+  components: { AdmonitionBanner, CompletedTasksListDialog },
   setup() {
     const completedTasksDetailsDialogRef = ref(null);
 
@@ -135,11 +161,20 @@ export default defineComponent({
     taskList: {
       type: Array,
       required: true
+    },
+    failureCount: {
+      type: Number,
+      default: 0
     }
   },
   methods: {
-    openDetails() {
+    async openDetails() {
+      await nextTick()
       this.completedTasksDetailsDialogRef.show();
+    },
+    showFailures() {
+      this.completedTasksPopupInitStatusFilter = 'failed'
+      this.openDetails()
     }
   }
 });

@@ -16,6 +16,8 @@
           flat
           round
           :icon="leftMainNavDrawerOpen ? 'menu_open' : 'menu'"
+          :aria-label="$t(leftMainNavDrawerOpen ? 'navigation.closeMainNavigation' : 'navigation.openMainNavigation')"
+          :title="$t(leftMainNavDrawerOpen ? 'navigation.closeMainNavigation' : 'navigation.openMainNavigation')"
           @click="toggleMainNavDrawer"/>
 
         <!--SHOW SETTINGS MENU BUTTON-->
@@ -25,6 +27,8 @@
           flat
           round
           :icon="leftSettingsDrawerOpen ? 'menu_open' : 'menu'"
+          :aria-label="$t(leftSettingsDrawerOpen ? 'navigation.closeSettingsNavigation' : 'navigation.openSettingsNavigation')"
+          :title="$t(leftSettingsDrawerOpen ? 'navigation.closeSettingsNavigation' : 'navigation.openSettingsNavigation')"
           @click="toggleSettingsDrawer"/>
 
         <!--SHOW DATA PANELS MENU BUTTON-->
@@ -34,6 +38,8 @@
           flat
           round
           :icon="leftDataPanelsDrawerOpen ? 'menu_open' : 'menu'"
+          :aria-label="$t(leftDataPanelsDrawerOpen ? 'navigation.closeDataPanelsNavigation' : 'navigation.openDataPanelsNavigation')"
+          :title="$t(leftDataPanelsDrawerOpen ? 'navigation.closeDataPanelsNavigation' : 'navigation.openDataPanelsNavigation')"
           @click="toggleDataPanelsDrawer"/>
 
         <!--SHOW HOME BUTTON-->
@@ -42,6 +48,8 @@
           dense
           flat
           round
+          :aria-label="$t('navigation.backToDashboard')"
+          :title="$t('navigation.backToDashboard')"
           @click="$router.push('/ui/dashboard'); leftMainNavDrawerOpen = false"
           icon="home">
         </q-btn>
@@ -71,13 +79,17 @@
             flat
             round
             icon="notifications"
+            :aria-label="$t(rightNotificationsDrawerOpen ? 'navigation.closeNotifications' : 'navigation.openNotifications')"
+            :title="$t(rightNotificationsDrawerOpen ? 'navigation.closeNotifications' : 'navigation.openNotifications')"
             @click="toggleNotificationsDrawer">
             <q-badge
               v-if="notificationsCount > 0"
               color="red" text-color="white" floating>
               {{ notificationsCount }}
             </q-badge>
-            <q-tooltip>Notifications</q-tooltip>
+            <q-tooltip>
+              {{ $t(rightNotificationsDrawerOpen ? 'navigation.closeNotifications' : 'navigation.openNotifications') }}
+            </q-tooltip>
           </q-btn>
         </div>
       </q-toolbar>

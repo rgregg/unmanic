@@ -143,6 +143,10 @@
                         @click="openMetadataDialog(props.row.fingerprint)"
                         icon="data_object"
                         :tooltip="$t('components.completedTasks.metadata')"
+                        :aria-label="$t('components.completedTasks.viewNamedMetadata', {
+                          record: props.row.fingerprint ||
+                            $t('components.completedTasks.unnamedMetadataRecord')
+                        })"
                       />
                     </div>
                   </q-td>

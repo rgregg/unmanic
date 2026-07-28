@@ -17,7 +17,9 @@
             dense
             round
             flat
-            icon="open_in_full">
+            icon="open_in_full"
+            :aria-label="$t('components.pendingTasks.showPendingTaskDetails')"
+            :title="$t('navigation.showMore')">
             <q-tooltip class="bg-white text-primary">{{ $t('navigation.showMore') }}</q-tooltip>
           </q-btn>
         </div>

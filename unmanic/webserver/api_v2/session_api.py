@@ -31,16 +31,19 @@
 """
 
 import tornado.log
-from tornado.ioloop import IOLoop
 
 from unmanic.libs import session
 from unmanic.libs.logs import UnmanicLogging
 from unmanic.libs.uiserver import UnmanicDataQueues
 from unmanic.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
-from unmanic.webserver.api_v2.schema.schemas import SessionAuthCodeSchema, SessionStateSuccessSchema
+from unmanic.webserver.api_v2.schema.schemas import SessionStateSuccessSchema
 
 
 class ApiSessionHandler(BaseApiHandler):
+    STATUS_ERROR_NOT_SUPPORTED = 410
+    CENTRAL_SERVICES_DISABLED_REASON = (
+        "Upstream central account and funding services are not supported."
+    )
     session = None
     config = None
     logger = None
@@ -138,9 +141,8 @@ class ApiSessionHandler(BaseApiHandler):
                 )
                 self.write_success(response)
                 return
-        except BaseApiError as bae:
-            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -190,204 +192,61 @@ class ApiSessionHandler(BaseApiHandler):
             else:
                 self.write_success()
                 return
-        except BaseApiError as bae:
-            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
 
     async def session_logout(self):
         """
-        Session - log out of session
+        Session - disabled central account logout
         ---
-        description: Log out of the current session. Remove all session cookies and unlink installation from user account.
+        description: The upstream central account service is not supported by this distribution.
         responses:
-            200:
-                description: 'Successful request; Returns success status'
+            410:
+                description: Central account logout is not supported.
                 content:
                     application/json:
                         schema:
-                            BaseSuccessSchema
-            400:
-                description: Bad request; Check `messages` for any validation errors
-                content:
-                    application/json:
-                        schema:
-                            BadRequestSchema
-            404:
-                description: Bad request; Requested endpoint not found
-                content:
-                    application/json:
-                        schema:
-                            BadEndpointSchema
-            405:
-                description: Bad request; Requested method is not allowed
-                content:
-                    application/json:
-                        schema:
-                            BadMethodSchema
-            500:
-                description: Internal error; Check `error` for exception
-                content:
-                    application/json:
-                        schema:
-                            InternalErrorSchema
+                            BaseErrorSchema
         """
-        try:
-            if not self.session.sign_out():
-                self.set_status(self.STATUS_ERROR_INTERNAL, reason="Failed to log out of session")
-                self.write_error()
-                return
-            else:
-                self.write_success()
-                return
-        except BaseApiError as bae:
-            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
-            return
-        except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+        self._write_central_service_disabled()
 
     async def get_app_auth_code(self):
         """
-        Session - state
+        Session - disabled application authentication
         ---
-        description: Initiates the device authentication flow.
+        description: The upstream central account service is not supported by this distribution.
         responses:
-            200:
-                description: 'Sample response: Initiates the device authentication flow.'
+            410:
+                description: Central account authentication is not supported.
                 content:
                     application/json:
                         schema:
-                            SessionAuthCodeSchema
-            400:
-                description: Bad request; Check `messages` for any validation errors
-                content:
-                    application/json:
-                        schema:
-                            BadRequestSchema
-            404:
-                description: Bad request; Requested endpoint not found
-                content:
-                    application/json:
-                        schema:
-                            BadEndpointSchema
-            405:
-                description: Bad request; Requested method is not allowed
-                content:
-                    application/json:
-                        schema:
-                            BadMethodSchema
-            500:
-                description: Internal error; Check `error` for exception
-                content:
-                    application/json:
-                        schema:
-                            InternalErrorSchema
+                            BaseErrorSchema
         """
-        try:
-            current_loop = IOLoop.current()
-
-            # Run the synchronous init_device_auth_flow in a thread so we don't block the IOLoop.
-            device_auth_data = await current_loop.run_in_executor(None, self.session.init_device_auth_flow)
-            if not device_auth_data:
-                raise Exception("Failed to initiate device authentication flow.")
-
-            user_code = device_auth_data.get("user_code")
-            device_code = device_auth_data.get("device_code")
-            verification_uri = device_auth_data.get("verification_uri")
-            verification_uri_complete = device_auth_data.get("verification_uri_complete")
-            interval = device_auth_data.get("interval")
-            expires_in = device_auth_data.get("expires_in")
-
-            # Use the existing Tornado loop to run the blocking polling function in the background.
-            if self.session.token_poll_task is not None and not self.session.token_poll_task.done():
-                self.logger.info("Cancelling the running poll task and starting a new one.")
-                self.session.token_poll_task.cancel()
-            self.session.token_poll_task = current_loop.run_in_executor(
-                None,
-                self.session.poll_for_app_token,
-                device_code,
-                interval,
-                expires_in
-            )
-
-            response = self.build_response(
-                SessionAuthCodeSchema(),
-                {
-                    "user_code":                 user_code,
-                    "device_code":               device_code,
-                    "verification_uri":          verification_uri,
-                    "verification_uri_complete": verification_uri_complete,
-                    "expires_in":                expires_in,
-                }
-            )
-            self.write_success(response)
-            return
-
-        except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+        self._write_central_service_disabled()
 
     async def get_funding_proposals(self):
         """
         Session - funding proposals
         ---
-        description: Returns feature funding proposals from the support credit portal.
+        description: The upstream central funding service is not supported by this distribution.
         responses:
-            200:
-                description: Successful request; Returns funding proposals payload.
+            410:
+                description: Central funding proposals are not supported.
                 content:
                     application/json:
                         schema:
-                            BaseSuccessSchema
-            400:
-                description: Bad request
-                content:
-                    application/json:
-                        schema:
-                            BadRequestSchema
-            404:
-                description: Endpoint not found
-                content:
-                    application/json:
-                        schema:
-                            BadEndpointSchema
-            405:
-                description: Method not allowed
-                content:
-                    application/json:
-                        schema:
-                            BadMethodSchema
-            500:
-                description: Internal error
-                content:
-                    application/json:
-                        schema:
-                            InternalErrorSchema
+                            BaseErrorSchema
         """
-        try:
-            response, status_code = self.session.get_credit_portal_funding_proposals()
-            if status_code in [200, 201, 202] and response:
-                self.write_success(response)
-                return
-            if status_code == 401:
-                self.set_status(self.STATUS_ERROR_EXTERNAL, reason="Authentication required to fetch funding proposals.")
-                self.write_error()
-                return
+        self._write_central_service_disabled()
 
-            reason = "Failed to fetch funding proposals."
-            if response and isinstance(response, dict):
-                messages = response.get("messages", [])
-                if messages and isinstance(messages, list):
-                    reason = "; ".join(str(message) for message in messages)
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=reason)
-            self.write_error()
-            return
-        except BaseApiError as bae:
-            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
-            return
-        except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+    def _write_central_service_disabled(self):
+        """Return BaseApiHandler's stable JSON error shape with HTTP 410."""
+        self.set_status(
+            self.STATUS_ERROR_NOT_SUPPORTED,
+            reason=self.CENTRAL_SERVICES_DISABLED_REASON,
+        )
+        self.write_error()

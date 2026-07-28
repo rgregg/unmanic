@@ -14,6 +14,12 @@
               @submit="save"
               class="q-gutter-md"
             >
+              <AdmonitionBanner
+                v-if="isDirty"
+                type="warning"
+                :title="$t('components.settings.common.unsavedChanges')">
+                {{ $t('components.settings.common.unsavedChangesBody') }}
+              </AdmonitionBanner>
               <!--START LIBRARY PATHS-->
               <h5 class="q-mb-none">{{ $t('components.settings.library.pathConfiguration') }}</h5>
               <div class="q-gutter-sm">
@@ -142,6 +148,9 @@
                           icon="tune"
                           color="grey-8"
                           :tooltip="$t('tooltips.configure')"
+                          :aria-label="$t('components.settings.library.configureNamedLibrary', {
+                            library: path.name || path.path || $t('components.settings.library.unnamedLibrary')
+                          })"
                           @click="configureLibraryPath(index)"
                         />
                         <UnmanicListActionButton
@@ -149,6 +158,9 @@
                           :color="path.locked ? 'grey-6' : 'negative'"
                           :disable="path.locked"
                           :tooltip="$t('tooltips.delete')"
+                          :aria-label="$t('components.settings.library.deleteNamedLibrary', {
+                            library: path.name || path.path || $t('components.settings.library.unnamedLibrary')
+                          })"
                           @click="deleteLibrary(index)"
                         />
                       </div>
@@ -193,7 +205,7 @@
                       v-if="enableLibraryScanner && libraryScanSchedule !== null"
                       outlined
                       type="number"
-                      v-model="libraryScanSchedule"
+                      v-model.number="libraryScanSchedule"
                       :label="$t('components.settings.library.libraryScannerSchedule')"
                       lazy-rules
                       :rules="[
@@ -307,7 +319,7 @@
                       v-if="autoManageCompletedTasks && maxAgeOfCompletedTasks !== null"
                       outlined
                       type="number"
-                      v-model="maxAgeOfCompletedTasks"
+                      v-model.number="maxAgeOfCompletedTasks"
                       :label="compressCompletedTasksLogs ? $t('components.settings.library.maxAgeOfCompletedTasksCompress') : $t('components.settings.library.maxAgeOfCompletedTasks')"
                       lazy-rules
                       :rules="[
@@ -333,7 +345,10 @@
               <q-separator class="q-my-lg"/>
 
               <div>
-                <UnmanicSettingsSubmitButton/>
+                <UnmanicSettingsSubmitButton
+                  :disable="!isDirty || !isFormValid || saving"
+                  :loading="saving"
+                />
               </div>
             </q-form>
 
@@ -380,10 +395,11 @@ import SelectDirectoryDialog from "components/ui/pickers/SelectDirectoryDialog.v
 import UnmanicSettingsSubmitButton from "components/ui/buttons/UnmanicSettingsSubmitButton.vue";
 import UnmanicListActionButton from "components/ui/buttons/UnmanicListActionButton.vue";
 import UnmanicListAddButton from "components/ui/buttons/UnmanicListAddButton.vue";
+import AdmonitionBanner from "components/ui/AdmonitionBanner.vue";
 
 export default {
   name: 'SettingsLibrary',
-  components: { MobileSettingsQuickNav, LibraryConfigDialog, SelectDirectoryDialog, UnmanicSettingsSubmitButton, UnmanicListActionButton, UnmanicListAddButton },
+  components: { MobileSettingsQuickNav, LibraryConfigDialog, SelectDirectoryDialog, UnmanicSettingsSubmitButton, UnmanicListActionButton, UnmanicListAddButton, AdmonitionBanner },
   setup() {
     const $q = useQuasar()
     const { t: $t } = useI18n();
@@ -448,15 +464,67 @@ export default {
       libraryScanFollowSymlinks: ref(null),
       concurrentFileTesters: ref(null),
       runLibraryScanOnStart: ref(null),
-      enableLibraryFileMonitor: ref(null),
       clearPendingTasksOnStart: ref(null),
       autoManageCompletedTasks: ref(null),
       compressCompletedTasksLogs: ref(null),
       maxAgeOfCompletedTasks: ref(null),
       alwaysKeepFailedTasks: ref(null),
+      initialSnapshot: ref(null),
+      saving: ref(false),
     }
   },
+  computed: {
+    settingsSnapshot() {
+      const values = [
+        this.libraryPath, this.enableLibraryScanner, this.libraryScanSchedule,
+        this.libraryScanFollowSymlinks, this.concurrentFileTesters,
+        this.runLibraryScanOnStart,
+        this.clearPendingTasksOnStart, this.autoManageCompletedTasks,
+        this.compressCompletedTasksLogs, this.maxAgeOfCompletedTasks,
+        this.alwaysKeepFailedTasks,
+      ]
+      if (values.some(value => value === null)) {
+        return null
+      }
+      return JSON.stringify({
+        libraryPath: this.libraryPath,
+        enableLibraryScanner: this.enableLibraryScanner,
+        libraryScanSchedule: Number(this.libraryScanSchedule),
+        libraryScanFollowSymlinks: this.libraryScanFollowSymlinks,
+        concurrentFileTesters: Number(this.concurrentFileTesters),
+        runLibraryScanOnStart: this.runLibraryScanOnStart,
+        clearPendingTasksOnStart: this.clearPendingTasksOnStart,
+        autoManageCompletedTasks: this.autoManageCompletedTasks,
+        compressCompletedTasksLogs: this.compressCompletedTasksLogs,
+        maxAgeOfCompletedTasks: Number(this.maxAgeOfCompletedTasks),
+        alwaysKeepFailedTasks: this.alwaysKeepFailedTasks,
+      })
+    },
+    isDirty() {
+      return this.initialSnapshot !== null && this.settingsSnapshot !== null &&
+        this.initialSnapshot !== this.settingsSnapshot
+    },
+    isFormValid() {
+      if (this.settingsSnapshot === null) {
+        return false
+      }
+      if (this.enableLibraryScanner && Number(this.libraryScanSchedule) <= 0) {
+        return false
+      }
+      return !this.autoManageCompletedTasks || Number(this.maxAgeOfCompletedTasks) > 0
+    },
+  },
   methods: {
+    updateSnapshot: function () {
+      this.initialSnapshot = this.settingsSnapshot
+    },
+    handleBeforeUnload: function (event) {
+      if (!this.isDirty && !this.saving) {
+        return
+      }
+      event.preventDefault()
+      event.returnValue = ''
+    },
     addNewLibraryWithDirectoryBrowser: function () {
       this.selectDirectoryMode = 'newLibrary'
       this.selectDirectoryInitialPath = this.libraryPath
@@ -573,18 +641,20 @@ export default {
         method: 'get',
         url: getUnmanicApiUrl('v2', 'settings/read')
       }).then((response) => {
-        this.libraryPath = response.data.settings.library_path
-        this.enableLibraryScanner = response.data.settings.enable_library_scanner
-        this.libraryScanSchedule = response.data.settings.schedule_full_scan_minutes
-        this.libraryScanFollowSymlinks = response.data.settings.follow_symlinks
-        this.concurrentFileTesters = response.data.settings.concurrent_file_testers
-        this.runLibraryScanOnStart = response.data.settings.run_full_scan_on_start
-        this.enableLibraryFileMonitor = response.data.settings.enable_inotify
-        this.clearPendingTasksOnStart = response.data.settings.clear_pending_tasks_on_restart
-        this.autoManageCompletedTasks = response.data.settings.auto_manage_completed_tasks
-        this.compressCompletedTasksLogs = response.data.settings.compress_completed_tasks_logs
-        this.maxAgeOfCompletedTasks = response.data.settings.max_age_of_completed_tasks
-        this.alwaysKeepFailedTasks = response.data.settings.always_keep_failed_tasks
+        if (!this.isDirty) {
+          this.libraryPath = response.data.settings.library_path
+          this.enableLibraryScanner = response.data.settings.enable_library_scanner
+          this.libraryScanSchedule = response.data.settings.schedule_full_scan_minutes
+          this.libraryScanFollowSymlinks = response.data.settings.follow_symlinks
+          this.concurrentFileTesters = response.data.settings.concurrent_file_testers
+          this.runLibraryScanOnStart = response.data.settings.run_full_scan_on_start
+          this.clearPendingTasksOnStart = response.data.settings.clear_pending_tasks_on_restart
+          this.autoManageCompletedTasks = response.data.settings.auto_manage_completed_tasks
+          this.compressCompletedTasksLogs = response.data.settings.compress_completed_tasks_logs
+          this.maxAgeOfCompletedTasks = response.data.settings.max_age_of_completed_tasks
+          this.alwaysKeepFailedTasks = response.data.settings.always_keep_failed_tasks
+          this.updateSnapshot()
+        }
       }).catch(() => {
         this.$q.notify({
           color: 'negative',
@@ -595,7 +665,12 @@ export default {
         })
       });
     },
-    save: function () {
+    save: async function () {
+      if (this.saving || !this.isDirty || !this.isFormValid) {
+        return
+      }
+      this.saving = true
+      const submittedSnapshot = this.settingsSnapshot
       // Save settings
       let data = {
         settings: {
@@ -605,7 +680,6 @@ export default {
           follow_symlinks: this.libraryScanFollowSymlinks,
           concurrent_file_testers: this.concurrentFileTesters,
           run_full_scan_on_start: this.runLibraryScanOnStart,
-          enable_inotify: this.enableLibraryFileMonitor,
           clear_pending_tasks_on_restart: this.clearPendingTasksOnStart,
           auto_manage_completed_tasks: this.autoManageCompletedTasks,
           compress_completed_tasks_logs: this.compressCompletedTasksLogs,
@@ -613,13 +687,13 @@ export default {
           always_keep_failed_tasks: this.alwaysKeepFailedTasks,
         }
       }
-      axios({
+      try {
+        await axios({
         method: 'post',
         url: getUnmanicApiUrl('v2', 'settings/write'),
         data: data
-      }).then((response) => {
-        // Save success, show feedback
-        this.fetchSettings();
+        })
+        this.initialSnapshot = submittedSnapshot
         this.$q.notify({
           color: 'positive',
           position: 'top',
@@ -627,7 +701,7 @@ export default {
           message: this.$t('notifications.saved'),
           timeout: 200
         })
-      }).catch(() => {
+      } catch (error) {
         this.$q.notify({
           color: 'negative',
           position: 'top',
@@ -635,7 +709,9 @@ export default {
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
-      });
+      } finally {
+        this.saving = false
+      }
     },
     fetchLibraryList: function () {
       // Fetch current settings
@@ -690,6 +766,20 @@ export default {
   created() {
     this.fetchSettings();
     this.fetchLibraryList();
+  },
+  mounted() {
+    window.addEventListener('beforeunload', this.handleBeforeUnload)
+  },
+  beforeUnmount() {
+    window.removeEventListener('beforeunload', this.handleBeforeUnload)
+  },
+  beforeRouteLeave(to, from, next) {
+    if ((!this.isDirty && !this.saving) ||
+      window.confirm(this.$t('components.settings.common.leaveWithUnsavedChanges'))) {
+      next()
+      return
+    }
+    next(false)
   }
 }
 </script>
@@ -729,13 +819,4 @@ div.sub-setting {
   }
 }
 
-.page-with-mobile-quick-nav {
-  padding-bottom: 24px;
-}
-
-@media (max-width: 1023px) {
-  .page-with-mobile-quick-nav {
-    padding-bottom: 96px;
-  }
-}
 </style>

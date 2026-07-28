@@ -84,6 +84,15 @@
                             </q-item-section>
                           </q-item>
 
+                          <q-item clickable v-close-popup @click="confirmDismissSelected">
+                            <q-item-section>
+                              <q-item-label>
+                                <q-icon name="visibility_off"/>
+                                {{ t('components.completedTasks.dismissSelected') }}
+                              </q-item-label>
+                            </q-item-section>
+                          </q-item>
+
                           <q-separator/>
 
                           <q-item clickable v-close-popup @click="deleteSelected">
@@ -242,8 +251,17 @@
                         {{ t('components.completedTasks.columns.status') }}:
                       </span>
                       <q-badge :color="props.row.status ? 'positive' : 'negative'">
-                        {{ props.row.status ? t('status.success') : t('status.failed') }}
+                        {{ props.row.status ? t('status.success') : (props.row.dismissedAt ? t('status.dismissed') : t('status.failed')) }}
                       </q-badge>
+                    </div>
+                    <div v-if="!props.row.status" class="completed-task-failure q-mt-sm">
+                      <div class="text-weight-medium text-negative">
+                        {{ failureCategoryLabel(props.row.failureCategory) }}
+                      </div>
+                      <div>{{ props.row.failureMessage || t('components.completedTasks.legacyFailureMessage') }}</div>
+                      <div v-if="props.row.failureTime" class="text-caption">
+                        {{ t('components.completedTasks.failedAt', { time: props.row.failureTime }) }}
+                      </div>
                     </div>
                   </q-td>
 
@@ -261,6 +279,9 @@
                           @click="openDetailsDialog(props.row.id)"
                           icon="info"
                           :tooltip="t('components.completedTasks.details')"
+                          :aria-label="t('components.completedTasks.viewNamedTaskDetails', {
+                            task: props.row.name || props.row.id || t('components.completedTasks.unnamedTask')
+                          })"
                         />
 
                         <UnmanicStandardButton
@@ -274,6 +295,25 @@
                           @click="openMetadataDialog(props.row.id)"
                           icon="data_object"
                           :tooltip="t('components.completedTasks.metadata')"
+                          :aria-label="t('components.completedTasks.viewNamedTaskMetadata', {
+                            task: props.row.name || props.row.id || t('components.completedTasks.unnamedTask')
+                          })"
+                        />
+                        <UnmanicListActionButton
+                          v-if="!props.row.status"
+                          @click="retryTask(props.row)"
+                          icon="replay"
+                          color="secondary"
+                          :tooltip="t('components.completedTasks.retryTask')"
+                          :aria-label="t('components.completedTasks.retryNamedTask', { task: props.row.name })"
+                        />
+                        <UnmanicListActionButton
+                          v-if="!props.row.status && !props.row.dismissedAt"
+                          @click="confirmDismissTask(props.row)"
+                          icon="visibility_off"
+                          color="grey-8"
+                          :tooltip="t('components.completedTasks.dismissFailure')"
+                          :aria-label="t('components.completedTasks.dismissNamedFailure', { task: props.row.name })"
                         />
                       </div>
                     </div>
@@ -387,6 +427,7 @@
                 color="secondary"
                 :disable="!draftSinceDate"
                 :tooltip="draftSinceDate ? t('components.completedTasks.clearSinceFilter') : ''"
+                :aria-label="t('components.completedTasks.clearSinceFilter')"
                 @click="draftSinceDate = null"
               />
             </div>
@@ -435,6 +476,7 @@
                 color="secondary"
                 :disable="!draftBeforeDate"
                 :tooltip="draftBeforeDate ? t('components.completedTasks.clearBeforeFilter') : ''"
+                :aria-label="t('components.completedTasks.clearBeforeFilter')"
                 @click="draftBeforeDate = null"
               />
             </div>
@@ -598,6 +640,14 @@
   <FileMetadataListDialog
     ref="metadataBrowserRef"
   />
+  <UnmanicDialogConfirm
+    ref="dismissConfirmRef"
+    :title="t('components.completedTasks.dismissFailure')"
+    :message="dismissConfirmMessage"
+    :ok-label="t('components.completedTasks.dismiss')"
+    ok-color="negative"
+    @confirm="dismissConfirmed"
+  />
 </template>
 
 <script setup>
@@ -615,6 +665,7 @@ import FileMetadataListDialog from 'components/dashboard/completed/FileMetadataL
 import UnmanicStandardButton from 'components/ui/buttons/UnmanicStandardButton.vue'
 import UnmanicListActionButton from 'components/ui/buttons/UnmanicListActionButton.vue'
 import UnmanicStandardButtonDropdown from 'components/ui/buttons/UnmanicStandardButtonDropdown.vue'
+import UnmanicDialogConfirm from 'components/ui/dialogs/UnmanicDialogConfirm.vue'
 
 const props = defineProps({
   initStatusFilter: {
@@ -635,6 +686,8 @@ const metadataDialogTaskId = ref('')
 const metadataBrowserRef = ref(null)
 const infiniteScrollRef = ref(null)
 const tableWrapperRef = ref(null)
+const dismissConfirmRef = ref(null)
+const dismissTarget = ref(null)
 const showScrollTop = ref(false)
 
 const loading = ref(false)
@@ -716,8 +769,18 @@ const statusFilterOptions = computed(() => ([
   {
     label: t('status.failed'),
     value: 'failed'
+  },
+  {
+    label: t('status.dismissed'),
+    value: 'dismissed'
   }
 ]))
+
+const dismissConfirmMessage = computed(() => (
+  dismissTarget.value
+    ? t('components.completedTasks.dismissNamedPrompt', { task: dismissTarget.value.name })
+    : t('components.completedTasks.dismissSelectedPrompt')
+))
 
 const filterSortButtonSize = computed(() => ($q.screen.width < 450 ? 'sm' : 'md'))
 
@@ -853,6 +916,9 @@ const allLoaded = computed(() => {
 let reloadInterval = null
 
 const show = () => {
+  if (statusFilter.value !== props.initStatusFilter) {
+    statusFilter.value = props.initStatusFilter
+  }
   dialogRef.value.show()
   showScrollTop.value = false
 }
@@ -987,6 +1053,16 @@ const selectAllMatchingResults = () => {
 
 const clearSelection = () => {
   resetSelection()
+}
+
+const failureCategoryLabel = (category) => {
+  const labels = {
+    processing_failed: t('components.completedTasks.failureCategories.processingFailed'),
+    postprocessing_failed: t('components.completedTasks.failureCategories.postprocessingFailed'),
+    internal_error: t('components.completedTasks.failureCategories.internalError'),
+    stalled: t('components.completedTasks.failureCategories.stalled'),
+  }
+  return labels[category] || t('components.completedTasks.failureCategories.failed')
 }
 
 const buildFiltersPayload = () => ({
@@ -1155,6 +1231,55 @@ const selectLibraryForRecreateTask = () => {
   })
 }
 
+const retryTask = (row) => {
+  resetSelection()
+  selectedIds.value = [row.id]
+  selectLibraryForRecreateTask()
+}
+
+const confirmDismissTask = (row) => {
+  dismissTarget.value = row
+  dismissConfirmRef.value.show()
+}
+
+const confirmDismissSelected = () => {
+  if (selectedCount.value === 0) {
+    $q.notify({
+      color: 'warning',
+      position: 'top',
+      message: t('components.completedTasks.nothingSelected'),
+      icon: 'report_problem',
+      actions: [{ icon: 'close', color: 'white' }]
+    })
+    return
+  }
+  dismissTarget.value = null
+  dismissConfirmRef.value.show()
+}
+
+const dismissConfirmed = () => {
+  const data = dismissTarget.value
+    ? { selection_mode: 'explicit', id_list: [dismissTarget.value.id] }
+    : getSelectionPayload()
+  axios({
+    method: 'post',
+    url: getUnmanicApiUrl('v2', 'history/dismiss'),
+    data
+  }).then(() => {
+    dismissTarget.value = null
+    resetSelection()
+    fetchCompletedTasks({ reset: true })
+  }).catch(() => {
+    $q.notify({
+      color: 'negative',
+      position: 'top',
+      message: t('components.completedTasks.errorDismiss'),
+      icon: 'report_problem',
+      actions: [{ icon: 'close', color: 'white' }]
+    })
+  })
+}
+
 const addSelectedToPendingTaskList = () => {
   if (selectedCount.value === 0) {
     $q.notify({
@@ -1251,6 +1376,10 @@ const fetchCompletedTasks = ({ reset = false, silent = false, refreshTop = false
       dateTimeStarted: dateTools.printDateTimeString(results.start_time),
       dateTimeCompleted: dateTools.printDateTimeString(results.finish_time),
       status: results.task_success,
+      failureCategory: results.failure_category,
+      failureMessage: results.failure_message,
+      failureTime: results.failure_time ? dateTools.printDateTimeString(results.failure_time) : '',
+      dismissedAt: results.dismissed_at,
       hasMetadata: results.has_metadata
     }))
 
@@ -1507,6 +1636,17 @@ defineExpose({
 
 .completed-task-name {
   font-weight: 500;
+}
+
+.completed-task-failure {
+  max-width: 640px;
+  padding: 8px;
+  border-left: 3px solid var(--q-negative);
+  background: rgba(194, 0, 0, 0.06);
+}
+
+.q-dark .completed-task-failure {
+  background: rgba(255, 82, 82, 0.08);
 }
 
 .completed-task-actions {

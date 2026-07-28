@@ -12,6 +12,12 @@
               @submit="save"
               class="q-gutter-md"
             >
+              <AdmonitionBanner
+                v-if="isDirty"
+                type="warning"
+                :title="$t('components.settings.common.unsavedChanges')">
+                {{ $t('components.settings.common.unsavedChangesBody') }}
+              </AdmonitionBanner>
 
               <!--START THIS INSTALLATION-->
               <h5 class="q-mb-none">{{ $t('components.settings.link.thisInstallation') }}</h5>
@@ -38,7 +44,7 @@
                   :label="$t('components.settings.link.installationPublicAddress')"
                   :placeholder="installationPublicAddress"
                   :rules="[
-                    val => !val || val.toLowerCase().startsWith('http') || 'Address must start with http:// or https://'
+                    val => validatePublicAddress(val) || $t('components.settings.link.addressProtocolValidation')
                   ]"
                 >
                 </q-input>
@@ -199,12 +205,20 @@
                           icon="tune"
                           color="grey-8"
                           :tooltip="$t('tooltips.configure')"
+                          :aria-label="$t('components.settings.link.configureNamedInstallation', {
+                            installation: installation.name || installation.address ||
+                              $t('components.settings.link.unnamedInstallation')
+                          })"
                           @click="configureRemoteInstallation(index)"
                         />
                         <UnmanicListActionButton
                           icon="delete"
                           color="negative"
                           :tooltip="$t('tooltips.delete')"
+                          :aria-label="$t('components.settings.link.deleteNamedInstallation', {
+                            installation: installation.name || installation.address ||
+                              $t('components.settings.link.unnamedInstallation')
+                          })"
                           @click="deleteRemoteInstallation(index)"
                         />
                       </div>
@@ -226,8 +240,12 @@
                   ref="addRemoteDialogRef"
                   :title="$t('components.settings.link.addRemoteInstallation')"
                   :mini="true"
+                  :persistent="isAddRemoteDirty || addingRemote"
+                  :close-disabled="addingRemote"
+                  :close-tooltip="isAddRemoteDirty ? $t('components.settings.common.closeWithoutSaving') : ''"
                   :actions="addRemoteDialogActions"
                   @add="addNewRemoteInstallation"
+                  @hide="onAddRemoteDialogHide"
                 >
                   <div class="q-pa-md">
                     <q-input
@@ -236,6 +254,9 @@
                       v-model="newRemoteInstallationAddress"
                       :label="$t('components.settings.link.address')"
                       placeholder="192.168.1.2:8888"
+                      :rules="[
+                        val => validateRemoteAddress(val) || $t('components.settings.link.addressRequired')
+                      ]"
                       class="q-mb-md"
                     />
 
@@ -272,7 +293,10 @@
               <q-separator class="q-my-lg"/>
 
               <div>
-                <UnmanicSettingsSubmitButton/>
+                <UnmanicSettingsSubmitButton
+                  :disable="!isDirty || !isFormValid || saving"
+                  :loading="saving"
+                />
               </div>
             </q-form>
 
@@ -371,12 +395,87 @@ export default {
       newRemoteInstallationUsername: ref(null),
       newRemoteInstallationPassword: ref(null),
       activeRemoteInstallationUuid: ref(''),
+      initialSnapshot: ref(null),
+      saving: ref(false),
+      addRemoteInitialSnapshot: ref(null),
+      addingRemote: ref(false),
+    }
+  },
+  computed: {
+    settingsSnapshot() {
+      if (this.installationName === null || this.installationPublicAddress === null) {
+        return null
+      }
+      return JSON.stringify({
+        installationName: this.installationName,
+        installationPublicAddress: this.installationPublicAddress,
+      })
+    },
+    isDirty() {
+      return this.initialSnapshot !== null && this.settingsSnapshot !== null &&
+        this.initialSnapshot !== this.settingsSnapshot
+    },
+    isFormValid() {
+      return this.settingsSnapshot !== null && this.validatePublicAddress(this.installationPublicAddress)
+    },
+    addRemoteSnapshot() {
+      return JSON.stringify({
+        address: this.newRemoteInstallationAddress,
+        authenticationType: this.newRemoteInstallationAuthenticationType,
+        username: this.newRemoteInstallationUsername,
+        password: this.newRemoteInstallationPassword,
+      })
+    },
+    isAddRemoteDirty() {
+      return this.addRemoteInitialSnapshot !== null &&
+        this.addRemoteInitialSnapshot !== this.addRemoteSnapshot
+    },
+    isAddRemoteValid() {
+      return this.validateRemoteAddress(this.newRemoteInstallationAddress)
+    },
+    addRemoteDialogActions() {
+      return [
+        {
+          label: this.$t('components.settings.link.add'),
+          icon: 'add',
+          color: this.isAddRemoteDirty && this.isAddRemoteValid ? 'positive' : 'grey-6',
+          emit: 'add',
+          disabled: !this.isAddRemoteDirty || !this.isAddRemoteValid || this.addingRemote,
+        }
+      ]
+    },
+    dragOptions() {
+      return {
+        animation: 100,
+        group: "scheduleOrder",
+        disabled: false,
+        ghostClass: "ghost",
+        direction: "vertical",
+        delay: 200,
+        delayOnTouchOnly: true,
+      };
     }
   },
   methods: {
+    updateSnapshot: function () {
+      this.initialSnapshot = this.settingsSnapshot
+    },
+    updateAddRemoteSnapshot: function () {
+      this.addRemoteInitialSnapshot = this.addRemoteSnapshot
+    },
+    handleBeforeUnload: function (event) {
+      if (!this.isDirty && !this.saving && !this.isAddRemoteDirty && !this.addingRemote) {
+        return
+      }
+      event.preventDefault()
+      event.returnValue = ''
+    },
     validatePublicAddress(val) {
       if (!val) return true
       return val.toLowerCase().startsWith('http')
+    },
+    validateRemoteAddress(val) {
+      return typeof val === 'string' && val.trim().length > 0
     },
     fetchSettings: function () {
       // Fetch current settings
@@ -385,8 +484,11 @@ export default {
         url: getUnmanicApiUrl('v2', 'settings/read')
       }).then((response) => {
         // Set the installation name
-        this.installationName = response.data.settings.installation_name
-        this.installationPublicAddress = response.data.settings.installation_public_address
+        const preserveStagedSettings = this.isDirty
+        if (!preserveStagedSettings) {
+          this.installationName = response.data.settings.installation_name
+          this.installationPublicAddress = response.data.settings.installation_public_address
+        }
         // Set the list of remote installations
         let remoteInstallationsList = []
         for (let i = 0; i < response.data.settings.remote_installations.length; i++) {
@@ -406,6 +508,9 @@ export default {
           }
         }
         this.remoteInstallations = remoteInstallationsList;
+        if (!preserveStagedSettings) {
+          this.updateSnapshot()
+        }
       }).catch(() => {
         this.$q.notify({
           color: 'negative',
@@ -416,16 +521,20 @@ export default {
         })
       });
     },
-    save: function () {
-      if (!this.validatePublicAddress(this.installationPublicAddress)) {
-        this.$q.notify({
-          color: 'negative',
-          position: 'top',
-          message: 'Invalid public address. Must start with http:// or https://',
-          icon: 'report_problem'
-        })
+    save: async function () {
+      if (this.saving || !this.isDirty || !this.isFormValid) {
+        if (!this.isFormValid) {
+          this.$q.notify({
+            color: 'negative',
+            position: 'top',
+            message: this.$t('components.settings.link.invalidPublicAddress'),
+            icon: 'report_problem'
+          })
+        }
         return
       }
+      this.saving = true
+      const submittedSnapshot = this.settingsSnapshot
 
       // Save settings
       let remoteInstallationsList = []
@@ -446,13 +555,13 @@ export default {
           installation_public_address: this.installationPublicAddress,
         }
       }
-      axios({
+      try {
+        await axios({
         method: 'post',
         url: getUnmanicApiUrl('v2', 'settings/write'),
         data: data
-      }).then((response) => {
-        // Save success, show feedback
-        this.fetchSettings();
+        })
+        this.initialSnapshot = submittedSnapshot
         this.$q.notify({
           color: 'positive',
           position: 'top',
@@ -468,7 +577,7 @@ export default {
         }).catch(() => {
           // Ignore error
         })
-      }).catch(() => {
+      } catch (error) {
         this.$q.notify({
           color: 'negative',
           position: 'top',
@@ -476,9 +585,14 @@ export default {
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
-      });
+      } finally {
+        this.saving = false
+      }
     },
-    addNewRemoteInstallation: function () {
+    addNewRemoteInstallation: async function () {
+      if (this.addingRemote || !this.isAddRemoteDirty || !this.isAddRemoteValid) {
+        return
+      }
       // Ensure this remote installation is not already in the list
       for (let i = 0; i < this.remoteInstallations.length; i++) {
         if (this.newRemoteInstallationAddress === this.remoteInstallations[i].address) {
@@ -492,19 +606,29 @@ export default {
           return;
         }
       }
+      this.addingRemote = true
 
-      // Validate connection to the provided address and add to list
-      let data = {
+      const submitted = {
         address: this.newRemoteInstallationAddress,
-        auth: this.newRemoteInstallationAuthenticationType,
+        authenticationType: this.newRemoteInstallationAuthenticationType,
         username: this.newRemoteInstallationUsername,
         password: this.newRemoteInstallationPassword,
       }
-      axios({
-        method: 'post',
-        url: getUnmanicApiUrl('v2', 'settings/link/validate'),
-        data: data
-      }).then((response) => {
+      const submittedSnapshot = JSON.stringify(submitted)
+      const validationData = {
+        address: submitted.address,
+        auth: submitted.authenticationType,
+        username: submitted.username,
+        password: submitted.password,
+      }
+      let connectionValidated = false
+      try {
+        const response = await axios({
+          method: 'post',
+          url: getUnmanicApiUrl('v2', 'settings/link/validate'),
+          data: validationData
+        })
+        connectionValidated = true
         // Ensure this remote installation was compatible with linking
         if (typeof response.data.installation.settings.installation_name === 'undefined') {
           this.$q.notify({
@@ -514,24 +638,12 @@ export default {
             icon: 'report_problem',
             actions: [{ icon: 'close', color: 'white' }]
           })
+          return
         } else {
           // Get name and version from API validation
           let name = response.data.installation.settings.installation_name;
           let version = response.data.installation.version;
           let uuid = response.data.installation.session.uuid;
-          // Add to list
-          this.remoteInstallations[this.remoteInstallations.length] = {
-            address: this.newRemoteInstallationAddress,
-            auth: this.newRemoteInstallationAuthenticationType,
-            username: this.newRemoteInstallationUsername,
-            password: this.newRemoteInstallationPassword,
-            enable_receiving_tasks: false,
-            enable_sending_tasks: false,
-            name: name,
-            version: version,
-            uuid: uuid,
-            available: true,
-          }
           // Trigger a save event
           let data = {
             link_config: {
@@ -539,48 +651,62 @@ export default {
               name: name,
               version: version,
               available: true,
-              address: this.newRemoteInstallationAddress,
-              auth: this.newRemoteInstallationAuthenticationType,
-              username: this.newRemoteInstallationUsername,
-              password: this.newRemoteInstallationPassword,
+              address: submitted.address,
+              auth: submitted.authenticationType,
+              username: submitted.username,
+              password: submitted.password,
               enable_receiving_tasks: false,
               enable_sending_tasks: false,
             },
           }
-          axios({
+          await axios({
             method: 'post',
             url: getUnmanicApiUrl('v2', 'settings/link/write'),
             data: data
-          }).then((response) => {
-            // Save success, show feedback
-            this.$q.notify({
-              color: 'positive',
-              position: 'top',
-              icon: 'cloud_done',
-              message: this.$t('notifications.saved'),
-              timeout: 200
-            })
-            // Close dialog
+          })
+          this.remoteInstallations.push({
+            address: submitted.address,
+            auth: submitted.authenticationType,
+            username: submitted.username,
+            password: submitted.password,
+            enableReceivingTasks: false,
+            enableSendingTasks: false,
+            enableTaskPreloading: false,
+            enableChecksumValidation: false,
+            enableConfigMissingLibraries: false,
+            enableDistributedWorkers: false,
+            name,
+            version,
+            uuid,
+            available: true,
+          })
+          this.addRemoteInitialSnapshot = submittedSnapshot
+          this.$q.notify({
+            color: 'positive',
+            position: 'top',
+            icon: 'cloud_done',
+            message: this.$t('notifications.saved'),
+            timeout: 200
+          })
+          if (this.addRemoteSnapshot === submittedSnapshot) {
+            this.addingRemote = false
+            await this.$nextTick()
             this.addRemoteDialogRef.hide()
-          }).catch(() => {
-            this.$q.notify({
-              color: 'negative',
-              position: 'top',
-              message: this.$t('notifications.failedToSaveSettings'),
-              icon: 'report_problem',
-              actions: [{ icon: 'close', color: 'white' }]
-            })
-          });
+          }
         }
-      }).catch(() => {
+      } catch (error) {
         this.$q.notify({
           color: 'negative',
           position: 'top',
-          message: this.$t('notifications.invalidRemoteInstallationAddress'),
+          message: this.$t(connectionValidated
+            ? 'notifications.failedToSaveSettings'
+            : 'notifications.invalidRemoteInstallationAddress'),
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
-      });
+      } finally {
+        this.addingRemote = false
+      }
     },
     deleteRemoteInstallation: function (index) {
       let newList = []
@@ -631,7 +757,22 @@ export default {
       })
     },
     openNewRemoteInstallationDialog: function () {
+      this.newRemoteInstallationAddress = ''
+      this.newRemoteInstallationAuthenticationType = 'None'
+      this.newRemoteInstallationUsername = null
+      this.newRemoteInstallationPassword = null
+      this.updateAddRemoteSnapshot()
       this.addRemoteDialogRef.show()
+    },
+    onAddRemoteDialogHide: function () {
+      if (this.addingRemote) {
+        return
+      }
+      this.newRemoteInstallationAddress = ''
+      this.newRemoteInstallationAuthenticationType = 'None'
+      this.newRemoteInstallationUsername = null
+      this.newRemoteInstallationPassword = null
+      this.updateAddRemoteSnapshot()
     },
     onRemoteInstallSaved: function () {
       this.fetchSettings()
@@ -643,42 +784,23 @@ export default {
   created() {
     this.fetchSettings();
   },
-  computed: {
-    addRemoteDialogActions() {
-      return [
-        {
-          label: this.$t('components.settings.link.add'),
-          icon: 'add',
-          color: 'positive',
-          emit: 'add'
-        }
-      ]
-    },
-    dragOptions() {
-      return {
-        animation: 100,
-        group: "scheduleOrder",
-        disabled: false,
-        ghostClass: "ghost",
-        direction: "vertical",
-        delay: 200,
-        delayOnTouchOnly: true,
-      };
+  mounted() {
+    window.addEventListener('beforeunload', this.handleBeforeUnload)
+  },
+  beforeUnmount() {
+    window.removeEventListener('beforeunload', this.handleBeforeUnload)
+  },
+  beforeRouteLeave(to, from, next) {
+    const hasPendingChanges = this.isDirty || this.saving || this.isAddRemoteDirty || this.addingRemote
+    if (!hasPendingChanges || window.confirm(this.$t('components.settings.common.leaveWithUnsavedChanges'))) {
+      next()
+      return
     }
+    next(false)
   }
 }
 </script>
 <style>
-.page-with-mobile-quick-nav {
-  padding-bottom: 24px;
-}
-
-@media (max-width: 1023px) {
-  .page-with-mobile-quick-nav {
-    padding-bottom: 96px;
-  }
-}
-
 .ghost {
   opacity: 0;
 }

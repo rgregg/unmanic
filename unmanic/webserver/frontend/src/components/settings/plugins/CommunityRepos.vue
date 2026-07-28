@@ -81,6 +81,10 @@
               dense
               color="secondary"
               icon="add_circle"
+              :aria-label="$t('components.plugins.addNamedRepository', {
+                repository: repo.name || repo.full_name || $t('components.plugins.unnamedRepository')
+              })"
+              :title="$t('tooltips.addRepository')"
               @click="addRepo(repo)"
             >
               <q-tooltip>{{ $t('tooltips.addRepository') }}</q-tooltip>
@@ -91,6 +95,10 @@
               dense
               color="grey"
               icon="open_in_new"
+              :aria-label="$t('components.plugins.openNamedRepository', {
+                repository: repo.name || repo.full_name || $t('components.plugins.unnamedRepository')
+              })"
+              :title="$t('tooltips.viewOnGithub')"
               type="a"
               :href="repo.html_url"
               target="_blank"

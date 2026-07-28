@@ -89,6 +89,10 @@
                 outline
                 round
                 dense
+                :aria-label="$t('components.plugins.removeNamedRepository', {
+                  repository: getRepoDisplayUrl(repo) || repo.path || $t('components.plugins.unnamedRepository')
+                })"
+                :title="$t('tooltips.remove')"
                 @click="removeRepo(repo.path)"
               >
                 <q-tooltip>{{ $t('tooltips.remove') }}</q-tooltip>

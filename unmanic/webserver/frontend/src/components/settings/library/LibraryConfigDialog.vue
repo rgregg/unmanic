@@ -2,8 +2,9 @@
   <UnmanicDialogMenu
     ref="dialogRef"
     :title="$t('headers.configureLibrary')"
-    :persistent="isDirty"
-    :closeTooltip="$t('components.settings.common.closeWithoutSaving')"
+    :persistent="isDirty || saving"
+    :close-disabled="saving"
+    :closeTooltip="isDirty ? $t('components.settings.common.closeWithoutSaving') : ''"
     :actions="saveActions"
     @save="save"
     @hide="onDialogHide"
@@ -281,12 +282,18 @@
                           color="grey-8"
                           :disable="!plugin.has_config"
                           :tooltip="$t('tooltips.configureForThisLibrary')"
+                          :aria-label="$t('components.plugins.configureNamedPluginForLibrary', {
+                            plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                          })"
                           @click="openPluginInfo(plugin.plugin_id, 'settings')"
                         />
                         <UnmanicListActionButton
                           icon="remove_circle_outline"
                           color="negative"
                           :tooltip="$t('tooltips.removeFromThisLibrary')"
+                          :aria-label="$t('components.plugins.removeNamedPluginFromLibrary', {
+                            plugin: plugin.name || $t('components.plugins.unnamedPlugin')
+                          })"
                           @click="removePluginFromList(index)"
                         />
                       </div>
@@ -331,7 +338,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import axios from 'axios'
 import { useQuasar, Loading } from 'quasar'
 import { useI18n } from 'vue-i18n'
@@ -360,6 +368,7 @@ const { t } = useI18n()
 const { isMobile } = useMobile()
 
 const dialogRef = ref(null)
+const isOpen = ref(false)
 
 const currentID = ref(null)
 const locked = ref(false)
@@ -374,6 +383,7 @@ const enabledPlugins = ref(null)
 const componentKey = ref(1)
 const showLoading = ref(false)
 const originalSnapshot = ref(null)
+const saving = ref(false)
 const selectDirectoryDialogRef = ref(null)
 const selectDirectoryInitialPath = ref('')
 const selectDirectoryListType = ref('directories')
@@ -382,15 +392,16 @@ const pluginSelectorHidePlugins = ref([])
 
 const saveAction = computed(() => {
   const hasChanges = isDirty.value
+  const valid = isValid.value
   return {
     label: t('navigation.save'),
     icon: 'save',
-    color: hasChanges ? 'positive' : 'grey-6',
+    color: hasChanges && valid && !saving.value ? 'positive' : 'grey-6',
     tooltip: hasChanges
       ? t('components.settings.library.saveLibraryConfig')
       : t('components.settings.common.noChangesToSave'),
     emit: 'save',
-    disabled: !hasChanges
+    disabled: !hasChanges || !valid || saving.value
   }
 })
 
@@ -434,6 +445,12 @@ const isDirty = computed(() => {
   return originalSnapshot.value !== currentSnapshot.value
 })
 
+const isValid = computed(() => {
+  return currentSnapshot.value !== null &&
+    typeof name.value === 'string' && name.value.trim().length > 0 &&
+    (enableReceiveRemoteFilesOnly.value || (typeof path.value === 'string' && path.value.trim().length > 0))
+})
+
 const updateSnapshot = () => {
   if (currentSnapshot.value) {
     originalSnapshot.value = currentSnapshot.value
@@ -462,7 +479,12 @@ const fetchLibraryConfig = (libraryId) => {
   })
 }
 
-const saveLibraryConfig = async ({ hideOnSuccess = false } = {}) => {
+const saveLibraryConfig = async () => {
+  if (saving.value || !isDirty.value || !isValid.value) {
+    return false
+  }
+  const submittedSnapshot = currentSnapshot.value
+  saving.value = true
   const data = {
     library_config: {
       id: currentID.value,
@@ -493,11 +515,7 @@ const saveLibraryConfig = async ({ hideOnSuccess = false } = {}) => {
       timeout: 200
     })
     componentKey.value += 1
-    updateSnapshot()
-    if (hideOnSuccess) {
-      emit('saved')
-      hide()
-    }
+    originalSnapshot.value = submittedSnapshot
     return true
   } catch (error) {
     $q.notify({
@@ -508,10 +526,21 @@ const saveLibraryConfig = async ({ hideOnSuccess = false } = {}) => {
       actions: [{ icon: 'close', color: 'white' }]
     })
     return false
+  } finally {
+    saving.value = false
   }
 }
 
-const save = async () => saveLibraryConfig({ hideOnSuccess: true })
+const save = async () => {
+  const submittedSnapshot = currentSnapshot.value
+  const saved = await saveLibraryConfig()
+  if (saved) {
+    emit('saved')
+    if (currentSnapshot.value === submittedSnapshot) {
+      hide()
+    }
+  }
+}
 
 const updateLibraryWithDirectoryBrowser = () => {
   selectDirectoryInitialPath.value = path.value
@@ -706,16 +735,42 @@ const cloneLibrary = () => {
 }
 
 const show = () => {
+  isOpen.value = true
   dialogRef.value.show()
 }
 
 const hide = () => {
-  dialogRef.value.hide()
+  if (!saving.value) {
+    dialogRef.value.hide()
+  }
 }
 
 const onDialogHide = () => {
+  isOpen.value = false
   emit('hide')
 }
+
+const hasPendingChanges = computed(() => isOpen.value && (isDirty.value || saving.value))
+
+const handleBeforeUnload = (event) => {
+  if (!hasPendingChanges.value) {
+    return
+  }
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+  return !hasPendingChanges.value || window.confirm(t('components.settings.common.leaveWithUnsavedChanges'))
+})
+
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+})
 
 const resetLibraryConfig = () => {
   currentID.value = null

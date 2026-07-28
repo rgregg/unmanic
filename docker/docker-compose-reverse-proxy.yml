@@ -1,0 +1,46 @@
+# Internet-facing example: Caddy is the only published service.
+#
+# Required:
+#   TRAWLARR_HOSTNAME       Public DNS name pointing to this host
+#   TRAWLARR_PASSWORD_HASH Hash produced by `caddy hash-password`
+#   TRAWLARR_CONFIG_PATH   Host path for persistent application state
+#   TRAWLARR_LIBRARY_PATH  Host path containing the media library
+#   TRAWLARR_CACHE_PATH    Host path for in-progress transcodes
+#
+# See docker/README.md for setup and security requirements.
+
+services:
+  trawlarr:
+    image: ghcr.io/rgregg/trawlarr:latest
+    restart: unless-stopped
+    expose:
+      - "8888"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+    volumes:
+      - ${TRAWLARR_CONFIG_PATH:?set TRAWLARR_CONFIG_PATH}:/config
+      - ${TRAWLARR_LIBRARY_PATH:?set TRAWLARR_LIBRARY_PATH}:/library
+      - ${TRAWLARR_CACHE_PATH:?set TRAWLARR_CACHE_PATH}:/tmp/unmanic
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - trawlarr
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      TRAWLARR_HOSTNAME: ${TRAWLARR_HOSTNAME:?set TRAWLARR_HOSTNAME}
+      TRAWLARR_PASSWORD_HASH: ${TRAWLARR_PASSWORD_HASH:?set TRAWLARR_PASSWORD_HASH}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

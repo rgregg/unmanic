@@ -16,6 +16,8 @@
             round
             flat
             icon="open_in_full"
+            :aria-label="$t('components.workers.showNamedWorkerDetails', { worker: fullWorkerLabel })"
+            :title="$t('navigation.showMore')"
           >
             <q-tooltip class="bg-white text-primary">{{ $t('navigation.showMore') }}</q-tooltip>
           </q-btn>
@@ -185,11 +187,15 @@ const props = defineProps({
 
 const workerDetailsDialogRef = ref(null)
 
+const fullWorkerLabel = computed(() => (
+  props.label || props.name || $t('components.workers.unnamedWorker')
+))
+
 const displayLabel = computed(() => {
-  if (props.label.length < 50) {
-    return props.label
+  if (fullWorkerLabel.value.length < 50) {
+    return fullWorkerLabel.value
   }
-  return `${props.label.substring(0, 48)}..`
+  return `${fullWorkerLabel.value.substring(0, 48)}..`
 })
 
 const openDetails = () => {

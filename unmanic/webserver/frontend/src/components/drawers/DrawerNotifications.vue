@@ -50,6 +50,10 @@
             class="gt-xs"
             icon="close"
             color="grey-8"
+            :tooltip="$t('buttons.dismissNotification')"
+            :aria-label="$t('buttons.dismissNamedNotification', {
+              notification: notification.label || notification.message || $t('buttons.unnamedNotification')
+            })"
             @click="dismissNotification(index)"
           />
         </div>

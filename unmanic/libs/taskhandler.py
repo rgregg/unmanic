@@ -35,6 +35,7 @@ import threading
 import time
 
 from peewee import OperationalError
+from playhouse.sqliteq import ResultTimeout
 
 from unmanic import config
 from unmanic.libs import common, task
@@ -83,6 +84,7 @@ class TaskHandler(threading.Thread):
         self._log("Starting TaskHandler Monitor loop")
         while not self.abort_flag.is_set():
             self.event.wait(2)
+            self.reconcile_creating_tasks()
             self.process_scheduledtasks_queue()
             self.process_inotifytasks_queue()
 
@@ -125,10 +127,58 @@ class TaskHandler(threading.Thread):
                 self._log("Exception in processing inotifytasks", str(e), level='exception')
 
     def clear_tasks_on_startup(self):
-        where_clause = None
-        if not self.settings.get_clear_pending_tasks_on_restart():
-            # Exclude all pending tasks except for those that are remote tasks... They need to be removed
-            where_clause = (Tasks.status != 'pending') | (Tasks.type == 'remote')
+        # Local creation has no external upload owner and can be reconciled
+        # immediately after restart. Remote upload cleanup retains its normal
+        # grace period.
+        try:
+            task.Task.reconcile_stale_creating_tasks(grace_seconds=0)
+        except OperationalError as error:
+            self._log("Skipping creating-task reconciliation; tasks table missing",
+                      str(error), level='debug')
+        except ResultTimeout as error:
+            self._log("Startup creating-task reconciliation is still settling",
+                      str(error), level='debug')
+        try:
+            requeued_remote_count = (
+                Tasks.update(status='pending')
+                .where(
+                    (Tasks.type == 'remote')
+                    & (Tasks.status == 'in_progress')
+                )
+                .execute()
+            )
+            if requeued_remote_count:
+                self._log(
+                    "Requeued {} interrupted remote tasks".format(
+                        requeued_remote_count),
+                    level='info',
+                )
+        except OperationalError as error:
+            self._log("Skipping interrupted remote-task recovery; tasks table missing",
+                      str(error), level='debug')
+        except ResultTimeout as error:
+            self._log("Interrupted remote-task recovery is still settling",
+                      str(error), level='debug')
+        local_recovery_states = (
+            'processed',
+            'postprocessing',
+            'checkpoint_pending',
+            'history_pending',
+            'completion_dispatching',
+            'deletion_pending',
+            'creating',
+        )
+        if self.settings.get_clear_pending_tasks_on_restart():
+            where_clause = (
+                (Tasks.type == 'local')
+                & ~Tasks.status.in_(local_recovery_states)
+            )
+        else:
+            local_preserved_states = ('pending',) + local_recovery_states
+            where_clause = (
+                (Tasks.type == 'local')
+                & ~Tasks.status.in_(local_preserved_states)
+            )
         try:
             # Get all task IDs to be deleted
             select_query = Tasks.select(Tasks.id)
@@ -143,8 +193,46 @@ class TaskHandler(threading.Thread):
                 delete_query = delete_query.where(where_clause)
             rows_deleted_count = delete_query.execute()
             self._log("Deleted {} items from tasks list".format(rows_deleted_count), level='debug')
+            self.reconcile_remote_uploads()
         except OperationalError as error:
             self._log("Skipping task cleanup at startup; tasks table missing", str(error), level='debug')
+        except ResultTimeout as error:
+            self._log("Task cleanup at startup is still settling", str(error), level='debug')
+
+    def reconcile_creating_tasks(self, grace_seconds=None):
+        try:
+            result = task.Task.reconcile_stale_creating_tasks(grace_seconds=grace_seconds)
+            if result['pending'] or result['deleted']:
+                self._log(
+                    "Reconciled local creating tasks: {} pending, {} removed".format(
+                        result['pending'], result['deleted']),
+                    level='debug',
+                )
+            self.reconcile_remote_uploads(grace_seconds=grace_seconds)
+        except OperationalError as error:
+            self._log("Skipping creating-task reconciliation; tasks table missing",
+                      str(error), level='debug')
+        except ResultTimeout as error:
+            # A timed-out queued transition may still commit. Leave both the
+            # row and upload in place and inspect their exact paths next pass.
+            self._log(
+                "Creating-task reconciliation is still settling",
+                str(error),
+                level='debug',
+            )
+
+    def reconcile_remote_uploads(self, grace_seconds=None):
+        cache_directory = self.settings.get_cache_path()
+        if not isinstance(cache_directory, str):
+            return
+        result = task.Task.reconcile_remote_uploads(
+            cache_directory, grace_seconds=grace_seconds)
+        if result['pending'] or result['orphaned']:
+            self._log(
+                "Reconciled remote uploads: {} pending, {} orphans removed".format(
+                    result['pending'], result['orphaned']),
+                level='debug',
+            )
 
     @staticmethod
     def check_if_task_exists_matching_path(abspath):

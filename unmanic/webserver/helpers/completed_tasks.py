@@ -72,10 +72,15 @@ def prepare_filtered_completed_tasks(params):
 
     # Define filters
     task_success = None
+    dismissed = None
     if status == 'success':
         task_success = True
     elif status == 'failed':
         task_success = False
+        dismissed = False
+    elif status == 'dismissed':
+        task_success = False
+        dismissed = True
 
     after_time = _parse_datetime_to_timestamp(params.get('after'))
     before_time = _parse_datetime_to_timestamp(params.get('before'))
@@ -87,18 +92,20 @@ def prepare_filtered_completed_tasks(params):
     # Get total success count
     records_total_success_count = history_logging.get_historic_task_list_filtered_and_sorted(task_success=True).count()
     # Get total failed count
-    records_total_failed_count = history_logging.get_historic_task_list_filtered_and_sorted(task_success=False).count()
+    records_total_failed_count = history_logging.get_historic_task_list_filtered_and_sorted(
+        task_success=False, dismissed=False).count()
     # Get quantity after filters (without pagination)
     records_filtered_count = history_logging.get_historic_task_list_filtered_and_sorted(order=order, start=0, length=0,
                                                                                         search_value=search_value,
                                                                                         task_success=task_success,
                                                                                         after_time=after_time,
-                                                                                        before_time=before_time).count()
+                                                                                        before_time=before_time,
+                                                                                        dismissed=dismissed).count()
     # Get filtered/sorted results
     task_results = history_logging.get_historic_task_list_filtered_and_sorted(order=order, start=start, length=length,
                                                                               search_value=search_value,
                                                                               task_success=task_success, after_time=after_time,
-                                                                              before_time=before_time)
+                                                                              before_time=before_time, dismissed=dismissed)
 
     # Build return data
     return_data = {
@@ -125,6 +132,10 @@ def prepare_filtered_completed_tasks(params):
             'task_success': task['task_success'],
             'start_time':   task['start_time'],
             'finish_time':  task['finish_time'],
+            'failure_category': task.get('failure_category', ''),
+            'failure_message': task.get('failure_message', ''),
+            'failure_time': task.get('failure_time'),
+            'dismissed_at': task.get('dismissed_at'),
             'has_metadata': task.get('abspath') in matched_paths,
         }
         return_data["results"].append(item)
@@ -145,10 +156,17 @@ def get_filtered_completed_task_ids(params, exclude_ids=None):
     status = params.get('status', 'all')
 
     task_success = None
+    dismissed = None
     if status == 'success':
         task_success = True
     elif status == 'failed':
         task_success = False
+        dismissed = False
+    elif status == 'dismissed':
+        task_success = False
+        dismissed = True
+    else:
+        dismissed = None
 
     after_time = _parse_datetime_to_timestamp(params.get('after'))
     before_time = _parse_datetime_to_timestamp(params.get('before'))
@@ -163,7 +181,8 @@ def get_filtered_completed_task_ids(params, exclude_ids=None):
         search_value=search_value,
         task_success=task_success,
         after_time=after_time,
-        before_time=before_time
+        before_time=before_time,
+        dismissed=dismissed,
     )
 
     id_list = []
@@ -220,9 +239,16 @@ def add_historic_tasks_to_pending_tasks_list(historic_task_ids, library_id=None)
             # If file exists in task queue already this will return false.
             # Do not carry on.
             errors[record.get("id")] = "File already in task queue - '{}'".format(abspath)
+            continue
 
-        continue
+        # Keep the durable history and diagnostics, but remove a successfully
+        # requeued failure from the active failure view.
+        history_logging.dismiss_failed_tasks([record.get("id")])
     return errors
+
+
+def dismiss_failed_tasks(completed_task_ids):
+    return history.History().dismiss_failed_tasks(completed_task_ids)
 
 
 def read_command_log_for_task(task_id):

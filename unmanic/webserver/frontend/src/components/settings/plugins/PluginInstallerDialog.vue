@@ -136,6 +136,10 @@
                         round
                         flat
                         icon="update"
+                        :aria-label="t('components.plugins.updateNamedPlugin', {
+                          plugin: props.row.name || t('components.plugins.unnamedPlugin')
+                        })"
+                        :title="t('tooltips.update')"
                       >
                         <q-tooltip class="bg-white text-primary">{{ t('tooltips.update') }}</q-tooltip>
                       </q-btn>
@@ -147,6 +151,10 @@
                         round
                         flat
                         icon="download_for_offline"
+                        :aria-label="t('components.plugins.reinstallNamedPlugin', {
+                          plugin: props.row.name || t('components.plugins.unnamedPlugin')
+                        })"
+                        :title="t('tooltips.reinstall')"
                       >
                         <q-tooltip class="bg-white text-primary">{{ t('tooltips.reinstall') }}</q-tooltip>
                       </q-btn>
@@ -158,6 +166,10 @@
                         round
                         flat
                         icon="download_for_offline"
+                        :aria-label="t('components.plugins.installNamedPlugin', {
+                          plugin: props.row.name || t('components.plugins.unnamedPlugin')
+                        })"
+                        :title="t('tooltips.install')"
                       >
                         <q-tooltip class="bg-white text-primary">{{ t('tooltips.install') }}</q-tooltip>
                       </q-btn>
@@ -169,6 +181,10 @@
                         round
                         flat
                         icon="info"
+                        :aria-label="t('components.plugins.viewNamedPluginInfo', {
+                          plugin: props.row.name || t('components.plugins.unnamedPlugin')
+                        })"
+                        :title="t('tooltips.pluginInfo')"
                       >
                         <q-tooltip class="bg-white text-primary">{{ t('tooltips.pluginInfo') }}</q-tooltip>
                       </q-btn>

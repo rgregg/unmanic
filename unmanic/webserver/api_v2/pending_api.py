@@ -33,7 +33,7 @@ import os.path
 
 import tornado.log
 from unmanic.libs.library import Library
-from unmanic.libs import session
+from unmanic.libs import session, task
 from unmanic.libs.uiserver import UnmanicDataQueues
 from unmanic.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
 from unmanic.webserver.api_v2.schema.schemas import PendingTasksTableResultsSchema, RequestPendingTaskCreateSchema, \
@@ -183,9 +183,8 @@ class ApiPendingHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -252,16 +251,18 @@ class ApiPendingHandler(BaseApiHandler):
                 self.write_error()
                 return
 
-            if not pending_tasks.remove_pending_tasks(id_list):
+            if not pending_tasks.remove_pending_tasks(
+                    id_list,
+                    cleanup_remote_staging=json_request.get(
+                        'remote_retrieval_complete', False)):
                 self.set_status(self.STATUS_ERROR_INTERNAL, reason="Failed to delete the pending tasks by their IDs")
                 self.write_error()
                 return
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -316,9 +317,8 @@ class ApiPendingHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -392,9 +392,8 @@ class ApiPendingHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -476,9 +475,8 @@ class ApiPendingHandler(BaseApiHandler):
             response = self.build_response(PendingTasksTableResultsSchema(), task_info)
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -583,9 +581,8 @@ class ApiPendingHandler(BaseApiHandler):
             response = self.build_response(PendingTaskTestResultSchema(), response_data)
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -651,9 +648,8 @@ class ApiPendingHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -695,6 +691,12 @@ class ApiPendingHandler(BaseApiHandler):
                     application/json:
                         schema:
                             BadMethodSchema
+            409:
+                description: Task ownership changed before it could be made ready
+                content:
+                    application/json:
+                        schema:
+                            ConflictSchema
             500:
                 description: Internal error; Check `error` for exception
                 content:
@@ -706,15 +708,17 @@ class ApiPendingHandler(BaseApiHandler):
             json_request = self.read_json_request(RequestTableUpdateByIdList())
 
             if not pending_tasks.update_pending_tasks_status(json_request.get('id_list', []), status='pending'):
-                self.set_status(self.STATUS_ERROR_INTERNAL, reason="Failed to update pending tasks status")
+                self.set_status(
+                    self.STATUS_ERROR_CONFLICT,
+                    reason="Tasks could not be safely advanced from creating",
+                )
                 self.write_error()
                 return
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -756,6 +760,12 @@ class ApiPendingHandler(BaseApiHandler):
                     application/json:
                         schema:
                             BadMethodSchema
+            409:
+                description: Task processing started before its library was updated
+                content:
+                    application/json:
+                        schema:
+                            ConflictSchema
             500:
                 description: Internal error; Check `error` for exception
                 content:
@@ -770,15 +780,17 @@ class ApiPendingHandler(BaseApiHandler):
             library_name = json_request.get('library_name')
 
             if not pending_tasks.update_pending_tasks_library(id_list, library_name):
-                self.set_status(self.STATUS_ERROR_INTERNAL, reason="Failed to update pending tasks library")
+                self.set_status(
+                    self.STATUS_ERROR_CONFLICT,
+                    reason="Task library cannot be changed after processing starts",
+                )
                 self.write_error()
                 return
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -827,6 +839,13 @@ class ApiPendingHandler(BaseApiHandler):
                 self.write_error()
                 return
 
+            if status_results[0].get('status') != 'complete':
+                self.set_status(
+                    self.STATUS_ERROR_INTERNAL,
+                    reason="Pending tasks status is not 'complete'")
+                self.write_error()
+                return
+
             # Set file details
             abspath = status_results[0].get('abspath', '')
             basename = os.path.basename(abspath)
@@ -847,9 +866,8 @@ class ApiPendingHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -906,7 +924,21 @@ class ApiPendingHandler(BaseApiHandler):
             # Set file details
             abspath = status_results[0].get('abspath', '')
             basename = 'data.json'
-            data_file = os.path.join(os.path.dirname(abspath), basename)
+            data_file = task.Task.remote_metadata_path(abspath)
+            if not os.path.isfile(data_file):
+                # Completed tasks created by older versions used a visible
+                # sidecar. Keep them retrievable without allowing new output
+                # files named data.json to be overwritten.
+                legacy_data_file = os.path.join(
+                    os.path.dirname(abspath), basename)
+                if os.path.isfile(legacy_data_file):
+                    data_file = legacy_data_file
+                else:
+                    self.set_status(
+                        self.STATUS_ERROR_INTERNAL,
+                        reason="Completed task metadata is unavailable")
+                    self.write_error()
+                    return
 
             # Generate download link
             link_data = {
@@ -924,9 +956,8 @@ class ApiPendingHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()

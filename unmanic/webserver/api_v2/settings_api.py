@@ -44,7 +44,8 @@ from unmanic.webserver.api_v2.schema.schemas import RequestDatabaseItemByIdSchem
     SettingsLibraryPluginConfigImportSchema, SettingsReadAndWriteSchema, \
     SettingsRemoteInstallationDataSchema, \
     SettingsRemoteInstallationLinkConfigSchema, SettingsSystemConfigSchema, \
-    RequestSettingsRemoteInstallationAddressValidationSchema, SettingsWorkerGroupConfigSchema, WorkerGroupsListSchema
+    RequestSettingsRemoteInstallationAddressValidationSchema, SettingsWorkerGroupConfigSchema, SettingsWriteSchema, \
+    WorkerGroupsListSchema
 from unmanic.webserver.helpers import plugins
 
 
@@ -194,9 +195,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -212,7 +212,7 @@ class ApiSettingsHandler(BaseApiHandler):
             content:
                 application/json:
                     schema:
-                        SettingsReadAndWriteSchema
+                        SettingsWriteSchema
         responses:
             200:
                 description: 'Successful request; Returns success status'
@@ -246,7 +246,7 @@ class ApiSettingsHandler(BaseApiHandler):
                             InternalErrorSchema
         """
         try:
-            json_request = self.read_json_request(SettingsReadAndWriteSchema())
+            json_request = self.read_json_request(SettingsWriteSchema())
 
             # Get settings dict from request
             settings_dict = json_request.get('settings', {})
@@ -256,18 +256,16 @@ class ApiSettingsHandler(BaseApiHandler):
                 'remote_installations'
             ]
             for remove_setting in remove_settings:
-                if settings_dict.get(remove_setting):
-                    del settings_dict[remove_setting]
+                settings_dict.pop(remove_setting, None)
 
             # Save settings - writing to file.
             # Throws exception if settings fail to save
-            self.config.set_bulk_config_items(json_request.get('settings', {}))
+            self.config.set_bulk_config_items(settings_dict)
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -321,9 +319,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -391,9 +388,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -445,9 +441,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -519,9 +514,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -579,9 +573,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -644,9 +637,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -728,9 +720,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -789,9 +780,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -852,9 +842,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -906,9 +895,8 @@ class ApiSettingsHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -1001,9 +989,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -1067,9 +1054,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -1132,9 +1118,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -1196,9 +1181,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -1262,9 +1246,8 @@ class ApiSettingsHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()

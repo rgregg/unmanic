@@ -178,23 +178,40 @@ def touch(fname, mode=0o666, dir_fd=None, **kwargs):
                  dir_fd=None if os.supports_fd else dir_fd, **kwargs)
 
 
-def clean_files_in_cache_dir(cache_directory):
-    """This will completely wipe all contents from a directory"""
-    if os.path.exists(cache_directory):
-        for root, subFolders, files in os.walk(cache_directory):
-            root_bn = os.path.basename(root)
-            if root_bn.startswith("unmanic_file_conversion-"):
-                try:
-                    print("Clearing cache path - {}".format(root))
-                    shutil.rmtree(root)
-                except Exception as e:
-                    print("Exception while clearing cache path - {}".format(str(e)))
-            elif root_bn.startswith("unmanic_remote_pending_library-"):
-                try:
-                    print("Clearing remote library cache path - {}".format(root))
-                    shutil.rmtree(root)
-                except Exception as e:
-                    print("Exception while clearing remote library cache path - {}".format(str(e)))
+def clean_files_in_cache_dir(cache_directory, preserved_directories=None):
+    """Remove orphaned task directories directly beneath the configured cache."""
+    cache_root = os.path.realpath(os.path.abspath(cache_directory))
+    if not os.path.isdir(cache_root):
+        return
+
+    preserved = set()
+    for path in preserved_directories or ():
+        resolved = os.path.realpath(os.path.abspath(path))
+        if (os.path.dirname(resolved) == cache_root
+                and os.path.basename(resolved).startswith("unmanic_file_conversion-")):
+            preserved.add(resolved)
+
+    try:
+        entries = list(os.scandir(cache_root))
+    except OSError as e:
+        print("Exception while reading cache path - {}".format(str(e)))
+        return
+
+    # Remote uploads live below remote_library and require task-path ownership
+    # and age checks performed by Task.reconcile_remote_uploads().
+    prefixes = ("unmanic_file_conversion-",)
+    for entry in entries:
+        if not entry.name.startswith(prefixes) or entry.is_symlink():
+            continue
+        resolved = os.path.realpath(entry.path)
+        if os.path.dirname(resolved) != cache_root or resolved in preserved:
+            continue
+        try:
+            if entry.is_dir(follow_symlinks=False):
+                print("Clearing cache path - {}".format(resolved))
+                shutil.rmtree(resolved)
+        except Exception as e:
+            print("Exception while clearing cache path - {}".format(str(e)))
 
 
 def random_string(string_length=5):

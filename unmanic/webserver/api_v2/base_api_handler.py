@@ -49,11 +49,29 @@ from tornado.web import RequestHandler
 
 class BaseApiError(Exception):
     """
-    Manage errors handled by the BaseApiHandler
+    An expected API failure that is safe to return to the caller.
     """
 
-    def __init__(self, errmsg):
-        Exception.__init__(self, errmsg)
+    def __init__(self, message, status_code=400, error_code="bad_request", messages=None):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.error_code = error_code
+        self.messages = messages or {}
+
+
+class ApiErrorCode:
+    """Stable machine-readable error taxonomy for API v2 responses."""
+
+    BAD_REQUEST = "bad_request"
+    MALFORMED_JSON = "malformed_json"
+    VALIDATION_ERROR = "validation_error"
+    ENDPOINT_NOT_FOUND = "endpoint_not_found"
+    METHOD_NOT_ALLOWED = "method_not_allowed"
+    CONFLICT = "conflict"
+    NOT_SUPPORTED = "not_supported"
+    INTERNAL_ERROR = "internal_error"
+    HTTP_ERROR = "http_error"
 
 
 class BaseApiHandler(RequestHandler):
@@ -69,7 +87,17 @@ class BaseApiHandler(RequestHandler):
     STATUS_ERROR_EXTERNAL = 400
     STATUS_ERROR_ENDPOINT_NOT_FOUND = 404
     STATUS_ERROR_METHOD_NOT_ALLOWED = 405
+    STATUS_ERROR_CONFLICT = 409
     STATUS_ERROR_INTERNAL = 500
+
+    STATUS_ERROR_CODES = {
+        STATUS_ERROR_EXTERNAL:           ApiErrorCode.BAD_REQUEST,
+        STATUS_ERROR_ENDPOINT_NOT_FOUND: ApiErrorCode.ENDPOINT_NOT_FOUND,
+        STATUS_ERROR_METHOD_NOT_ALLOWED: ApiErrorCode.METHOD_NOT_ALLOWED,
+        STATUS_ERROR_CONFLICT:           ApiErrorCode.CONFLICT,
+        410:                             ApiErrorCode.NOT_SUPPORTED,
+        STATUS_ERROR_INTERNAL:           ApiErrorCode.INTERNAL_ERROR,
+    }
 
     def set_default_headers(self):
         """
@@ -90,17 +118,21 @@ class BaseApiHandler(RequestHandler):
         # Ensure body can be JSON decoded
         try:
             json_data = json.loads(self.request.body)
-        except JSONDecodeError as e:
-            self.set_status(self.STATUS_ERROR_EXTERNAL, reason=str(e))
-            self.write_error()
-            raise BaseApiError("Expected request body to be JSON. Received '{}'".format(self.request.body))
+        except (JSONDecodeError, UnicodeDecodeError) as e:
+            raise BaseApiError(
+                str(e),
+                status_code=self.STATUS_ERROR_EXTERNAL,
+                error_code=ApiErrorCode.MALFORMED_JSON,
+            ) from e
 
         request_validation_errors = schema.validate(json_data)
         if request_validation_errors:
-            self.error_messages = request_validation_errors
-            self.set_status(self.STATUS_ERROR_EXTERNAL, reason="Failed request schema validation")
-            self.write_error()
-            raise BaseApiError("Failed schema validation: {}".format(str(request_validation_errors)))
+            raise BaseApiError(
+                "Failed request schema validation",
+                status_code=self.STATUS_ERROR_EXTERNAL,
+                error_code=ApiErrorCode.VALIDATION_ERROR,
+                messages=request_validation_errors,
+            )
 
         return schema.dump(schema.load(json_data))
 
@@ -159,12 +191,15 @@ class BaseApiHandler(RequestHandler):
         """
         if status_code is None:
             status_code = self.get_status()
+        error_code = kwargs.get(
+            'error_code',
+            self.STATUS_ERROR_CODES.get(status_code, ApiErrorCode.HTTP_ERROR),
+        )
         response = {
-            'error':    "%(code)d: %(message)s" % {"code": status_code, "message": self._reason},
-            'messages': {},
+            'error':      "%(code)d: %(message)s" % {"code": status_code, "message": self._reason},
+            'error_code': error_code,
+            'messages':   kwargs.get('messages', self.error_messages or {}),
         }
-        if self.error_messages:
-            response['messages'] = self.error_messages
         if self.settings.get("serve_traceback"):
             exc_info = kwargs.get('exc_info')
             if not exc_info:
@@ -178,6 +213,14 @@ class BaseApiHandler(RequestHandler):
             response['traceback'] = traceback_lines
         self.finish(response)
 
+    def write_api_error(self, error: BaseApiError):
+        """Write one expected API error using the common v2 contract."""
+        self.set_status(error.status_code, reason=error.message)
+        self.write_error(
+            error_code=error.error_code,
+            messages=error.messages,
+        )
+
     def handle_endpoint_not_found(self):
         """
         Return a JSON 404 error message.
@@ -185,11 +228,11 @@ class BaseApiHandler(RequestHandler):
 
         :return:
         """
-        response = {
-            'error': "%(code)d: Endpoint not found" % {"code": self.STATUS_ERROR_ENDPOINT_NOT_FOUND}
-        }
-        self.set_status(self.STATUS_ERROR_ENDPOINT_NOT_FOUND)
-        self.finish(response)
+        self.write_api_error(BaseApiError(
+            "Endpoint not found",
+            status_code=self.STATUS_ERROR_ENDPOINT_NOT_FOUND,
+            error_code=ApiErrorCode.ENDPOINT_NOT_FOUND,
+        ))
 
     def handle_method_not_allowed(self):
         """
@@ -198,14 +241,11 @@ class BaseApiHandler(RequestHandler):
 
         :return:
         """
-        response = {
-            'error': "%(code)d: Method '%(method)s' not allowed" % {
-                "code":   self.STATUS_ERROR_METHOD_NOT_ALLOWED,
-                "method": self.request.method
-            }
-        }
-        self.set_status(self.STATUS_ERROR_METHOD_NOT_ALLOWED)
-        self.finish(response)
+        self.write_api_error(BaseApiError(
+            "Method '{}' not allowed".format(self.request.method),
+            status_code=self.STATUS_ERROR_METHOD_NOT_ALLOWED,
+            error_code=ApiErrorCode.METHOD_NOT_ALLOWED,
+        ))
 
     async def action_route(self):
         """
@@ -216,51 +256,64 @@ class BaseApiHandler(RequestHandler):
 
         :return:
         """
-        request_api_base = self.request.uri.split('api/v2')[0] + 'api/v2'
-        # request_api_endpoint = re.sub('^/(unmanic/)*api/v\d', '', self.request.uri)
-        matched_route_with_unsupported_method = False
-        for route in self.routes:
-            # Get supported methods
-            supported_methods = route.get("supported_methods", [])
+        try:
+            request_api_base = self.request.uri.split('api/v2')[0] + 'api/v2'
+            matched_route_with_unsupported_method = False
+            for route in self.routes:
+                supported_methods = route.get("supported_methods", [])
+                path_pattern = request_api_base + route.get("path_pattern")
+                path_match = tornado.routing.PathMatches(path_pattern)
+                if path_match.regex.match(self.request.path):
+                    if self.request.method not in supported_methods:
+                        matched_route_with_unsupported_method = True
+                        continue
 
-            # Fetch the path match from this route's path pattern
-            path_pattern = request_api_base + route.get("path_pattern")
-            path_match = tornado.routing.PathMatches(path_pattern)
-            if path_match.regex.match(self.request.path):
-                # Check if this endpoint supports the request HTTP method
-                if self.request.method not in supported_methods:
-                    # The request's method is not supported by this route.
-                    # Mark as having found a matching route, but with an un-supported HTTP method
-                    matched_route_with_unsupported_method = True
-                    continue
+                    params = path_match.match(self.request)
+                    self.route = route
+                    if params:
+                        tornado.log.app_log.debug(
+                            "Routing API to {}.{}(*args={}, **kwargs={})".format(
+                                self.__class__.__name__,
+                                route.get("call_method"),
+                                params["path_args"],
+                                params["path_kwargs"],
+                            ),
+                            exc_info=True,
+                        )
+                        await getattr(self, route.get("call_method"))(
+                            *params["path_args"],
+                            **params["path_kwargs"]
+                        )
+                        return
 
-                # Check if the path matches, and get any params from a match
-                params = path_match.match(self.request)
-
-                # If we have a match and were returned some params, load that method
-                if params:
                     tornado.log.app_log.debug(
-                        "Routing API to {}.{}(*args={}, **kwargs={})".format(self.__class__.__name__,
-                                                                             route.get("call_method"), params["path_args"],
-                                                                             params["path_kwargs"]), exc_info=True)
-
-                    await getattr(self, route.get("call_method"))(*params["path_args"], **params["path_kwargs"])
+                        "Routing API to {}.{}()".format(
+                            self.__class__.__name__,
+                            route.get("call_method"),
+                        ),
+                        exc_info=True,
+                    )
+                    await getattr(self, route.get("call_method"))()
                     return
 
-                # This route matches the current request URI and does not have any params.
-                # Set this route and call the configured method.
-                tornado.log.app_log.debug("Routing API to {}.{}()".format(self.__class__.__name__, route.get("call_method")),
-                                          exc_info=True)
-                self.route = route
-                await getattr(self, route.get("call_method"))()
-                return
-
-        if matched_route_with_unsupported_method:
-            tornado.log.app_log.warning("Method not allowed for API route: {}".format(self.request.uri), exc_info=True)
-            self.handle_method_not_allowed()
-        else:
-            tornado.log.app_log.warning("No match found for API route: {}".format(self.request.uri), exc_info=True)
-            self.handle_endpoint_not_found()
+            if matched_route_with_unsupported_method:
+                tornado.log.app_log.warning(
+                    "Method not allowed for API route: {}".format(self.request.uri),
+                )
+                self.handle_method_not_allowed()
+            else:
+                tornado.log.app_log.warning(
+                    "No match found for API route: {}".format(self.request.uri),
+                )
+                self.handle_endpoint_not_found()
+        except BaseApiError as error:
+            tornado.log.app_log.warning(
+                "Handled API error in %s.%s: %s",
+                self.__class__.__name__,
+                self.route.get('call_method'),
+                error,
+            )
+            return self.write_api_error(error)
 
     async def delete(self, path):
         """

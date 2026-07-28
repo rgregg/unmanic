@@ -34,8 +34,10 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
 import zipfile
 from operator import attrgetter
 
@@ -226,22 +228,69 @@ class PluginsHandler(object, metaclass=SingletonType):
         if not os.path.exists(plugins_directory):
             os.makedirs(plugins_directory)
         current_repos_list = self.get_plugin_repos()
+        update_succeeded = True
         for repo in current_repos_list:
             repo_path = repo.get('path')
             repo_id = self.get_plugin_repo_id(repo_path)
 
             # Fetch remote JSON file
-            repo_data = self.fetch_remote_repo_data(repo_path)
+            try:
+                repo_data = self.fetch_remote_repo_data(repo_path)
+            except Exception as e:
+                self.logger.error("Unable to fetch plugin repo '%s'. %s", repo_path, str(e))
+                update_succeeded = False
+                continue
+            if not (
+                    isinstance(repo_data, dict)
+                    and isinstance(repo_data.get('repo'), dict)
+                    and isinstance(repo_data.get('plugins'), list)):
+                self.logger.error("Unable to update plugin repo '%s'. Invalid repository data.", repo_path)
+                update_succeeded = False
+                continue
 
-            # Dumb object to local JSON file
+            # Dump object to local JSON file
             repo_cache = self.get_repo_cache_file(repo_id)
+            temporary_repo_cache = None
+            temporary_repo_fd = None
             self.logger.info("Repo cache file '%s'.", repo_cache)
             try:
-                with open(repo_cache, 'w') as f:
+                temporary_repo_fd, temporary_repo_cache = tempfile.mkstemp(
+                    prefix=".{}.".format(os.path.basename(repo_cache)),
+                    suffix=".tmp",
+                    dir=os.path.dirname(repo_cache),
+                )
+                if os.path.exists(repo_cache):
+                    cache_mode = stat.S_IMODE(os.stat(repo_cache).st_mode)
+                else:
+                    cache_mode = stat.S_IMODE(os.stat(os.path.dirname(repo_cache)).st_mode) & 0o666
+                os.fchmod(temporary_repo_fd, cache_mode)
+                temporary_repo_file = os.fdopen(temporary_repo_fd, 'w')
+                temporary_repo_fd = None
+                with temporary_repo_file as f:
                     json.dump(repo_data, f, indent=4)
-            except json.JSONDecodeError as e:
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temporary_repo_cache, repo_cache)
+                temporary_repo_cache = None
+            except Exception as e:
                 self.logger.error("Unable to update plugin repo '%s'. %s", repo_path, str(e))
-        return True
+                update_succeeded = False
+            finally:
+                if temporary_repo_fd is not None:
+                    try:
+                        os.close(temporary_repo_fd)
+                    except OSError:
+                        pass
+                try:
+                    if temporary_repo_cache and os.path.exists(temporary_repo_cache):
+                        os.remove(temporary_repo_cache)
+                except OSError as cleanup_error:
+                    self.logger.error(
+                        "Unable to remove temporary plugin repo cache '%s'. %s",
+                        temporary_repo_cache,
+                        str(cleanup_error),
+                    )
+        return update_succeeded
 
     def get_settings_of_all_installed_plugins(self):
         all_settings = {}

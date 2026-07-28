@@ -106,9 +106,8 @@ class ApiVersionHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()

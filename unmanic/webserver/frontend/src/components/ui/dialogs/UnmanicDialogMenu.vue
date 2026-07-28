@@ -27,6 +27,9 @@
               outline dense round
               icon="arrow_back"
               color="grey-7"
+              :aria-label="closeTooltip || $t('tooltips.close')"
+              :title="closeTooltip || $t('tooltips.close')"
+              :disable="closeDisabled"
               :class="{ 'dialog-attention': attentionActive }"
               @click="hide"
             >
@@ -149,6 +152,9 @@
               outline dense round
               icon="arrow_forward"
               color="grey-7"
+              :aria-label="closeTooltip || $t('tooltips.close')"
+              :title="closeTooltip || $t('tooltips.close')"
+              :disable="closeDisabled"
               :class="{ 'dialog-attention': attentionActive }"
               @click="hide"
             >
@@ -192,6 +198,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  closeDisabled: {
+    type: Boolean,
+    default: false
+  },
   actions: {
     type: Array,
     default: () => []
@@ -211,6 +221,9 @@ const show = () => {
 }
 
 const hide = () => {
+  if (props.closeDisabled) {
+    return
+  }
   dialogRef.value.hide()
 }
 
@@ -233,7 +246,7 @@ const onShake = () => {
 }
 
 const onSwipeLeft = () => {
-  if (isMobile.value && !props.persistent) {
+  if (isMobile.value && !props.persistent && !props.closeDisabled) {
     hide()
   }
 }

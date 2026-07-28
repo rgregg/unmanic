@@ -246,6 +246,32 @@ class TaskQueue(object):
         task_item = fetch_next_task_filtered('processed', sort_by=self.sort_by, sort_order=self.sort_order)
         return task_item
 
+    def get_next_history_pending_task(self):
+        return fetch_next_task_filtered('history_pending', sort_by=self.sort_by, sort_order=self.sort_order)
+
+    def get_next_postprocessing_task(self):
+        return fetch_next_task_filtered(
+            'postprocessing', sort_by=self.sort_by, sort_order=self.sort_order, local_only=True)
+
+    def get_next_checkpoint_pending_task(self):
+        return fetch_next_task_filtered(
+            'checkpoint_pending', sort_by=self.sort_by, sort_order=self.sort_order, local_only=True)
+
+    def get_next_remote_delivery_task(self):
+        return fetch_next_task_filtered(
+            'remote_delivery', sort_by=self.sort_by, sort_order=self.sort_order)
+
+    def get_next_remote_metadata_pending_task(self):
+        return fetch_next_task_filtered(
+            'remote_metadata_pending', sort_by=self.sort_by, sort_order=self.sort_order)
+
+    def get_next_completion_dispatching_task(self):
+        return fetch_next_task_filtered(
+            'completion_dispatching', sort_by=self.sort_by, sort_order=self.sort_order)
+
+    def get_next_deletion_pending_task(self):
+        return fetch_next_task_filtered('deletion_pending', sort_by=self.sort_by, sort_order=self.sort_order)
+
     def requeue_tasks_at_bottom(self, task_id):
         task_handler = task.Task()
         return task_handler.reorder_tasks([task_id], 'bottom')
@@ -277,6 +303,34 @@ class TaskQueue(object):
         if pending_query_count > 0:
             return False
         return True
+
+    @staticmethod
+    def task_list_history_pending_is_empty():
+        return build_tasks_count_query('history_pending') == 0
+
+    @staticmethod
+    def task_list_postprocessing_is_empty():
+        return build_tasks_count_query('postprocessing') == 0
+
+    @staticmethod
+    def task_list_checkpoint_pending_is_empty():
+        return build_tasks_count_query('checkpoint_pending') == 0
+
+    @staticmethod
+    def task_list_remote_delivery_is_empty():
+        return build_tasks_count_query('remote_delivery') == 0
+
+    @staticmethod
+    def task_list_remote_metadata_pending_is_empty():
+        return build_tasks_count_query('remote_metadata_pending') == 0
+
+    @staticmethod
+    def task_list_completion_dispatching_is_empty():
+        return build_tasks_count_query('completion_dispatching') == 0
+
+    @staticmethod
+    def task_list_deletion_pending_is_empty():
+        return build_tasks_count_query('deletion_pending') == 0
 
     """
     Set the status of a task item

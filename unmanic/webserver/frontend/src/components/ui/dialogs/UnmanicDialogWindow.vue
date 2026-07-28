@@ -27,6 +27,8 @@
               outline dense round
               icon="arrow_back"
               color="grey-7"
+              :aria-label="closeTooltip || $t('tooltips.close')"
+              :title="closeTooltip || $t('tooltips.close')"
               :class="{ 'dialog-attention': attentionActive }"
               @click="hide"
             >
@@ -145,6 +147,8 @@
               outline dense round
               icon="arrow_forward"
               color="grey-7"
+              :aria-label="closeTooltip || $t('tooltips.close')"
+              :title="closeTooltip || $t('tooltips.close')"
               :class="{ 'dialog-attention': attentionActive }"
               @click="hide"
             >

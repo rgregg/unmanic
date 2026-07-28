@@ -1,58 +1,63 @@
-# Unmanic Web frontend
+# Trawlarr web frontend
 
-A simple tool for optimising your file library to a single, uniform format.
+This directory contains the Vue 3 and Quasar 2 frontend bundled with
+the Trawlarr Python backend. It is part of the monorepo, not a Git
+submodule. Internal routes and source identifiers may retain the
+`unmanic` name for engine and plugin compatibility.
 
-This project contains the frontend user interface for [Unmanic](https://github.com/Unmanic/unmanic).
+## Setup
 
+Use Node 22 for parity with the Dockerfile and CI. `package.json`
+also declares the supported Node/npm ranges. From this directory:
 
----
-
-
-## Install the dependencies
 ```bash
-npm install -g @quasar/cli
-
-npm install
+npm ci
 ```
 
+The project-local Quasar CLI is invoked by npm scripts; no global
+`@quasar/cli` installation is required.
 
 ## Development
 
-### Start the app in development mode (hot-code reloading, error reporting, etc.)
+Start a backend on port 8888, then run the frontend dev server on
+port 8889:
+
 ```bash
-quasar dev
-#or
-npm run serve
+cp .env.example .env
+npm run dev
 ```
 
-### Lint the files
+Open <http://localhost:8889/unmanic/ui/dashboard>. `UNMANIC_BACKEND_URL` in
+`.env` changes the backend target. The Quasar dev server proxies the
+API, panel, Swagger, and WebSocket routes, so use the frontend URL
+rather than opening generated files directly.
+
+Available scripts:
+
 ```bash
-npm run lint
+npm run dev            # Quasar development server
+npm run serve          # development server with Quasar debug output
+npm run lint           # ESLint for JavaScript and Vue files
+npm run format         # Prettier write pass
+npm test               # current no-test placeholder
+npm run build          # production SPA in dist/spa
+npm run build:publish  # packaging build used by setup.py
 ```
 
-### Build the app for production
-```bash
-quasar build
-```
+For a complete application package, run the wheel build from the
+repository root. `setup.py` runs `npm ci` and `npm run build:publish`,
+then moves `dist/spa` into the Python package's
+`unmanic/webserver/public` assets. See the
+[container build guide](../../../docker/README.md#build-the-current-monorepo).
 
+## Contributing
 
-## License and Contribution
+Read [`AGENTS.md`](AGENTS.md) before editing. In brief: follow the
+existing Vue/Quasar structure; use Composition API with
+`<script setup>` for new components and major refactors; localize all
+user-facing text; preserve dark-theme, responsive, and flat-design
+conventions; reuse shared UI components; and run `npm run lint` plus
+`npm run build` for frontend changes. Repository-wide contribution
+guidance is in [`../../../docs/CONTRIBUTING.md`](../../../docs/CONTRIBUTING.md).
 
-This projected is licensed under th GPL version 3.
-
-Copyright (C) Josh Sunnex - All Rights Reserved
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-This project contains libraries imported from external authors.
-Please refer to the source of these libraries for more information on their respective licenses.
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) to learn how to contribute to Unmanic.
+Trawlarr is GPL-3.0; see the repository [`LICENSE`](../../../LICENSE).

@@ -160,7 +160,6 @@
     <HelpSupportDialog ref="helpSupportDialogRef"/>
     <ApplicationLogsDialog ref="applicationLogsDialogRef"/>
     <PrivacyPolicyDialog ref="privacyPolicyDialogRef"/>
-    <LoginDialog ref="loginDialogRef"/>
   </div>
 </template>
 
@@ -173,7 +172,6 @@ import SharedLinkDropdown from "components/SharedLinkDropdown";
 import { ref } from "vue";
 import unmanicGlobals from "src/js/unmanicGlobals";
 import FooterData from "components/FooterData";
-import LoginDialog from "components/drawers/partials/LoginDialog.vue";
 import PrivacyPolicyDialog from "components/docs/PrivacyPolicyDialog.vue";
 import HelpSupportDialog from "components/docs/HelpSupportDialog.vue";
 import ApplicationLogsDialog from "components/docs/ApplicationLogsDialog.vue";
@@ -188,15 +186,13 @@ export default {
     SharedLinkDropdown,
     HelpSupportDialog,
     ApplicationLogsDialog,
-    PrivacyPolicyDialog,
-    LoginDialog
+    PrivacyPolicyDialog
   },
   setup() {
     const unmanicSession = ref(null);
     const privacyPolicyDialogRef = ref(null);
     const helpSupportDialogRef = ref(null);
     const applicationLogsDialogRef = ref(null);
-    const loginDialogRef = ref(null);
 
     unmanicGlobals.getUnmanicSession().then((session) => {
       unmanicSession.value = session;
@@ -220,12 +216,6 @@ export default {
       }
     }
 
-    function showLogin() {
-      if (loginDialogRef.value) {
-        loginDialogRef.value.show()
-      }
-    }
-
     return {
       unmanicSession,
       showPrivacyPolicyDialog,
@@ -234,14 +224,6 @@ export default {
       privacyPolicyDialogRef,
       helpSupportDialogRef,
       applicationLogsDialogRef,
-      loginDialogRef,
-
-      showLogin,
-    }
-  },
-  methods: {
-    logoutSubmit() {
-      unmanicGlobals.logout(this.$t)
     }
   }
 }

@@ -1,0 +1,7 @@
+{$TRAWLARR_HOSTNAME} {
+	basic_auth {
+		trawlarr {$TRAWLARR_PASSWORD_HASH}
+	}
+
+	reverse_proxy trawlarr:8888
+}

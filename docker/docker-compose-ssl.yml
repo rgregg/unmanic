@@ -2,6 +2,8 @@
 # SSL/TLS enabled Docker Compose file for testing
 #
 # This compose file runs Unmanic with HTTPS enabled using local test certificates.
+# It does not add authentication and must not be exposed to the internet. For
+# remote access, use docker-compose-reverse-proxy.yml instead.
 #
 # Usage from project root:
 #   docker-compose -f docker/docker-compose-ssl.yml up
@@ -14,7 +16,7 @@ services:
     container_name: unmanic-ssl-test
     image: unmanic-ssl:test
     ports:
-      - 8888:8888
+      - 127.0.0.1:8888:8888
     environment:
       - PUID=1000
       - PGID=1000

@@ -2,8 +2,9 @@
   <UnmanicDialogMenu
     ref="dialogRef"
     :title="$t('headers.configureRemoteInstallationLink')"
-    :persistent="isDirty"
-    :closeTooltip="$t('components.settings.common.closeWithoutSaving')"
+    :persistent="isDirty || saving"
+    :close-disabled="saving"
+    :closeTooltip="isDirty ? $t('components.settings.common.closeWithoutSaving') : ''"
     :actions="saveActions"
     @save="save"
     @hide="onDialogHide"
@@ -49,7 +50,7 @@
               :label="$t('components.settings.link.address')"
               :placeholder="address"
               :rules="[
-                val => validateAddress(val) || 'Address must start with http:// or https://'
+                val => validateAddress(val) || $t('components.settings.link.addressProtocolValidation')
               ]"
             />
           </div>
@@ -221,7 +222,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import axios from 'axios'
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
@@ -245,6 +247,7 @@ const { isMobile } = useMobile()
 const dialogRef = ref(null)
 const isOpen = ref(false)
 const originalSnapshot = ref(null)
+const saving = ref(false)
 
 const currentUuid = ref(null)
 const address = ref('')
@@ -279,12 +282,12 @@ const saveAction = computed(() => {
   return {
     label: t('navigation.save'),
     icon: 'save',
-    color: hasChanges && valid ? 'positive' : 'grey-6',
+    color: hasChanges && valid && !saving.value ? 'positive' : 'grey-6',
     tooltip: hasChanges
       ? t('components.settings.link.saveLinkConfig')
       : t('components.settings.common.noChangesToSave'),
     emit: 'save',
-    disabled: !hasChanges || !valid
+    disabled: !hasChanges || !valid || saving.value
   }
 })
 
@@ -292,7 +295,6 @@ const saveActions = computed(() => [saveAction.value])
 
 const currentSnapshot = computed(() => {
   if (
-    address.value === '' ||
     authType.value === null ||
     enableReceivingTasks.value === null ||
     enableSendingTasks.value === null ||
@@ -384,6 +386,11 @@ const fetchInstallationLinkConfig = (uuid) => {
 }
 
 const saveInstallationLinkConfig = async () => {
+  if (saving.value || !isDirty.value || !isValid.value) {
+    return false
+  }
+  saving.value = true
+  const submittedSnapshot = currentSnapshot.value
   const data = {
     link_config: {
       uuid: currentUuid.value,
@@ -414,7 +421,7 @@ const saveInstallationLinkConfig = async () => {
       message: t('notifications.saved'),
       timeout: 200
     })
-    updateSnapshot()
+    originalSnapshot.value = submittedSnapshot
     return true
   } catch (error) {
     $q.notify({
@@ -425,14 +432,19 @@ const saveInstallationLinkConfig = async () => {
       actions: [{ icon: 'close', color: 'white' }]
     })
     return false
+  } finally {
+    saving.value = false
   }
 }
 
 const save = async () => {
+  const submittedSnapshot = currentSnapshot.value
   const saved = await saveInstallationLinkConfig()
   if (saved) {
     emit('saved')
-    hide()
+    if (currentSnapshot.value === submittedSnapshot) {
+      hide()
+    }
   }
 }
 
@@ -449,7 +461,7 @@ const show = () => {
 }
 
 const hide = () => {
-  if (dialogRef.value) {
+  if (dialogRef.value && !saving.value) {
     dialogRef.value.hide()
   }
 }
@@ -458,6 +470,28 @@ const onDialogHide = () => {
   isOpen.value = false
   emit('hide')
 }
+
+const hasPendingChanges = computed(() => isOpen.value && (isDirty.value || saving.value))
+
+const handleBeforeUnload = (event) => {
+  if (!hasPendingChanges.value) {
+    return
+  }
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+  return !hasPendingChanges.value || window.confirm(t('components.settings.common.leaveWithUnsavedChanges'))
+})
+
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+})
 
 watch(() => props.uuid, (value) => {
   if (!value) {

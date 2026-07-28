@@ -32,7 +32,11 @@
 
 import os
 import json
+import time
+from contextlib import nullcontext
 from operator import attrgetter
+
+from playhouse.sqliteq import ResultTimeout, SqliteQueueDatabase
 
 from unmanic import config
 from unmanic.libs import common
@@ -81,7 +85,8 @@ class History(object):
         return query.count()
 
     def get_historic_task_list_filtered_and_sorted(self, order=None, start=0, length=None, search_value=None, id_list=None,
-                                                   task_success=None, after_time=None, before_time=None):
+                                                   task_success=None, after_time=None, before_time=None,
+                                                   dismissed=None):
         try:
             query = (CompletedTasks.select())
 
@@ -99,6 +104,11 @@ class History(object):
 
             if before_time is not None:
                 query = query.where(CompletedTasks.finish_time <= before_time)
+
+            if dismissed is True:
+                query = query.where(CompletedTasks.dismissed_at.is_null(False))
+            elif dismissed is False:
+                query = query.where(CompletedTasks.dismissed_at.is_null(True))
 
             # Get order by
             if order:
@@ -139,7 +149,7 @@ class History(object):
         """
         query = (
             CompletedTasks.select(CompletedTasks.id, CompletedTasks.task_label, CompletedTasks.task_success,
-                                  CompletedTasks.abspath)
+                                  CompletedTasks.abspath, CompletedTasks.dismissed_at)
         )
 
         if id_list:
@@ -256,12 +266,41 @@ class History(object):
         :param task_data:
         :return:
         """
+        database = getattr(CompletedTasks._meta.database, 'obj', CompletedTasks._meta.database)
+        uses_queue_database = isinstance(database, SqliteQueueDatabase)
+        transaction = nullcontext() if uses_queue_database else database.atomic()
+        historic_task = None
+
         try:
-            # Create the new historical task entry
-            new_historic_task = self.create_historic_task_entry(task_data)
-            # Create an entry of the data from the source ffprobe
-            self.create_historic_task_ffmpeg_log_entry(new_historic_task, task_data.get('log', ''))
+            with transaction:
+                source_task_id = task_data.get('source_task_id')
+                if source_task_id is not None:
+                    historic_task = CompletedTasks.get_or_none(
+                        (CompletedTasks.source_task_id == source_task_id)
+                        & (CompletedTasks.start_time == task_data['start_time'])
+                    )
+                if historic_task is None:
+                    historic_task = self.create_historic_task_entry(task_data)
+
+                command_log = CompletedTasksCommandLogs.get_or_none(
+                    CompletedTasksCommandLogs.completedtask_id == historic_task.id
+                )
+                if command_log is None:
+                    self.create_historic_task_ffmpeg_log_entry(
+                        historic_task, task_data.get('log', ''))
+        except ResultTimeout as error:
+            # A queued write may still commit after the caller times out. Keep the
+            # source task parked so a later idempotent retry can determine ownership.
+            self.logger.exception(
+                "Timed out while saving historic task entry; commit ownership is uncertain. %s",
+                error)
+            return False
         except Exception as error:
+            # SqliteQueueDatabase writes are individually queued and may have
+            # committed even when their result raises. Never enqueue a guessed
+            # delete: retain the idempotent completed row so a retry can fill
+            # the missing command log. Transactional databases roll back the
+            # surrounding atomic block normally.
             self.logger.exception("Failed to save historic task entry to database. %s", error)
             return False
         return True
@@ -298,10 +337,25 @@ class History(object):
             self.logger.debug('Task data param empty: %s', json.dumps(task_data))
             raise Exception('Task data param empty. This should not happen - Something has gone really wrong.')
 
-        new_historic_task = CompletedTasks.create(task_label=task_data['task_label'],
+        new_historic_task = CompletedTasks.create(source_task_id=task_data.get('source_task_id'),
+                                                  task_label=task_data['task_label'],
                                                   abspath=task_data['abspath'],
                                                   task_success=task_data['task_success'],
                                                   start_time=task_data['start_time'],
                                                   finish_time=task_data['finish_time'],
-                                                  processed_by_worker=task_data['processed_by_worker'])
+                                                  processed_by_worker=task_data['processed_by_worker'],
+                                                  failure_category=task_data.get('failure_category', ''),
+                                                  failure_message=task_data.get('failure_message', ''),
+                                                  failure_time=task_data.get('failure_time'))
         return new_historic_task
+
+    def dismiss_failed_tasks(self, id_list, dismissed_at=None):
+        """Mark failed history records dismissed without deleting diagnostics."""
+        if not id_list:
+            return False
+        timestamp = dismissed_at or time.time()
+        query = (CompletedTasks.update(dismissed_at=timestamp)
+                 .where((CompletedTasks.id.in_(id_list))
+                        & (CompletedTasks.task_success == False)
+                        & CompletedTasks.dismissed_at.is_null(True)))
+        return query.execute() > 0

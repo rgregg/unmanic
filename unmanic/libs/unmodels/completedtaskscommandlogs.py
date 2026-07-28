@@ -39,5 +39,5 @@ class CompletedTasksCommandLogs(BaseModel):
     """
     CompletedTasksCommandLogs
     """
-    completedtask_id = ForeignKeyField(CompletedTasks)
+    completedtask_id = ForeignKeyField(CompletedTasks, unique=True)
     dump = TextField(null=False, default='')

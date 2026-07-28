@@ -661,7 +661,11 @@ class Foreman(threading.Thread):
                     self.event.wait(.5)
                     try:
                         task_item = self.complete_queue.get_nowait()
-                        task_item.set_status('processed')
+                        # Remote managers persist this hand-off before queueing
+                        # it. Do not write their stale model again: the
+                        # postprocessor may already have advanced the DB row.
+                        if task_item.task.status != 'processed':
+                            task_item.set_status('processed')
                     except queue.Empty:
                         continue
                     except Exception as e:

@@ -66,6 +66,9 @@
                       icon="delete"
                       color="negative"
                       :tooltip="$t('components.completedTasks.metadataDeletePlugin')"
+                      :aria-label="$t('components.completedTasks.deleteNamedPluginMetadata', {
+                        plugin: entry.pluginId || $t('components.plugins.unnamedPlugin')
+                      })"
                       @click="confirmDeletePlugin(entry.pluginId)"
                     />
                   </q-card-section>

@@ -164,7 +164,63 @@ class Config(object, metaclass=SingletonType):
         """
         for setting in self.get_config_keys():
             if setting in os.environ:
-                self.set_config_item(setting, os.environ.get(setting), save_settings=False)
+                value = self._coerce_environment_value(
+                    setting,
+                    os.environ.get(setting),
+                    getattr(self, setting),
+                )
+                self.set_config_item(setting, value, save_settings=False)
+
+    @staticmethod
+    def _coerce_environment_value(setting, value, current_value):
+        """Preserve each setting's runtime type when applying environment values."""
+        try:
+            if isinstance(current_value, bool):
+                normalized = value.strip().lower()
+                if normalized in ('true', '1'):
+                    return True
+                if normalized in ('false', '0'):
+                    return False
+                raise ValueError("expected true, false, 1, or 0")
+            if isinstance(current_value, int):
+                return int(value)
+            if isinstance(current_value, float):
+                return float(value)
+            if isinstance(current_value, (list, dict)):
+                parsed = json.loads(value)
+                if not isinstance(parsed, type(current_value)):
+                    raise ValueError("expected {}".format(type(current_value).__name__))
+                if (setting == 'remote_installations'
+                        and not all(isinstance(item, dict) for item in parsed)):
+                    raise ValueError("expected a list of objects")
+                return parsed
+            if setting == 'number_of_workers':
+                return None if value.strip().lower() in ('', 'none', 'null') else int(value)
+            if setting == 'worker_event_schedules':
+                if value.strip().lower() in ('', 'none', 'null'):
+                    return None
+                parsed = json.loads(value)
+                if (not isinstance(parsed, list)
+                        or not all(isinstance(item, dict) for item in parsed)):
+                    raise ValueError("expected a list of objects")
+                return parsed
+            if setting == 'trial_welcome_viewed':
+                normalized = value.strip().lower()
+                if normalized in ('', 'none', 'null'):
+                    return None
+                if normalized in ('true', '1'):
+                    return True
+                if normalized in ('false', '0'):
+                    return False
+                raise ValueError("expected true, false, 1, 0, or null")
+        except (TypeError, ValueError) as error:
+            logger.warning(
+                "Unable to coerce environment setting '%s': %s",
+                setting,
+                error,
+            )
+            return current_value
+        return value
 
     def __import_settings_from_file(self, config_path=None):
         """

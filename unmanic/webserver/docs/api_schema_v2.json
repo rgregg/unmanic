@@ -48,6 +48,16 @@
                         "description": "Return status code and reason",
                         "example": "400: Failed request schema validation"
                     },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "bad_request",
+                            "malformed_json",
+                            "validation_error"
+                        ],
+                        "description": "Stable machine-readable error code",
+                        "example": "validation_error"
+                    },
                     "messages": {
                         "type": "object",
                         "description": "Attached request body validation errors",
@@ -73,6 +83,7 @@
                 },
                 "required": [
                     "error",
+                    "error_code",
                     "messages"
                 ],
                 "additionalProperties": false
@@ -84,34 +95,14 @@
                         "type": "string",
                         "description": "Return status code and reason",
                         "example": "404: Endpoint not found"
-                    }
-                },
-                "required": [
-                    "error"
-                ],
-                "additionalProperties": false
-            },
-            "BadMethod": {
-                "type": "object",
-                "properties": {
-                    "error": {
+                    },
+                    "error_code": {
                         "type": "string",
-                        "description": "Return status code and reason",
-                        "example": "405: Method 'GET' not allowed"
-                    }
-                },
-                "required": [
-                    "error"
-                ],
-                "additionalProperties": false
-            },
-            "InternalError": {
-                "type": "object",
-                "properties": {
-                    "error": {
-                        "type": "string",
-                        "description": "Return status code and reason",
-                        "example": "500: Caught exception message"
+                        "enum": [
+                            "endpoint_not_found"
+                        ],
+                        "description": "Stable machine-readable error code",
+                        "example": "endpoint_not_found"
                     },
                     "messages": {
                         "type": "object",
@@ -138,6 +129,99 @@
                 },
                 "required": [
                     "error",
+                    "error_code",
+                    "messages"
+                ],
+                "additionalProperties": false
+            },
+            "BadMethod": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Return status code and reason",
+                        "example": "405: Method 'GET' not allowed"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "method_not_allowed"
+                        ],
+                        "description": "Stable machine-readable error code",
+                        "example": "method_not_allowed"
+                    },
+                    "messages": {
+                        "type": "object",
+                        "description": "Attached request body validation errors",
+                        "example": {
+                            "name": [
+                                "The thing that went wrong."
+                            ]
+                        },
+                        "additionalProperties": {}
+                    },
+                    "traceback": {
+                        "type": "array",
+                        "description": "Attached exception traceback (if developer mode is enabled)",
+                        "example": [
+                            "Traceback (most recent call last):\n",
+                            "...",
+                            "json.decoder.JSONDecodeError: Expecting value: line 3 column 14 (char 45)\n"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "error",
+                    "error_code",
+                    "messages"
+                ],
+                "additionalProperties": false
+            },
+            "InternalError": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Return status code and reason",
+                        "example": "500: Caught exception message"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "internal_error"
+                        ],
+                        "description": "Stable machine-readable error code",
+                        "example": "internal_error"
+                    },
+                    "messages": {
+                        "type": "object",
+                        "description": "Attached request body validation errors",
+                        "example": {
+                            "name": [
+                                "The thing that went wrong."
+                            ]
+                        },
+                        "additionalProperties": {}
+                    },
+                    "traceback": {
+                        "type": "array",
+                        "description": "Attached exception traceback (if developer mode is enabled)",
+                        "example": [
+                            "Traceback (most recent call last):\n",
+                            "...",
+                            "json.decoder.JSONDecodeError: Expecting value: line 3 column 14 (char 45)\n"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "error",
+                    "error_code",
                     "messages"
                 ],
                 "additionalProperties": false
@@ -282,6 +366,11 @@
                         "description": "Item success status",
                         "example": true
                     },
+                    "start_time": {
+                        "type": "integer",
+                        "description": "Item start time",
+                        "example": 1627392550.123456
+                    },
                     "finish_time": {
                         "type": "integer",
                         "description": "Item finish time",
@@ -291,12 +380,37 @@
                         "type": "boolean",
                         "description": "Item has linked file metadata",
                         "example": false
+                    },
+                    "failure_category": {
+                        "type": "string",
+                        "description": "Stable failure category; empty for successful or legacy records",
+                        "example": "processing_failed"
+                    },
+                    "failure_message": {
+                        "type": "string",
+                        "description": "Concise user-safe failure summary; detailed diagnostics remain in logs",
+                        "example": "A worker or processing plugin reported that the task failed."
+                    },
+                    "failure_time": {
+                        "type": "integer",
+                        "description": "Failure timestamp",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "dismissed_at": {
+                        "type": "integer",
+                        "description": "Timestamp when a failed task was dismissed",
+                        "example": null,
+                        "nullable": true
                     }
                 },
                 "required": [
+                    "failure_category",
+                    "failure_message",
                     "finish_time",
                     "has_metadata",
                     "id",
+                    "start_time",
                     "task_label",
                     "task_success"
                 ],
@@ -435,6 +549,66 @@
                         "type": "integer",
                         "default": 0,
                         "example": 1
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RequestCompletedTasksBulkAction": {
+                "type": "object",
+                "properties": {
+                    "selection_mode": {
+                        "type": "string",
+                        "default": "explicit",
+                        "enum": [
+                            "explicit",
+                            "all_filtered"
+                        ],
+                        "example": "explicit"
+                    },
+                    "id_list": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "List of table IDs",
+                        "example": [],
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "exclude_ids": {
+                        "type": "array",
+                        "default": [],
+                        "minItems": 0,
+                        "description": "List of table IDs to exclude when using a filtered selection",
+                        "example": [],
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "search_value": {
+                        "type": "string",
+                        "default": "",
+                        "description": "String to filter search results by",
+                        "example": "items with this text in the value"
+                    },
+                    "status": {
+                        "type": "string",
+                        "default": "all",
+                        "description": "Filter on the status",
+                        "example": "all"
+                    },
+                    "after": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Filter entries since datetime",
+                        "example": "2022-04-07 01:45",
+                        "nullable": true
+                    },
+                    "before": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Filter entries prior to datetime",
+                        "example": "2022-04-07 01:55",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -767,6 +941,12 @@
                         "items": {
                             "type": "integer"
                         }
+                    },
+                    "remote_retrieval_complete": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Internal linked-installation acknowledgement that the remote result was retrieved successfully before deletion.",
+                        "example": false
                     }
                 },
                 "additionalProperties": false
@@ -820,6 +1000,12 @@
                         "items": {
                             "type": "integer"
                         }
+                    },
+                    "remote_retrieval_complete": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Internal linked-installation acknowledgement that the remote result was retrieved successfully before deletion.",
+                        "example": false
                     },
                     "position": {
                         "type": "string",
@@ -965,6 +1151,52 @@
                 "required": [
                     "id_list",
                     "library_name"
+                ],
+                "additionalProperties": false
+            },
+            "Conflict": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Return status code and reason",
+                        "example": "409: The task lifecycle owner changed"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "conflict"
+                        ],
+                        "description": "Stable machine-readable error code",
+                        "example": "conflict"
+                    },
+                    "messages": {
+                        "type": "object",
+                        "description": "Attached request body validation errors",
+                        "example": {
+                            "name": [
+                                "The thing that went wrong."
+                            ]
+                        },
+                        "additionalProperties": {}
+                    },
+                    "traceback": {
+                        "type": "array",
+                        "description": "Attached exception traceback (if developer mode is enabled)",
+                        "example": [
+                            "Traceback (most recent call last):\n",
+                            "...",
+                            "json.decoder.JSONDecodeError: Expecting value: line 3 column 14 (char 45)\n"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "error",
+                    "error_code",
+                    "messages"
                 ],
                 "additionalProperties": false
             },
@@ -1456,11 +1688,6 @@
                         "description": "The plugin has the ability to be configured",
                         "example": true
                     },
-                    "package_url": {
-                        "type": "string",
-                        "description": "The plugin package download URL",
-                        "example": "https://raw.githubusercontent.com/Unmanic/unmanic-plugins/repo/plugin_id/plugin_id-1.0.0.zip"
-                    },
                     "changelog_url": {
                         "type": "string",
                         "description": "The plugin package download URL",
@@ -1766,41 +1993,56 @@
                 ],
                 "additionalProperties": false
             },
-            "SessionAuthCode": {
+            "BaseError": {
                 "type": "object",
                 "properties": {
-                    "user_code": {
+                    "error": {
                         "type": "string",
-                        "description": "The user code",
-                        "example": "123456"
+                        "description": "Return status code and reason"
                     },
-                    "device_code": {
+                    "error_code": {
                         "type": "string",
-                        "description": "A device code",
-                        "example": "6f6867e0006f7240c9a85703a521f1705873630355f68ebbcf251a07b080172b"
+                        "enum": [
+                            "bad_request",
+                            "malformed_json",
+                            "validation_error",
+                            "endpoint_not_found",
+                            "method_not_allowed",
+                            "conflict",
+                            "not_supported",
+                            "internal_error",
+                            "http_error"
+                        ],
+                        "description": "Stable machine-readable error code",
+                        "example": "validation_error"
                     },
-                    "verification_uri": {
-                        "type": "string",
-                        "description": "The verification URI to submit the code manually",
-                        "example": "/support-auth-api/link"
+                    "messages": {
+                        "type": "object",
+                        "description": "Attached request body validation errors",
+                        "example": {
+                            "name": [
+                                "The thing that went wrong."
+                            ]
+                        },
+                        "additionalProperties": {}
                     },
-                    "verification_uri_complete": {
-                        "type": "string",
-                        "description": "User email",
-                        "example": "/support-auth-api/v2/app_auth/link_with_user_code/123456"
-                    },
-                    "expires_in": {
-                        "type": "number",
-                        "description": "The time until the user_code expires",
-                        "example": 120
+                    "traceback": {
+                        "type": "array",
+                        "description": "Attached exception traceback (if developer mode is enabled)",
+                        "example": [
+                            "Traceback (most recent call last):\n",
+                            "...",
+                            "json.decoder.JSONDecodeError: Expecting value: line 3 column 14 (char 45)\n"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "required": [
-                    "device_code",
-                    "expires_in",
-                    "user_code",
-                    "verification_uri",
-                    "verification_uri_complete"
+                    "error",
+                    "error_code",
+                    "messages"
                 ],
                 "additionalProperties": false
             },
@@ -1822,6 +2064,141 @@
                             "cache_path": "/tmp/unmanic"
                         },
                         "additionalProperties": {}
+                    }
+                },
+                "required": [
+                    "settings"
+                ],
+                "additionalProperties": false
+            },
+            "SettingsWriteValues": {
+                "type": "object",
+                "properties": {
+                    "ui_port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                    },
+                    "ui_address": {
+                        "type": "string"
+                    },
+                    "ssl_enabled": {
+                        "type": "boolean"
+                    },
+                    "ssl_certfilepath": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "ssl_keyfilepath": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "config_path": {
+                        "type": "string"
+                    },
+                    "log_path": {
+                        "type": "string"
+                    },
+                    "plugins_path": {
+                        "type": "string"
+                    },
+                    "userdata_path": {
+                        "type": "string"
+                    },
+                    "debugging": {
+                        "type": "boolean"
+                    },
+                    "log_buffer_retention": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "first_run": {
+                        "type": "boolean"
+                    },
+                    "release_notes_viewed": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "trial_welcome_viewed": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "library_path": {
+                        "type": "string"
+                    },
+                    "enable_library_scanner": {
+                        "type": "boolean"
+                    },
+                    "schedule_full_scan_minutes": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "follow_symlinks": {
+                        "type": "boolean"
+                    },
+                    "concurrent_file_testers": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "run_full_scan_on_start": {
+                        "type": "boolean"
+                    },
+                    "clear_pending_tasks_on_restart": {
+                        "type": "boolean"
+                    },
+                    "auto_manage_completed_tasks": {
+                        "type": "boolean"
+                    },
+                    "compress_completed_tasks_logs": {
+                        "type": "boolean"
+                    },
+                    "max_age_of_completed_tasks": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "always_keep_failed_tasks": {
+                        "type": "boolean"
+                    },
+                    "cache_path": {
+                        "type": "string"
+                    },
+                    "installation_name": {
+                        "type": "string"
+                    },
+                    "installation_public_address": {
+                        "type": "string"
+                    },
+                    "distributed_worker_count_target": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "number_of_workers": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "nullable": true
+                    },
+                    "worker_event_schedules": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                        },
+                        "nullable": true
+                    },
+                    "remote_installations": {}
+                },
+                "additionalProperties": false
+            },
+            "SettingsWrite": {
+                "type": "object",
+                "properties": {
+                    "settings": {
+                        "description": "Core application settings to update",
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/SettingsWriteValues"
+                            }
+                        ]
                     }
                 },
                 "required": [
@@ -2860,6 +3237,53 @@
                 }
             }
         },
+        "/history/dismiss": {
+            "post": {
+                "description": "Dismiss selected failed tasks while retaining their history and diagnostics.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RequestCompletedTasksBulkAction"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Selected failed tasks were dismissed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BaseSuccess"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadRequest"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InternalError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/history/task/log": {
             "post": {
                 "description": "Request the details of a completed task.",
@@ -3503,6 +3927,16 @@
                             }
                         }
                     },
+                    "409": {
+                        "description": "Task processing started before its library was updated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Conflict"
+                                }
+                            }
+                        }
+                    },
                     "500": {
                         "description": "Internal error; Check `error` for exception",
                         "content": {
@@ -3635,6 +4069,16 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/BadMethod"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Task ownership changed before it could be made ready",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Conflict"
                                 }
                             }
                         }
@@ -5005,54 +5449,14 @@
         },
         "/session/logout": {
             "get": {
-                "description": "Log out of the current session. Remove all session cookies and unlink installation from user account.",
+                "description": "The upstream central account service is not supported by this distribution.",
                 "responses": {
-                    "200": {
-                        "description": "Successful request; Returns success status",
+                    "410": {
+                        "description": "Central account logout is not supported.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/BaseSuccess"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
+                                    "$ref": "#/components/schemas/BaseError"
                                 }
                             }
                         }
@@ -5062,54 +5466,14 @@
         },
         "/session/get_app_auth_code": {
             "get": {
-                "description": "Initiates the device authentication flow.",
+                "description": "The upstream central account service is not supported by this distribution.",
                 "responses": {
-                    "200": {
-                        "description": "Sample response: Initiates the device authentication flow.",
+                    "410": {
+                        "description": "Central account authentication is not supported.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/SessionAuthCode"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
+                                    "$ref": "#/components/schemas/BaseError"
                                 }
                             }
                         }
@@ -5119,54 +5483,14 @@
         },
         "/session/funding_proposals": {
             "get": {
-                "description": "Returns feature funding proposals from the support credit portal.",
+                "description": "The upstream central funding service is not supported by this distribution.",
                 "responses": {
-                    "200": {
-                        "description": "Successful request; Returns funding proposals payload.",
+                    "410": {
+                        "description": "Central funding proposals are not supported.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/BaseSuccess"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Method not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
+                                    "$ref": "#/components/schemas/BaseError"
                                 }
                             }
                         }
@@ -5240,7 +5564,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/SettingsReadAndWrite"
+                                "$ref": "#/components/schemas/SettingsWrite"
                             }
                         }
                     }

@@ -205,7 +205,8 @@ def get_filtered_pending_task_ids(params, exclude_ids=None):
     return id_list
 
 
-def remove_pending_tasks(pending_task_ids):
+def remove_pending_tasks(
+        pending_task_ids, cleanup_remote_staging=False):
     """
     Removes a list of pending tasks
 
@@ -214,7 +215,10 @@ def remove_pending_tasks(pending_task_ids):
     """
     # Delete by ID
     task_handler = task.Task()
-    return task_handler.delete_tasks_recursively(id_list=pending_task_ids)
+    return task_handler.delete_tasks_recursively(
+        id_list=pending_task_ids,
+        cleanup_remote_staging=cleanup_remote_staging,
+    )
 
 
 def reorder_pending_tasks(pending_task_ids, direction="top"):
@@ -244,11 +248,16 @@ def add_remote_tasks(pathname):
     # Create a new task
     new_task = task.Task()
 
-    if not new_task.create_task_by_absolute_path(abspath, task_type='remote'):
+    task_data = new_task.create_task_by_absolute_path(
+        abspath,
+        task_type='remote',
+        return_task_data=True,
+    )
+    if not task_data:
         # File was not created.
         # Do not carry on.
         return False
-    return new_task.get_task_data()
+    return task_data
 
 
 def update_pending_tasks_status(pending_task_ids, status='pending'):

@@ -12,6 +12,7 @@
 """
 import json
 import logging
+import stat
 from unittest import mock
 
 import pytest
@@ -165,3 +166,84 @@ class TestFetchRemoteRepoDataRouting:
         assert result == proxy_body
         assert sess.api_get.call_count == 2
         sess.register_unmanic.assert_called_once()
+
+
+class TestUpdatePluginRepos:
+
+    @staticmethod
+    def _handler_for_cache(cache_path, repo_data):
+        h = _bare_handler()
+        h.settings = mock.Mock()
+        h.settings.get_plugins_path.return_value = str(cache_path.parent)
+        h.get_plugin_repos = mock.Mock(return_value=[{'path': 'default'}])
+        h.fetch_remote_repo_data = mock.Mock(return_value=repo_data)
+        h.get_repo_cache_file = mock.Mock(return_value=str(cache_path))
+        return h
+
+    def test_success_atomically_replaces_cache(self, tmp_path):
+        cache_path = tmp_path / 'repo.json'
+        cache_path.write_text('{"old": true}')
+        repo_data = {'repo': {'name': 'Current'}, 'plugins': []}
+        h = self._handler_for_cache(cache_path, repo_data)
+
+        assert h.update_plugin_repos() is True
+        assert json.loads(cache_path.read_text()) == repo_data
+        assert list(tmp_path.glob('.repo.json.*.tmp')) == []
+
+    @pytest.mark.parametrize('repo_data', [None, [], {}, {'repo': {}, 'plugins': {}}])
+    def test_invalid_fetch_preserves_existing_cache(self, tmp_path, repo_data):
+        cache_path = tmp_path / 'repo.json'
+        original = '{"repo": {"name": "Cached"}, "plugins": []}'
+        cache_path.write_text(original)
+        h = self._handler_for_cache(cache_path, repo_data)
+
+        assert h.update_plugin_repos() is False
+        assert cache_path.read_text() == original
+        assert list(tmp_path.glob('.repo.json.*.tmp')) == []
+
+    def test_fetch_exception_marks_failure_and_continues(self, tmp_path):
+        cache_path = tmp_path / 'repo.json'
+        repo_data = {'repo': {'name': 'Second'}, 'plugins': []}
+        h = self._handler_for_cache(cache_path, repo_data)
+        h.get_plugin_repos.return_value = [
+            {'path': 'broken'},
+            {'path': 'working'},
+        ]
+        h.fetch_remote_repo_data.side_effect = [RuntimeError('fetch failed'), repo_data]
+
+        assert h.update_plugin_repos() is False
+        assert h.fetch_remote_repo_data.call_count == 2
+        assert json.loads(cache_path.read_text()) == repo_data
+
+    def test_replace_failure_preserves_cache_and_removes_temporary_file(self, tmp_path):
+        cache_path = tmp_path / 'repo.json'
+        original = '{"repo": {"name": "Cached"}, "plugins": []}'
+        cache_path.write_text(original)
+        repo_data = {'repo': {'name': 'Current'}, 'plugins': []}
+        h = self._handler_for_cache(cache_path, repo_data)
+
+        with mock.patch('unmanic.libs.plugins.os.replace',
+                        side_effect=OSError('write failed')):
+            assert h.update_plugin_repos() is False
+
+        assert cache_path.read_text() == original
+        assert list(tmp_path.glob('.repo.json.*.tmp')) == []
+
+    def test_existing_cache_permissions_are_preserved(self, tmp_path):
+        cache_path = tmp_path / 'repo.json'
+        cache_path.write_text('{"old": true}')
+        cache_path.chmod(0o640)
+        repo_data = {'repo': {'name': 'Current'}, 'plugins': []}
+        h = self._handler_for_cache(cache_path, repo_data)
+
+        assert h.update_plugin_repos() is True
+        assert stat.S_IMODE(cache_path.stat().st_mode) == 0o640
+
+    def test_new_cache_permissions_follow_cache_directory(self, tmp_path):
+        tmp_path.chmod(0o750)
+        cache_path = tmp_path / 'repo.json'
+        repo_data = {'repo': {'name': 'Current'}, 'plugins': []}
+        h = self._handler_for_cache(cache_path, repo_data)
+
+        assert h.update_plugin_repos() is True
+        assert stat.S_IMODE(cache_path.stat().st_mode) == 0o640

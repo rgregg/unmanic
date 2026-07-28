@@ -37,6 +37,15 @@ class BaseSchema(Schema):
         ordered = True
 
 
+class StrictBoolean(fields.Boolean):
+    """A JSON boolean field that does not coerce strings or numbers."""
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        if type(value) is not bool:
+            raise self.make_error("invalid")
+        return super()._deserialize(value, attr, data, **kwargs)
+
+
 # RESPONSES
 # =========
 
@@ -52,6 +61,22 @@ class BaseErrorSchema(BaseSchema):
     error = fields.Str(
         required=True,
         description="Return status code and reason",
+    )
+    error_code = fields.Str(
+        required=True,
+        description="Stable machine-readable error code",
+        example="validation_error",
+        validate=validate.OneOf([
+            "bad_request",
+            "malformed_json",
+            "validation_error",
+            "endpoint_not_found",
+            "method_not_allowed",
+            "conflict",
+            "not_supported",
+            "internal_error",
+            "http_error",
+        ]),
     )
     messages = fields.Dict(
         required=True,
@@ -77,23 +102,60 @@ class BadRequestSchema(BaseErrorSchema):
         description="Return status code and reason",
         example="400: Failed request schema validation",
     )
+    error_code = fields.Str(
+        required=True,
+        description="Stable machine-readable error code",
+        example="validation_error",
+        validate=validate.OneOf([
+            "bad_request",
+            "malformed_json",
+            "validation_error",
+        ]),
+    )
 
 
-class BadEndpointSchema(BaseSchema):
+class BadEndpointSchema(BaseErrorSchema):
     """STATUS_ERROR_ENDPOINT_NOT_FOUND = 404"""
     error = fields.Str(
         required=True,
         description="Return status code and reason",
         example="404: Endpoint not found",
     )
+    error_code = fields.Str(
+        required=True,
+        description="Stable machine-readable error code",
+        example="endpoint_not_found",
+        validate=validate.Equal("endpoint_not_found"),
+    )
 
 
-class BadMethodSchema(BaseSchema):
+class BadMethodSchema(BaseErrorSchema):
     """STATUS_ERROR_METHOD_NOT_ALLOWED = 405"""
     error = fields.Str(
         required=True,
         description="Return status code and reason",
         example="405: Method 'GET' not allowed",
+    )
+    error_code = fields.Str(
+        required=True,
+        description="Stable machine-readable error code",
+        example="method_not_allowed",
+        validate=validate.Equal("method_not_allowed"),
+    )
+
+
+class ConflictSchema(BaseErrorSchema):
+    """STATUS_ERROR_CONFLICT = 409"""
+    error = fields.Str(
+        required=True,
+        description="Return status code and reason",
+        example="409: The task lifecycle owner changed",
+    )
+    error_code = fields.Str(
+        required=True,
+        description="Stable machine-readable error code",
+        example="conflict",
+        validate=validate.Equal("conflict"),
     )
 
 
@@ -103,6 +165,12 @@ class InternalErrorSchema(BaseErrorSchema):
         required=True,
         description="Return status code and reason",
         example="500: Caught exception message",
+    )
+    error_code = fields.Str(
+        required=True,
+        description="Stable machine-readable error code",
+        example="internal_error",
+        validate=validate.Equal("internal_error"),
     )
 
 
@@ -334,6 +402,28 @@ class CompletedTasksTableResultsSchema(BaseSchema):
         required=True,
         description="Item has linked file metadata",
         example=False,
+    )
+    failure_category = fields.Str(
+        required=True,
+        description="Stable failure category; empty for successful or legacy records",
+        example="processing_failed",
+    )
+    failure_message = fields.Str(
+        required=True,
+        description="Concise user-safe failure summary; detailed diagnostics remain in logs",
+        example="A worker or processing plugin reported that the task failed.",
+    )
+    failure_time = fields.Int(
+        required=False,
+        allow_none=True,
+        description="Failure timestamp",
+        example=1627392616.6400812,
+    )
+    dismissed_at = fields.Int(
+        required=False,
+        allow_none=True,
+        description="Timestamp when a failed task was dismissed",
+        example=None,
     )
 
 
@@ -690,6 +780,15 @@ class RequestPendingTasksBulkActionSchema(BaseSchema):
         example=[1, 3],
         load_default=[],
         validate=validate.Length(min=0),
+    )
+    remote_retrieval_complete = fields.Bool(
+        required=False,
+        load_default=False,
+        description=(
+            "Internal linked-installation acknowledgement that the remote "
+            "result was retrieved successfully before deletion."
+        ),
+        example=False,
     )
 
 
@@ -1405,6 +1504,56 @@ class SettingsReadAndWriteSchema(BaseSchema):
             "run_full_scan_on_start":     False,
             "cache_path":                 "/tmp/unmanic"
         },
+    )
+
+
+class SettingsWriteValuesSchema(BaseSchema):
+    """Core application settings accepted by the settings write endpoint."""
+
+    ui_port = fields.Int(strict=True, validate=validate.Range(min=1, max=65535))
+    ui_address = fields.Str()
+    ssl_enabled = StrictBoolean()
+    ssl_certfilepath = fields.Str(allow_none=True)
+    ssl_keyfilepath = fields.Str(allow_none=True)
+    config_path = fields.Str()
+    log_path = fields.Str()
+    plugins_path = fields.Str()
+    userdata_path = fields.Str()
+    debugging = StrictBoolean()
+    log_buffer_retention = fields.Int(strict=True, validate=validate.Range(min=0))
+    first_run = StrictBoolean()
+    release_notes_viewed = fields.Str(allow_none=True)
+    trial_welcome_viewed = StrictBoolean(allow_none=True)
+    library_path = fields.Str()
+    enable_library_scanner = StrictBoolean()
+    schedule_full_scan_minutes = fields.Int(strict=True, validate=validate.Range(min=1))
+    follow_symlinks = StrictBoolean()
+    concurrent_file_testers = fields.Int(strict=True, validate=validate.Range(min=1))
+    run_full_scan_on_start = StrictBoolean()
+    clear_pending_tasks_on_restart = StrictBoolean()
+    auto_manage_completed_tasks = StrictBoolean()
+    compress_completed_tasks_logs = StrictBoolean()
+    max_age_of_completed_tasks = fields.Int(strict=True, validate=validate.Range(min=1))
+    always_keep_failed_tasks = StrictBoolean()
+    cache_path = fields.Str()
+    installation_name = fields.Str()
+    installation_public_address = fields.Str()
+    distributed_worker_count_target = fields.Int(strict=True, validate=validate.Range(min=0))
+    number_of_workers = fields.Int(strict=True, allow_none=True, validate=validate.Range(min=0))
+    worker_event_schedules = fields.List(fields.Dict(), allow_none=True)
+
+    # This protected setting may be present when a read response is sent back
+    # wholesale. The handler intentionally discards it rather than persisting it.
+    remote_installations = fields.Raw()
+
+
+class SettingsWriteSchema(BaseSchema):
+    """Schema for validated updates to core application settings."""
+
+    settings = fields.Nested(
+        SettingsWriteValuesSchema,
+        required=True,
+        description="Core application settings to update",
     )
 
 

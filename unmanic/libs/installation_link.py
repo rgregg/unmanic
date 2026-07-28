@@ -894,7 +894,9 @@ class Links(object, metaclass=SingletonType):
             self._log("Failed to upload to remote installation", message2=str(e), level='error')
         return {}
 
-    def remove_task_from_remote_installation(self, remote_config: dict, remote_task_id: int):
+    def remove_task_from_remote_installation(
+            self, remote_config: dict, remote_task_id: int,
+            retrieval_complete=False):
         """
         Remove a task from the pending queue
 
@@ -904,7 +906,8 @@ class Links(object, metaclass=SingletonType):
         """
         try:
             data = {
-                "id_list": [remote_task_id]
+                "id_list": [remote_task_id],
+                "remote_retrieval_complete": bool(retrieval_complete),
             }
             return self.remote_api_delete(remote_config, '/unmanic/api/v2/pending/tasks', data, timeout=15)
         except requests.exceptions.Timeout:
@@ -1182,6 +1185,8 @@ class RemoteTaskManager(threading.Thread):
         # Create 'paused' flag. When this is set, the worker should be paused
         self.paused_flag = threading.Event()
         self.paused_flag.clear()
+        self._completion_enqueued = False
+        self._completion_pending = False
 
         # Create logger for this worker
         self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
@@ -1216,6 +1221,7 @@ class RemoteTaskManager(threading.Thread):
         except Exception as e:
             self._log("Exception in processing job with {}:".format(self.name), message2=str(e),
                       level="exception")
+            self.__complete_exceptional_task()
 
         self._log("Stopping remote task manager {} - {}".format(self.thread_id, self.installation_info.get('address')))
 
@@ -1241,6 +1247,7 @@ class RemoteTaskManager(threading.Thread):
 
     def __unset_current_task(self):
         self.current_task = None
+        self._completion_pending = False
         self.worker_runners_info = {}
         self.worker_log = []
 
@@ -1265,8 +1272,19 @@ class RemoteTaskManager(threading.Thread):
 
         # Process the file. Will return true if success, otherwise false
         success = self.__send_task_to_remote_worker_and_monitor()
-        # Mark the task as either success or not
-        self.current_task.set_success(success)
+        # Keep final task data in memory until one conditional ownership
+        # handoff persists the complete result.
+        task_record = self.current_task.task
+        task_record.success = bool(success)
+        if success:
+            task_record.failure_category = ''
+            task_record.failure_message = ''
+            task_record.failure_time = None
+        elif not getattr(task_record, 'failure_category', None):
+            task_record.failure_category = task.TaskFailureCategory.PROCESSING
+            task_record.failure_message = (
+                'Remote processing or result retrieval failed.')
+            task_record.failure_time = time.time()
 
         # Mark task completion statistics
         self.__set_finish_task_stats()
@@ -1274,11 +1292,8 @@ class RemoteTaskManager(threading.Thread):
         # Log completion of job
         self._log("Finished job - {}".format(self.current_task.get_source_abspath()))
 
-        # Place the task into the completed queue
-        self.complete_queue.put(self.current_task)
-
-        # Reset the current file info for the next task
-        self.__unset_current_task()
+        self._completion_pending = True
+        self.__persist_and_publish_completion()
 
     def __set_start_task_stats(self):
         """Sets the initial stats for the start of a task"""
@@ -1301,6 +1316,61 @@ class RemoteTaskManager(threading.Thread):
         # Set the finish time in the statistics data
         self.current_task.task.finish_time = self.finish_time
 
+    def __enqueue_current_task_completion(self):
+        if getattr(self, '_completion_enqueued', False):
+            return
+        self._completion_enqueued = True
+        self.complete_queue.put(self.current_task)
+
+    def __persist_and_publish_completion(self):
+        """Retry an ambiguous final write while this one-shot manager owns it."""
+        while self.current_task and self._completion_pending:
+            try:
+                published = self.current_task.persist_worker_completion()
+            except Exception:
+                self._log(
+                    'Unable to confirm remote task completion handoff; '
+                    'retaining ownership and retrying.',
+                    level='exception',
+                )
+                self.event.wait(0.25)
+                continue
+
+            if (published
+                    or getattr(self.current_task.task, 'status', None)
+                    == 'processed'):
+                self.__enqueue_current_task_completion()
+            self.__unset_current_task()
+            return published
+        return False
+
+    def __complete_exceptional_task(self):
+        """Durably hand an unexpectedly failed remote-manager task to postprocessing."""
+        if not self.current_task:
+            return
+        try:
+            task_record = self.current_task.task
+            if not getattr(task_record, 'processed_by_worker', None):
+                task_record.processed_by_worker = str(
+                    self.name or 'unknown-remote-worker')
+            if getattr(task_record, 'start_time', None) is None:
+                task_record.start_time = time.time()
+            task_record.success = False
+            task_record.failure_category = task.TaskFailureCategory.INTERNAL
+            task_record.failure_message = (
+                'An unexpected remote processing error occurred. '
+                'Check application logs for details.')
+            task_record.failure_time = time.time()
+            self.__set_finish_task_stats()
+            # RemoteTaskManager only receives locally-owned tasks. Keeping the
+            # row in processed preserves normal local history semantics and the
+            # failed postprocessor path never removes the local source file.
+            self._completion_pending = True
+            self.__persist_and_publish_completion()
+        except Exception:
+            self.logger.exception(
+                "Unable to persist exceptional task failure for remote manager %s", self.name)
+
     def __write_failure_to_worker_log(self):
         # Append long entry to say the worker was terminated
         self.worker_log.append("\n\nREMOTE TASK FAILED!")
@@ -1311,6 +1381,16 @@ class RemoteTaskManager(threading.Thread):
         self.worker_log.append("\nCheck Unmanic logs for more information.")
         self.worker_log.append("\nRelevant logs will be prefixed with 'ERROR:Unmanic.{}'".format(self.name))
         self.current_task.save_command_log(self.worker_log)
+
+    def _import_remote_failure(self, data):
+        """Import only the remote worker's bounded, user-safe failure summary."""
+        if data.get('task_success'):
+            return
+        self.current_task.set_failure(
+            data.get('failure_category') or task.TaskFailureCategory.PROCESSING,
+            data.get('failure_message') or 'The remote task reported a processing failure.',
+            failure_time=data.get('failure_time'),
+        )
 
     def __send_task_to_remote_worker_and_monitor(self):
         """
@@ -1428,7 +1508,10 @@ class RemoteTaskManager(threading.Thread):
             if initial_checksum and info.get('checksum') != initial_checksum:
                 self._log("The uploaded file did not return a correct checksum '{}'".format(original_abspath), level='error')
                 # Send request to terminate the remote worker then return
-                self.links.remove_task_from_remote_installation(self.installation_info, remote_task_id)
+                self.links.remove_task_from_remote_installation(
+                    self.installation_info,
+                    remote_task_id,
+                )
                 self.__write_failure_to_worker_log()
                 return False
 
@@ -1464,7 +1547,10 @@ class RemoteTaskManager(threading.Thread):
             if not result.get('success'):
                 self._log("Failed to set initial remote pending task to status '{}'".format(original_abspath), level='error')
                 # Send request to terminate the remote worker then return
-                self.links.remove_task_from_remote_installation(self.installation_info, remote_task_id)
+                self.links.remove_task_from_remote_installation(
+                    self.installation_info,
+                    remote_task_id,
+                )
                 self.__write_failure_to_worker_log()
                 return False
             if result.get('success'):
@@ -1591,6 +1677,8 @@ class RemoteTaskManager(threading.Thread):
         if task_state:
             TaskDataStore.import_task_state(self.current_task.get_task_id(), task_state)
 
+        self._import_remote_failure(data)
+
         # Fetch remote task file
         if data.get('task_success'):
             task_label = data.get('task_label')
@@ -1635,10 +1723,14 @@ class RemoteTaskManager(threading.Thread):
                     output = shutil.copy(task_cache_path, correct_cache_file_path)
                     if os.path.exists(output) and os.path.getsize(output) > 0:
                         self._log("File successfully copied from remote library located cache to main instance cache at '{}'".format(output), level='info')
+                        task_cache_path = output
+                        self.current_task.cache_path = output
                     else:
                         self.__write_failure_to_worker_log()
+                        return False
                 except (FileNotFoundError, PermissionError, shutil.SameFileError):
                     self.__write_failure_to_worker_log()
+                    return False
             else:
                 # Set the new file out as the extension may have changed
                 split_file_name = os.path.splitext(data.get('abspath'))
@@ -1684,8 +1776,13 @@ class RemoteTaskManager(threading.Thread):
                     self.__write_failure_to_worker_log()
                     return False
 
-            # Send request to terminate the remote worker then return
-            self.links.remove_task_from_remote_installation(self.installation_info, remote_task_id)
+            # A successful retrieval is acknowledged by deletion so the remote
+            # host may remove only its verified task-owned staging directory.
+            self.links.remove_task_from_remote_installation(
+                self.installation_info,
+                remote_task_id,
+                retrieval_complete=True,
+            )
 
             return True
 

@@ -11,10 +11,99 @@ import $unmanic from './unmanicGlobals'
  * @constructor
  */
 export const UnmanicWebsocketHandler = function ($t) {
-  let clearConnectionWarning = null;
-  let autoReconnectSocket = true;
-  let connectionTimer = null;
-  let serverId = null;
+  const owner = Symbol('websocket-handler');
+  const manager = $unmanic.websocketManager || {
+    listeners: new Map(),
+    owners: new Set(),
+    generation: 0,
+    reconnectTimer: null,
+    manualReconnectTimer: null,
+    warningTimer: null,
+    warningInterval: null,
+    clearConnectionWarning: null,
+    intentionalClose: false,
+    serverId: null,
+    baseListenersRegistered: false,
+  };
+  $unmanic.websocketManager = manager;
+
+  function attachListener(socket, definition) {
+    if (definition.sockets.has(socket)) {
+      return;
+    }
+    const guardedCallback = (event) => {
+      if (socket.__unmanicGeneration === manager.generation) {
+        definition.callback(event);
+      }
+    };
+    socket.addEventListener(definition.type, guardedCallback);
+    definition.sockets.add(socket);
+    definition.wrappers.set(socket, guardedCallback);
+  }
+
+  function registerListener(type, key, callback, listenerOwner = owner) {
+    if (!manager.listeners.has(key)) {
+      manager.listeners.set(key, {
+        type,
+        callback,
+        owner: listenerOwner,
+        sockets: new WeakSet(),
+        wrappers: new WeakMap(),
+      });
+    }
+    const definition = manager.listeners.get(key);
+    if ($unmanic.ws) {
+      attachListener($unmanic.ws, definition);
+    }
+  }
+
+  function openWS() {
+    if (manager.owners.size === 0) {
+      return null;
+    }
+    if (typeof $unmanic.ws !== 'undefined' && $unmanic.ws !== null) {
+      return $unmanic.ws;
+    }
+
+    let loc = window.location;
+    let newUri = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+    newUri += '//' + loc.host + '/unmanic/websocket';
+
+    const target = localStorage.getItem('unmanic-installation-target');
+    if (target && target !== 'local') {
+      newUri += '?target_id=' + encodeURIComponent(target);
+    }
+
+    const socket = new WebSocket(newUri);
+    manager.generation += 1;
+    socket.__unmanicGeneration = manager.generation;
+    $unmanic.ws = socket;
+    manager.listeners.forEach((definition) => attachListener(socket, definition));
+    return socket;
+  }
+
+  function scheduleReconnect() {
+    clearTimeout(manager.reconnectTimer);
+    manager.reconnectTimer = setTimeout(() => {
+      manager.reconnectTimer = null;
+      if (manager.owners.size === 0) {
+        return;
+      }
+      console.debug('Attempting reconnect to Unmanic server...');
+      openWS();
+    }, 4000);
+  }
+
+  function dismissConnectionWarning() {
+    clearTimeout(manager.warningTimer);
+    clearInterval(manager.warningInterval);
+    manager.warningTimer = null;
+    manager.warningInterval = null;
+    if (manager.clearConnectionWarning) {
+      manager.clearConnectionWarning();
+      manager.clearConnectionWarning = null;
+    }
+  }
 
   /**
    * Init the websocket to the unmanic backend server
@@ -24,13 +113,16 @@ export const UnmanicWebsocketHandler = function ($t) {
   const initWebsocket = function () {
 
     function showWebsocketConnectionWarning() {
+      if (manager.owners.size === 0) {
+        return;
+      }
       // Ensure the websocket is actually missing
       if (typeof $unmanic.ws !== 'undefined' && $unmanic.ws !== null) {
         return;
       }
-      if (clearConnectionWarning === null) {
+      if (manager.clearConnectionWarning === null) {
         console.debug("Display websocket disconnect warning")
-        clearConnectionWarning = Notify.create({
+        manager.clearConnectionWarning = Notify.create({
           timeout: 0,
           spinner: true,
           color: 'warning',
@@ -38,51 +130,19 @@ export const UnmanicWebsocketHandler = function ($t) {
           message: $t('notifications.backendConnectionWarning'),
           icon: 'report_problem'
         });
-        let connectionCheckInterval = setInterval(() => {
+        manager.warningInterval = setInterval(() => {
+          if (manager.owners.size === 0) {
+            dismissConnectionWarning();
+            return;
+          }
           if (typeof $unmanic.ws !== 'undefined' && $unmanic.ws !== null) {
             if ($unmanic.ws.readyState === WebSocket.OPEN) {
               console.log("Websocket has reconnected. Clearing warning.")
-              clearConnectionWarning();
-              clearConnectionWarning = null;
-              clearInterval(connectionCheckInterval);
+              dismissConnectionWarning();
             }
           }
         }, 500);
       }
-    }
-
-    function openWS() {
-      if (typeof $unmanic.ws === 'undefined' || $unmanic.ws === null) {
-        // Build WS path
-        let loc = window.location,
-          new_uri;
-        if (loc.protocol === 'https:') {
-          new_uri = 'wss:';
-        } else {
-          new_uri = 'ws:';
-        }
-        new_uri += '//' + loc.host + '/unmanic/websocket';
-
-        // Check for Shared Link Target
-        const target = localStorage.getItem('unmanic-installation-target');
-        if (target && target !== 'local') {
-          new_uri += '?target_id=' + encodeURIComponent(target);
-        }
-
-        // Open WS connection
-        $unmanic.ws = new WebSocket(new_uri);
-      }
-    }
-
-    function reconnectWS() {
-      // Set ws as null so that it needs to be recreated
-      $unmanic.ws = null;
-      // Empty all websocket event listeners
-      $unmanic.websocketEventListeners = {};
-      connectionTimer = setTimeout(() => {
-        console.debug('Attempting reconnect to Unmanic server...');
-        initWebsocket();
-      }, 4000);
     }
 
     function dismissMessages(message_id) {
@@ -220,28 +280,26 @@ export const UnmanicWebsocketHandler = function ($t) {
       }
     }
 
-    // Ensure the websocket is open
-    if (typeof $unmanic.ws === 'undefined' || $unmanic.ws === null) {
-      console.debug("Starting connection to websocket server")
-      // Open WS connection
-      openWS();
-
+    if (!manager.baseListenersRegistered) {
+      manager.baseListenersRegistered = true;
       // Add event listener to request frontend messages from server
-      addWebsocketEventListener('open', 'start_frontend_messages', function (evt) {
-        clearTimeout(connectionTimer);
-        $unmanic.ws.send(JSON.stringify({ command: 'start_frontend_messages', params: {} }));
-      });
+      registerListener('open', 'start_frontend_messages', function (evt) {
+        clearTimeout(manager.reconnectTimer);
+        manager.reconnectTimer = null;
+        dismissConnectionWarning();
+        evt.currentTarget.send(JSON.stringify({ command: 'start_frontend_messages', params: {} }));
+      }, null);
 
       // Add event listener to handle frontend messages from server
-      addWebsocketEventListener('message', 'handle_frontend_messages', function (evt) {
+      registerListener('message', 'handle_frontend_messages', function (evt) {
         if (typeof evt.data === 'string') {
           let jsonData = JSON.parse(evt.data);
           if (jsonData.success) {
             // Ensure the server is still running the same instance...
-            if (serverId === null) {
-              serverId = jsonData.server_id;
+            if (manager.serverId === null) {
+              manager.serverId = jsonData.server_id;
             } else {
-              if (jsonData.server_id !== serverId) {
+              if (jsonData.server_id !== manager.serverId) {
                 // Reload the whole page. Some things may have changed
                 console.debug('Unmanic server has restarted. Reloading page...');
                 location.reload();
@@ -259,25 +317,36 @@ export const UnmanicWebsocketHandler = function ($t) {
         } else {
           console.error('WebSocket Error: Received data was not a string - ', evt.data);
         }
-      });
+      }, null);
 
       // Add event listener to handle an error in the websocket
-      addWebsocketEventListener('error', 'websocket_error', function (evt) {
+      registerListener('error', 'websocket_error', function (evt) {
         console.error('WebSocket Error: ', evt);
         // Set a timeout before displaying disconnect warning.
         // Sometimes we get a disconnect just from a slow connection.
-        setTimeout(() => {
+        clearTimeout(manager.warningTimer);
+        manager.warningTimer = setTimeout(() => {
+          manager.warningTimer = null;
           // Display error
           showWebsocketConnectionWarning();
         }, 5000);
-      });
+      }, null);
 
       // Add event listener to auto-reconnect the websocket if the socket closes
-      addWebsocketEventListener('close', 'websocket_close', function (evt) {
-        if (autoReconnectSocket) {
-          reconnectWS();
+      registerListener('close', 'websocket_close', function (evt) {
+        if ($unmanic.ws === evt.currentTarget) {
+          $unmanic.ws = null;
         }
-      });
+        if (!manager.intentionalClose && manager.owners.size > 0) {
+          scheduleReconnect();
+        }
+      }, null);
+    }
+
+    manager.owners.add(owner);
+    if (typeof $unmanic.ws === 'undefined' || $unmanic.ws === null) {
+      console.debug("Starting connection to websocket server")
+      openWS();
     }
 
     return $unmanic.ws;
@@ -292,39 +361,106 @@ export const UnmanicWebsocketHandler = function ($t) {
    * @param callback
    */
   const addWebsocketEventListener = function (type, key, callback) {
-    if (typeof $unmanic.ws !== 'undefined' && $unmanic.ws !== null) {
-      if (typeof $unmanic.websocketEventListeners === 'undefined') {
-        $unmanic.websocketEventListeners = {};
-      }
-      if (!(key in $unmanic.websocketEventListeners)) {
-        //console.debug("Adding '" + type + "' event listener to websocket - '" + key + "'")
-        $unmanic.ws.addEventListener(type, callback);
-        $unmanic.websocketEventListeners[key] = true
-      }
-    }
+    registerListener(type, key, callback);
   }
 
   /**
    * Close the websocket without triggering a reconnect
    */
   const closeWebsocket = function () {
-    if (typeof $unmanic.ws !== 'undefined' && $unmanic.ws !== null) {
-      console.debug("Closing connection to websocket server")
-      // Mark connection to not reconnect
-      autoReconnectSocket = false;
-      // Close WS connection
-      $unmanic.ws.close();
-      // Set ws as null so that it needs to be recreated
-      $unmanic.ws = null;
-      // Empty all websocket event listeners
-      $unmanic.websocketEventListeners = {};
+    manager.owners.delete(owner);
+    manager.listeners.forEach((definition, key) => {
+      if (definition.owner !== owner) {
+        return;
+      }
+      if ($unmanic.ws) {
+        const wrapper = definition.wrappers.get($unmanic.ws);
+        if (wrapper) {
+          $unmanic.ws.removeEventListener(definition.type, wrapper);
+        }
+      }
+      manager.listeners.delete(key);
+    });
+
+    if (manager.owners.size === 0) {
+      manager.intentionalClose = true;
+      clearTimeout(manager.reconnectTimer);
+      clearTimeout(manager.manualReconnectTimer);
+      manager.reconnectTimer = null;
+      manager.manualReconnectTimer = null;
+      dismissConnectionWarning();
+      if ($unmanic.ws) {
+        console.debug("Closing connection to websocket server")
+        const socket = $unmanic.ws;
+        $unmanic.ws = null;
+        manager.generation += 1;
+        socket.close();
+      }
+      manager.intentionalClose = false;
     }
   }
 
+  const reconnectWebsocket = function () {
+    manager.owners.add(owner);
+    clearTimeout(manager.reconnectTimer);
+    manager.intentionalClose = true;
+    const previousSocket = $unmanic.ws;
+    $unmanic.ws = null;
+    manager.generation += 1;
+
+    return new Promise((resolve, reject) => {
+      let connectionStarted = false;
+      const connect = () => {
+        if (connectionStarted) {
+          return;
+        }
+        clearTimeout(manager.manualReconnectTimer);
+        manager.manualReconnectTimer = null;
+        if (manager.owners.size === 0) {
+          manager.intentionalClose = false;
+          reject(new Error('WebSocket connection cancelled'));
+          return;
+        }
+        connectionStarted = true;
+        manager.intentionalClose = false;
+        const socket = openWS();
+        if (!socket) {
+          reject(new Error('WebSocket connection cancelled'));
+          return;
+        }
+        if (socket.readyState === WebSocket.OPEN) {
+          resolve(socket);
+          return;
+        }
+        socket.addEventListener('open', () => resolve(socket), { once: true });
+        socket.addEventListener('error', () => reject(new Error('WebSocket connection failed')), { once: true });
+      };
+
+      if (previousSocket && previousSocket.readyState !== WebSocket.CLOSED) {
+        previousSocket.addEventListener('close', connect, { once: true });
+        previousSocket.close();
+        manager.manualReconnectTimer = setTimeout(connect, 1000);
+      } else {
+        connect();
+      }
+    });
+  }
+
   return {
-    serverId,
+    get serverId() {
+      return manager.serverId;
+    },
+    get generation() {
+      return manager.generation;
+    },
     init: function () {
       return initWebsocket();
+    },
+    reconnect: function () {
+      return reconnectWebsocket();
+    },
+    isCurrentSocket: function (socket) {
+      return socket === $unmanic.ws && socket.__unmanicGeneration === manager.generation;
     },
     close: function () {
       closeWebsocket();

@@ -197,7 +197,8 @@ const initUnmanicWebsocket = () => {
   unmanicWSHandler = UnmanicWebsocketHandler($t)
   ws = unmanicWSHandler.init()
 
-  unmanicWSHandler.addEventListener('open', 'start_system_logs', () => {
+  unmanicWSHandler.addEventListener('open', 'start_system_logs', (evt) => {
+    ws = evt.currentTarget
     requestSystemLogs()
   })
 

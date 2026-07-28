@@ -39,7 +39,7 @@ import threading
 import psutil
 
 from unmanic import config, metadata
-from unmanic.libs import libraryscanner, common, eventmonitor
+from unmanic.libs import libraryscanner, common, eventmonitor, task
 from unmanic.libs.db_migrate import Migrations
 from unmanic.libs.logs import UnmanicLogging
 from unmanic.libs.scheduler import ScheduledTasksManager
@@ -220,7 +220,10 @@ class RootService:
 
         # Clear cache directory
         self.logger.info("Clearing previous cache")
-        common.clean_files_in_cache_dir(settings.get_cache_path())
+        cache_path = settings.get_cache_path()
+        preserved_cache_directories = task.Task.get_recoverable_cache_directories(cache_path)
+        common.clean_files_in_cache_dir(
+            cache_path, preserved_directories=preserved_cache_directories)
 
         self.logger.info("Starting all threads")
 

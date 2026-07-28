@@ -420,6 +420,10 @@ class UnmanicWebsocketHandler(tornado.websocket.WebSocketHandler):
                         'label':               task_result['task_label'],
                         'success':             task_result['task_success'],
                         'finish_time':         task_result['finish_time'],
+                        'failure_category':    task_result.get('failure_category', ''),
+                        'failure_message':     task_result.get('failure_message', ''),
+                        'failure_time':        task_result.get('failure_time'),
+                        'dismissed_at':        task_result.get('dismissed_at'),
                         'human_readable_time': human_readable_time,
                     }
                 )
@@ -431,7 +435,8 @@ class UnmanicWebsocketHandler(tornado.websocket.WebSocketHandler):
                     'server_id': self.server_id,
                     'type':      'completed_tasks',
                     'data':      {
-                        'results': results
+                        'results': results,
+                        'failedCount': task_list.get('failedCount', 0),
                     },
                 }
             )

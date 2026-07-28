@@ -66,15 +66,3 @@ export default {
   }
 }
 </script>
-
-<style>
-.page-with-mobile-quick-nav {
-  padding-bottom: 24px;
-}
-
-@media (max-width: 1023px) {
-  .page-with-mobile-quick-nav {
-    padding-bottom: 96px;
-  }
-}
-</style>

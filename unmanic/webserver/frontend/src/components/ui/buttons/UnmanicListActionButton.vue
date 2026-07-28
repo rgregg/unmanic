@@ -7,6 +7,8 @@
     :color="color"
     :icon="icon"
     :disable="disable"
+    :aria-label="ariaLabel || tooltip || undefined"
+    :title="ariaLabel || tooltip || undefined"
     @click="$emit('click', $event)"
   >
     <q-tooltip v-if="tooltip" class="bg-white text-primary">
@@ -31,6 +33,10 @@ defineProps({
     default: '12px'
   },
   tooltip: {
+    type: String,
+    default: ''
+  },
+  ariaLabel: {
     type: String,
     default: ''
   },

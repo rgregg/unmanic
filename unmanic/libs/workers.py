@@ -40,6 +40,7 @@ import time
 import psutil
 
 from unmanic.libs import common
+from unmanic.libs.task import TaskFailureCategory
 from unmanic.libs.library import Library
 from unmanic.libs.logs import UnmanicLogging
 from unmanic.libs.plugins import PluginsHandler
@@ -488,6 +489,7 @@ class Worker(threading.Thread):
         self.pending_queue = pending_queue
         self.complete_queue = complete_queue
         self.worker_subprocess_monitor = None
+        self._completion_pending = False
 
         # Create 'redundancy' flag. When this is set, the worker should die
         self.redundant_flag = threading.Event()
@@ -532,6 +534,7 @@ class Worker(threading.Thread):
                     continue
                 except Exception as e:
                     self.logger.exception("Exception in processing job with %s: %s", self.name, e)
+                    self.__complete_exceptional_task()
 
         self.logger.info("Stopping worker")
         self.worker_subprocess_monitor.stop()
@@ -545,6 +548,7 @@ class Worker(threading.Thread):
             return
         # Set the task
         self.current_task = new_task
+        self._completion_pending = False
         self.worker_log = []
         self.idle = False
 
@@ -609,6 +613,7 @@ class Worker(threading.Thread):
 
     def __unset_current_task(self):
         self.current_task = None
+        self._completion_pending = False
         self.worker_runners_info = {}
         self.worker_log = []
 
@@ -618,6 +623,10 @@ class Worker(threading.Thread):
 
         :return:
         """
+        if self._completion_pending:
+            self.__persist_and_publish_completion()
+            return
+
         # Mark worker as not idle now that it is processing a task
         self.idle = False
 
@@ -633,7 +642,16 @@ class Worker(threading.Thread):
         # Process the file. Will return true if success, otherwise false
         success = self.__exec_worker_runners_on_set_task()
         # Mark the task as either success or not
-        self.current_task.set_success(success)
+        self.current_task.task.success = bool(success)
+        if success:
+            self.current_task.task.failure_category = ''
+            self.current_task.task.failure_message = ''
+            self.current_task.task.failure_time = None
+        else:
+            self.current_task.task.failure_category = TaskFailureCategory.PROCESSING
+            self.current_task.task.failure_message = (
+                "A worker or processing plugin reported that the task failed.")
+            self.current_task.task.failure_time = time.time()
 
         # Mark task completion statistics
         self.__set_finish_task_stats()
@@ -641,11 +659,46 @@ class Worker(threading.Thread):
         # Log completion of job
         self.logger.info("Finished job - %s", self.current_task.get_source_abspath())
 
-        # Place the task into the completed queue
-        self.complete_queue.put(self.current_task)
+        self._completion_pending = True
+        self.__persist_and_publish_completion()
 
-        # Reset the current file info for the next task
+    def __persist_and_publish_completion(self):
+        """Durably hand the finished task to postprocessing before publishing it."""
+        try:
+            published = self.current_task.persist_worker_completion()
+        except Exception:
+            self._completion_pending = True
+            self.logger.exception(
+                "Unable to persist completed task for worker %s; retaining local ownership",
+                self.name,
+            )
+            return False
+
+        if published:
+            self.complete_queue.put(self.current_task)
         self.__unset_current_task()
+        return published
+
+    def __complete_exceptional_task(self):
+        """Move an unexpectedly failed task through normal durable history handling."""
+        if not self.current_task:
+            return
+        try:
+            task_record = self.current_task.task
+            if not getattr(task_record, 'processed_by_worker', None):
+                task_record.processed_by_worker = str(self.name or 'unknown-worker')
+            if getattr(task_record, 'start_time', None) is None:
+                task_record.start_time = time.time()
+            task_record.success = False
+            task_record.failure_category = TaskFailureCategory.INTERNAL
+            task_record.failure_message = (
+                "An unexpected processing error occurred. Check application logs for details.")
+            task_record.failure_time = time.time()
+            self.__set_finish_task_stats()
+            self._completion_pending = True
+            self.__persist_and_publish_completion()
+        except Exception:
+            self.logger.exception("Unable to persist exceptional task failure for worker %s", self.name)
 
     def __set_start_task_stats(self):
         """Sets the initial stats for the start of a task"""

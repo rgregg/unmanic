@@ -16,6 +16,12 @@
               @submit="save"
               class="q-gutter-md"
             >
+              <AdmonitionBanner
+                v-if="isDirty"
+                type="warning"
+                :title="$t('components.settings.common.unsavedChanges')">
+                {{ $t('components.settings.common.unsavedChangesBody') }}
+              </AdmonitionBanner>
 
               <!--START WORKER GROUPS-->
               <h5 class="q-mb-none">{{ $t('components.settings.workers.workerGroups') }}</h5>
@@ -134,7 +140,10 @@
               <q-separator class="q-my-lg"/>
 
               <div>
-                <UnmanicSettingsSubmitButton/>
+                <UnmanicSettingsSubmitButton
+                  :disable="!isDirty || !isFormValid || saving"
+                  :loading="saving"
+                />
               </div>
             </q-form>
 
@@ -181,10 +190,11 @@ import WorkerGroupConfigDialog from "components/settings/workers/WorkerGroupConf
 import SelectDirectoryDialog from "components/ui/pickers/SelectDirectoryDialog.vue";
 import UnmanicSettingsSubmitButton from "components/ui/buttons/UnmanicSettingsSubmitButton.vue";
 import UnmanicListAddButton from "components/ui/buttons/UnmanicListAddButton.vue";
+import AdmonitionBanner from "components/ui/AdmonitionBanner.vue";
 
 export default {
   name: 'SettingsWorkers',
-  components: { MobileSettingsQuickNav, WorkerGroupConfigDialog, SelectDirectoryDialog, UnmanicSettingsSubmitButton, UnmanicListAddButton },
+  components: { MobileSettingsQuickNav, WorkerGroupConfigDialog, SelectDirectoryDialog, UnmanicSettingsSubmitButton, UnmanicListAddButton, AdmonitionBanner },
   setup() {
     const $q = useQuasar()
     const { t: $t } = useI18n();
@@ -222,9 +232,36 @@ export default {
       activeWorkerGroupId: ref(0),
       selectDirectoryInitialPath: ref(''),
       selectDirectoryListType: ref('directories'),
+      initialSnapshot: ref(null),
+      saving: ref(false),
     }
   },
+  computed: {
+    settingsSnapshot() {
+      if (this.cachePath === null) {
+        return null
+      }
+      return JSON.stringify({ cachePath: this.cachePath })
+    },
+    isDirty() {
+      return this.initialSnapshot !== null && this.settingsSnapshot !== null &&
+        this.initialSnapshot !== this.settingsSnapshot
+    },
+    isFormValid() {
+      return this.cachePath !== null
+    },
+  },
   methods: {
+    updateSnapshot: function () {
+      this.initialSnapshot = this.settingsSnapshot
+    },
+    handleBeforeUnload: function (event) {
+      if (!this.isDirty && !this.saving) {
+        return
+      }
+      event.preventDefault()
+      event.returnValue = ''
+    },
     updateCacheWithDirectoryBrowser: function () {
       this.selectDirectoryInitialPath = this.cachePath
       this.selectDirectoryListType = 'directories'
@@ -246,7 +283,10 @@ export default {
         url: getUnmanicApiUrl('v2', 'settings/read')
       }).then((response) => {
         // Set the cache path value
-        this.cachePath = response.data.settings.cache_path
+        if (!this.isDirty) {
+          this.cachePath = response.data.settings.cache_path
+          this.updateSnapshot()
+        }
       }).catch(() => {
         this.$q.notify({
           color: 'negative',
@@ -331,20 +371,25 @@ export default {
         });
       })
     },
-    save: function () {
+    save: async function () {
+      if (this.saving || !this.isDirty || !this.isFormValid) {
+        return
+      }
+      this.saving = true
+      const submittedSnapshot = this.settingsSnapshot
       // Save settings
       let data = {
         settings: {
           cache_path: this.cachePath,
         }
       }
-      axios({
+      try {
+        await axios({
         method: 'post',
         url: getUnmanicApiUrl('v2', 'settings/write'),
         data: data
-      }).then((response) => {
-        // Save success, show feedback
-        this.fetchSettings();
+        })
+        this.initialSnapshot = submittedSnapshot
         this.$q.notify({
           color: 'positive',
           position: 'top',
@@ -352,7 +397,7 @@ export default {
           message: this.$t('notifications.saved'),
           timeout: 200
         })
-      }).catch(() => {
+      } catch (error) {
         this.$q.notify({
           color: 'negative',
           position: 'top',
@@ -360,7 +405,9 @@ export default {
           icon: 'report_problem',
           actions: [{ icon: 'close', color: 'white' }]
         })
-      });
+      } finally {
+        this.saving = false
+      }
     },
     configureWorkerGroup: function (index) {
       if (index === 'new') {
@@ -386,6 +433,20 @@ export default {
     this.fetchSettings();
     this.fetchWorkerGroupsList();
   },
+  mounted() {
+    window.addEventListener('beforeunload', this.handleBeforeUnload)
+  },
+  beforeUnmount() {
+    window.removeEventListener('beforeunload', this.handleBeforeUnload)
+  },
+  beforeRouteLeave(to, from, next) {
+    if ((!this.isDirty && !this.saving) ||
+      window.confirm(this.$t('components.settings.common.leaveWithUnsavedChanges'))) {
+      next()
+      return
+    }
+    next(false)
+  },
 }
 </script>
 <style>
@@ -402,13 +463,4 @@ export default {
   background: #F2C037;
 }
 
-.page-with-mobile-quick-nav {
-  padding-bottom: 24px;
-}
-
-@media (max-width: 1023px) {
-  .page-with-mobile-quick-nav {
-    padding-bottom: 96px;
-  }
-}
 </style>

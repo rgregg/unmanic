@@ -29,7 +29,6 @@
            OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-import json
 import tornado.log
 
 from unmanic.libs import session
@@ -38,6 +37,10 @@ from unmanic.webserver.api_v1.base_api_handler import BaseApiHandler
 
 
 class ApiSessionHandler(BaseApiHandler):
+    STATUS_ERROR_NOT_SUPPORTED = 410
+    CENTRAL_SERVICES_DISABLED_REASON = (
+        "Upstream central account and funding services are not supported."
+    )
     name = None
     session = None
     config = None
@@ -90,81 +93,30 @@ class ApiSessionHandler(BaseApiHandler):
         self.action_route()
 
     def get_sign_out_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        sign_out_url = self.session.get_sign_out_url()
-        if not sign_out_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": sign_out_url,
-                }
-            }))
-            return
+        self._write_central_service_disabled()
 
     def get_patreon_login_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        patreon_oauth_url = self.session.get_patreon_login_url()
-        if not patreon_oauth_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": patreon_oauth_url,
-                }
-            }))
-            return
+        self._write_central_service_disabled()
 
     def get_github_login_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        github_oauth_url = self.session.get_github_login_url()
-        if not github_oauth_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": github_oauth_url,
-                }
-            }))
-            return
+        self._write_central_service_disabled()
 
     def get_discord_login_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        discord_oauth_url = self.session.get_discord_login_url()
-        if not discord_oauth_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": discord_oauth_url,
-                }
-            }))
-            return
+        self._write_central_service_disabled()
 
     def get_patreon_page(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        patreon_sponsor_page_data = self.session.get_patreon_sponsor_page()
-        if not patreon_sponsor_page_data:
-            self.write(json.dumps({"success": False}))
-            return
-        sponsor_page = patreon_sponsor_page_data.get("sponsor_page")
-        self.write(json.dumps({
-            "success": True,
-            "uuid":    uuid,
-            "data":    {
-                "sponsor_page": sponsor_page,
-            }
-        }))
-        return
+        self._write_central_service_disabled()
+
+    def _write_central_service_disabled(self):
+        """Keep legacy routes deterministic without contacting central services."""
+        self.set_status(
+            self.STATUS_ERROR_NOT_SUPPORTED,
+            reason=self.CENTRAL_SERVICES_DISABLED_REASON,
+        )
+        self.finish({
+            "error": "{}: {}".format(
+                self.STATUS_ERROR_NOT_SUPPORTED,
+                self.CENTRAL_SERVICES_DISABLED_REASON,
+            ),
+            "messages": {},
+        })

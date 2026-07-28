@@ -40,9 +40,19 @@ class CompletedTasks(BaseModel):
     """
     CompletedTasks
     """
+    source_task_id = IntegerField(null=True, index=True)
     task_label = TextField(null=False)
     abspath = TextField(null=False, default='', index=True)
     task_success = BooleanField(null=False, index=True)
     start_time = DateTimeField(null=False, default=datetime.datetime.now)
     finish_time = DateTimeField(null=False, default=datetime.datetime.now, index=True)
     processed_by_worker = TextField(null=False)
+    failure_category = TextField(null=False, default='', index=True)
+    failure_message = TextField(null=False, default='')
+    failure_time = DateTimeField(null=True)
+    dismissed_at = DateTimeField(null=True, index=True)
+
+    class Meta:
+        indexes = (
+            (('source_task_id', 'start_time'), True),
+        )

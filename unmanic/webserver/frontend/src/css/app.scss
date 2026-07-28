@@ -13,6 +13,15 @@
   --unmanic-grey-8: #616161;
   --unmanic-grey-9: #424242;
   --unmanic-grey-10: #212121;
+  --mobile-settings-quick-nav-height: 53px;
+}
+
+@media (max-width: 1023px) {
+  .page-with-mobile-quick-nav {
+    padding-bottom: calc(
+      var(--mobile-settings-quick-nav-height) + env(safe-area-inset-bottom, 0px)
+    );
+  }
 }
 
 .body--dark {

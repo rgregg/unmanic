@@ -66,6 +66,11 @@ class ApiHistoryHandler(BaseApiHandler):
             "call_method":       "add_completed_tasks_to_pending_list",
         },
         {
+            "path_pattern":      r"/history/dismiss",
+            "supported_methods": ["POST"],
+            "call_method":       "dismiss_failed_tasks",
+        },
+        {
             "path_pattern":      r"/history/task/log",
             "supported_methods": ["POST"],
             "call_method":       "get_completed_task_log",
@@ -152,9 +157,8 @@ class ApiHistoryHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -230,9 +234,8 @@ class ApiHistoryHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -317,9 +320,67 @@ class ApiHistoryHandler(BaseApiHandler):
 
             self.write_success()
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def dismiss_failed_tasks(self):
+        """
+        History - dismiss failures
+        ---
+        description: Dismiss selected failed tasks while retaining their history and diagnostics.
+        requestBody:
+            required: True
+            content:
+                application/json:
+                    schema:
+                        RequestCompletedTasksBulkActionSchema
+        responses:
+            200:
+                description: Selected failed tasks were dismissed.
+                content:
+                    application/json:
+                        schema:
+                            BaseSuccessSchema
+            400:
+                description: Bad request
+                content:
+                    application/json:
+                        schema:
+                            BadRequestSchema
+            500:
+                description: Internal error
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            json_request = self.read_json_request(RequestCompletedTasksBulkActionSchema())
+            if json_request.get('selection_mode', 'explicit') == 'all_filtered':
+                filter_params = {
+                    'search_value': json_request.get('search_value'),
+                    'status':       json_request.get('status'),
+                    'after':        json_request.get('after'),
+                    'before':       json_request.get('before'),
+                }
+                id_list = completed_tasks.get_filtered_completed_task_ids(
+                    filter_params, exclude_ids=json_request.get('exclude_ids', []))
+            else:
+                id_list = json_request.get('id_list', [])
+            if not id_list:
+                self.set_status(self.STATUS_ERROR_EXTERNAL, reason="No failed tasks selected")
+                self.write_error()
+                return
+            if not completed_tasks.dismiss_failed_tasks(id_list):
+                self.set_status(self.STATUS_ERROR_EXTERNAL, reason="Selection contains no active failed tasks")
+                self.write_error()
+                return
+            self.write_success()
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
@@ -382,9 +443,8 @@ class ApiHistoryHandler(BaseApiHandler):
             )
             self.write_success(response)
             return
-        except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
-            return
+        except BaseApiError:
+            raise
         except Exception as e:
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()

@@ -2,7 +2,24 @@
   <q-page padding>
     <!-- content -->
 
-    <div class="row q-col-gutter-md">
+    <ActionableState
+      v-if="dashboardDisconnected"
+      icon="cloud_off"
+      color="negative"
+      :title="$t('components.states.disconnectedTitle')"
+      :message="$t('components.states.disconnectedMessage')"
+      :action-label="$t('components.states.reconnect')"
+      @action="reconnectDashboard"
+    />
+
+    <ActionableState
+      v-else-if="dashboardLoading"
+      loading
+      :title="$t('components.states.loadingDashboard')"
+      :message="$t('components.states.loadingMessage')"
+    />
+
+    <div v-else class="row q-col-gutter-md">
       <div class="col-12">
         <q-card flat bordered>
           <q-card-section class="bg-card-head">
@@ -75,8 +92,14 @@
 
               <div
                 v-if="Object.keys(workerProgressList).length === 0"
-                class="full-width row flex-center text-accent q-gutter-sm">
-                <q-item-label>{{ $t('components.workers.listEmpty') }}</q-item-label>
+                class="full-width">
+                <ActionableState
+                  icon="engineering"
+                  :title="$t('components.states.noWorkersTitle')"
+                  :message="$t('components.workers.listEmpty')"
+                  :action-label="$t('components.states.openWorkerSettings')"
+                  @action="$router.push('/ui/settings-workers')"
+                />
               </div>
               <WorkerProgressCard
                 v-for="(workerProgress, index) in workerProgressList"
@@ -103,7 +126,6 @@
     </div>
 
     <ReleaseNotesDialog/>
-    <TrialWelcomeDialog/>
 
   </q-page>
 </template>
@@ -120,11 +142,11 @@ import { UnmanicWebsocketHandler } from "src/js/unmanicWebsocket";
 import axios from "axios";
 import { getUnmanicApiUrl } from "src/js/unmanicGlobals";
 import ReleaseNotesDialog from "components/docs/ReleaseNotesDialog.vue";
-import TrialWelcomeDialog from "components/docs/TrialWelcomeDialog.vue";
+import ActionableState from "components/ui/ActionableState.vue";
 
 export default {
   name: 'MainDashboard',
-  components: { ReleaseNotesDialog, TrialWelcomeDialog, CompletedTasks, WorkerProgressCard, PendingTasks }, setup() {
+  components: { ActionableState, ReleaseNotesDialog, CompletedTasks, WorkerProgressCard, PendingTasks }, setup() {
     const { t: $t } = useI18n();
     const $q = useQuasar();
     const workerProgressList = ref([]);
@@ -132,11 +154,21 @@ export default {
       taskList: []
     });
     const completedTasksData = ref({
-      taskList: []
+      taskList: [],
+      failureCount: 0
     });
+    const dashboardLoading = ref(true);
+    const dashboardDisconnected = ref(false);
+    const receivedDashboardData = {
+      workers_info: false,
+      pending_tasks: false,
+      completed_tasks: false
+    };
 
     let ws = null;
     let unmanicWSHandler = UnmanicWebsocketHandler($t);
+    let activeSocketGeneration = 0;
+    let dashboardLoadTimer = null;
 
     let workerGroupColours = {}
 
@@ -308,24 +340,68 @@ export default {
           dateTimeCompleted: dateTools.printDateTimeString(data.results[i].finish_time),
           dateTimeSinceCompleted: data.results[i].human_readable_time,
           success: data.results[i].success,
+          failureCategory: data.results[i].failure_category,
+          failureMessage: data.results[i].failure_message,
+          failureTime: data.results[i].failure_time,
         }
       }
       completedTasksData.value.taskList = results;
+      completedTasksData.value.failureCount = data.failedCount || 0;
     }
 
     function initDashboardWebsocket() {
       ws = unmanicWSHandler.init();
+      activeSocketGeneration = unmanicWSHandler.generation;
       let serverId = unmanicWSHandler.serverId;
 
+      function isCurrentDashboardEvent(evt) {
+        return evt.currentTarget === ws
+          && activeSocketGeneration === unmanicWSHandler.generation
+          && unmanicWSHandler.isCurrentSocket(evt.currentTarget);
+      }
+
+      function requestDashboardData(socket, generation) {
+        if (!unmanicWSHandler.isCurrentSocket(socket) || generation !== unmanicWSHandler.generation) {
+          return;
+        }
+        Object.keys(receivedDashboardData).forEach((key) => {
+          receivedDashboardData[key] = false;
+        });
+        dashboardLoading.value = true;
+        dashboardDisconnected.value = false;
+        socket.send(JSON.stringify({ command: 'start_workers_info', params: {} }));
+        socket.send(JSON.stringify({ command: 'start_pending_tasks_info', params: {} }));
+        socket.send(JSON.stringify({ command: 'start_completed_tasks_info', params: {} }));
+        clearTimeout(dashboardLoadTimer);
+        dashboardLoadTimer = setTimeout(() => {
+          if (dashboardLoading.value && generation === activeSocketGeneration) {
+            dashboardDisconnected.value = true;
+          }
+        }, 15000);
+      }
+
       unmanicWSHandler.addEventListener('open', 'start_dashboard_messages', function (evt) {
-        ws.send(JSON.stringify({ command: 'start_workers_info', params: {} }));
-        ws.send(JSON.stringify({ command: 'start_pending_tasks_info', params: {} }));
-        ws.send(JSON.stringify({ command: 'start_completed_tasks_info', params: {} }));
+        if (!unmanicWSHandler.isCurrentSocket(evt.currentTarget)) {
+          return;
+        }
+        ws = evt.currentTarget;
+        activeSocketGeneration = unmanicWSHandler.generation;
+        requestDashboardData(ws, activeSocketGeneration);
       });
 
       unmanicWSHandler.addEventListener('message', 'handle_dashboard_messages', function (evt) {
+        if (!isCurrentDashboardEvent(evt)) {
+          return;
+        }
         if (typeof evt.data === 'string') {
-          let jsonData = JSON.parse(evt.data);
+          let jsonData;
+          try {
+            jsonData = JSON.parse(evt.data);
+          } catch (error) {
+            console.error('WebSocket Error: Received data was not JSON - ' + evt.data);
+            dashboardDisconnected.value = true;
+            return;
+          }
           if (jsonData.success) {
             // Ensure the server is still running the same instance...
             if (serverId === null) {
@@ -349,16 +425,58 @@ export default {
                 updateCompletedTasksList(jsonData.data);
                 break;
             }
+            if (Object.prototype.hasOwnProperty.call(receivedDashboardData, jsonData.type)) {
+              receivedDashboardData[jsonData.type] = true;
+              dashboardLoading.value = !Object.values(receivedDashboardData).every(Boolean);
+              if (!dashboardLoading.value) {
+                clearTimeout(dashboardLoadTimer);
+              }
+            }
           } else {
             console.error('WebSocket Error: Received contained errors - ' + evt.data);
+            dashboardDisconnected.value = true;
           }
         } else {
           console.error('WebSocket Error: Received data was not JSON - ' + evt.data);
+          dashboardDisconnected.value = true;
         }
+      });
+
+      unmanicWSHandler.addEventListener('error', 'dashboard_connection_error', function (evt) {
+        if (!isCurrentDashboardEvent(evt)) {
+          return;
+        }
+        dashboardDisconnected.value = true;
+      });
+      unmanicWSHandler.addEventListener('close', 'dashboard_connection_closed', function (evt) {
+        if (evt.currentTarget !== ws || evt.currentTarget.__unmanicGeneration !== activeSocketGeneration) {
+          return;
+        }
+        dashboardDisconnected.value = true;
+      });
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        requestDashboardData(ws, activeSocketGeneration);
+      }
+    }
+
+    function reconnectDashboard() {
+      clearTimeout(dashboardLoadTimer);
+      activeSocketGeneration = -1;
+      Object.keys(receivedDashboardData).forEach((key) => {
+        receivedDashboardData[key] = false;
+      });
+      dashboardLoading.value = true;
+      dashboardDisconnected.value = false;
+      unmanicWSHandler.reconnect().catch(() => {
+        dashboardLoading.value = false;
+        dashboardDisconnected.value = true;
       });
     }
 
     function closeDashboardWebsocket() {
+      activeSocketGeneration = -1;
+      clearTimeout(dashboardLoadTimer);
       unmanicWSHandler.close();
     }
 
@@ -375,7 +493,10 @@ export default {
     return {
       workerProgressList,
       pendingTasksData,
-      completedTasksData
+      completedTasksData,
+      dashboardLoading,
+      dashboardDisconnected,
+      reconnectDashboard
     }
   },
   methods: {

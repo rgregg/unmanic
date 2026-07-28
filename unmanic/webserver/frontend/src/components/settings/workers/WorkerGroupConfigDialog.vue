@@ -2,8 +2,9 @@
   <UnmanicDialogMenu
     ref="dialogRef"
     :title="$t('headers.configureWorkerGroup')"
-    :persistent="isDirty"
-    :closeTooltip="$t('components.settings.common.closeWithoutSaving')"
+    :persistent="isDirty || saving"
+    :close-disabled="saving"
+    :closeTooltip="isDirty ? $t('components.settings.common.closeWithoutSaving') : ''"
     :actions="saveActions"
     @save="save"
     @hide="onDialogHide"
@@ -197,7 +198,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import axios from 'axios'
 import draggable from 'vuedraggable'
 import { useQuasar } from 'quasar'
@@ -224,6 +226,7 @@ const { isMobile } = useMobile()
 const dialogRef = ref(null)
 const isOpen = ref(false)
 const originalSnapshot = ref(null)
+const saving = ref(false)
 
 const currentID = ref(null)
 const locked = ref(false)
@@ -235,15 +238,16 @@ const schedules = ref(null)
 
 const saveAction = computed(() => {
   const hasChanges = isDirty.value
+  const valid = isValid.value
   return {
     label: t('navigation.save'),
     icon: 'save',
-    color: hasChanges ? 'positive' : 'grey-6',
+    color: hasChanges && valid && !saving.value ? 'positive' : 'grey-6',
     tooltip: hasChanges
       ? t('components.settings.workers.saveWorkerConfig')
       : t('components.settings.common.noChangesToSave'),
     emit: 'save',
-    disabled: !hasChanges
+    disabled: !hasChanges || !valid || saving.value
   }
 })
 
@@ -273,6 +277,10 @@ const isDirty = computed(() => {
     return false
   }
   return originalSnapshot.value !== currentSnapshot.value
+})
+
+const isValid = computed(() => {
+  return currentSnapshot.value !== null && typeof name.value === 'string' && name.value.trim().length > 0
 })
 
 const dragOptions = computed(() => ({
@@ -338,6 +346,10 @@ const fetchWorkerGroupConfig = (workerGroupId) => {
 }
 
 const saveWorkerGroupConfig = async () => {
+  if (saving.value || !isDirty.value || !isValid.value) {
+    return false
+  }
+  saving.value = true
   const workerEventSchedule = schedules.value.map((schedule) => ({
     repetition: schedule.repetition,
     schedule_time: schedule.scheduleTime,
@@ -375,15 +387,20 @@ const saveWorkerGroupConfig = async () => {
       actions: [{ icon: 'close', color: 'white' }]
     })
     return false
+  } finally {
+    saving.value = false
   }
 }
 
 const save = async () => {
+  const submittedSnapshot = currentSnapshot.value
   const saved = await saveWorkerGroupConfig()
   if (saved) {
-    updateSnapshot()
+    originalSnapshot.value = submittedSnapshot
     emit('saved')
-    hide()
+    if (currentSnapshot.value === submittedSnapshot) {
+      hide()
+    }
   }
 }
 
@@ -434,7 +451,7 @@ const show = () => {
 }
 
 const hide = () => {
-  if (dialogRef.value) {
+  if (dialogRef.value && !saving.value) {
     dialogRef.value.hide()
   }
 }
@@ -443,6 +460,28 @@ const onDialogHide = () => {
   isOpen.value = false
   emit('hide')
 }
+
+const hasPendingChanges = computed(() => isOpen.value && (isDirty.value || saving.value))
+
+const handleBeforeUnload = (event) => {
+  if (!hasPendingChanges.value) {
+    return
+  }
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+  return !hasPendingChanges.value || window.confirm(t('components.settings.common.leaveWithUnsavedChanges'))
+})
+
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+})
 
 watch(() => props.workerGroupId, (value) => {
   if (value === null || value === undefined) {
