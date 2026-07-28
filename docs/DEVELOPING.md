@@ -197,6 +197,42 @@ The tests under `tests/unit/` are fork-authored and each pins an invariant this
 fork relies on. `tests/integration/` is inherited from upstream and is not part
 of the CI run.
 
+### Testing the frontend
+
+The frontend has its own suite, run by [Vitest](https://vitest.dev/) with
+`@vue/test-utils`. It lives in `trawlarr/webserver/frontend/test/`, configured
+by `vitest.config.js`.
+
+```
+cd trawlarr/webserver/frontend
+npm ci
+npm run lint          # eslint
+npm test              # vitest
+npm run test:coverage # vitest + coverage thresholds
+npm run build         # quasar build
+```
+
+All four run in CI (`.github/workflows/test.yml`, job `frontend`). `npm run
+build` matters as much as the tests: Quasar's webpack build is the only step
+that resolves every import in every `.vue` file, so it is what catches a broken
+import before the Docker image build does.
+
+Two things about the setup are worth knowing before you add a test:
+
+- **Vitest brings its own Vite pipeline**, while the app is built by Quasar's
+  *webpack* CLI. The aliases webpack injects (`src/`, `pages/`, `layouts/`, …)
+  are restated in `vitest.config.js`; add an alias to `quasar.conf.js` and you
+  must add it there too.
+- **`test/storage-polyfill.js` replaces `window.localStorage`.** What jsdom
+  provides varies by Node version — on Node 25 it arrives as a bare `{}` with no
+  `setItem`, and Quasar's `LocalStorage` plugin then degrades to a silent no-op.
+  Without the polyfill a persistence test would really persist on CI and assert
+  against nothing locally, passing green in both places.
+
+Coverage thresholds are in `vitest.config.js`. Read `functions` as the honest
+figure — v8 counts a module's top-level statements as covered merely for having
+been imported, and the router spec imports every page in the app.
+
 ### License headers
 
 Every Python file carries a license header — upstream's block on inherited
