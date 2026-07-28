@@ -68,8 +68,13 @@ Shipped, as of now:
   removed before the cache copy succeeds, and a scheduler fix that was
   killing the task-management thread at startup.
 - **A test suite and CI that means something.** Build, test, smoke and
-  FFmpeg-release-watch workflows, plus 113 unit tests pinning the
+  FFmpeg-release-watch workflows, plus 311 unit tests pinning the
   behaviours this fork depends on so they can't quietly regress.
+- **Its own name, all the way down.** The Python package, the config
+  directory, the database, the API path, the console script and the
+  environment variables all say `trawlarr`. Community plugins that
+  import `unmanic.*` keep working — see
+  [Upgrading](#upgrading-from-unmanic-or-a-pre-rename-trawlarr).
 - **Nothing on the network but you.** No registration, no telemetry,
   no plugin-install reporting, no central directory of your
   installations. Plugin catalogs come straight from GitHub; linked
@@ -93,12 +98,22 @@ docker run -d --name trawlarr --restart unless-stopped \
     ghcr.io/rgregg/trawlarr:latest
 ```
 
-The configuration directory layout, the `/library` mount, the cache
-mount, the env vars, and the running ports are all identical to
-upstream Unmanic — switching between the two images is a one-line
-change in your compose file.
+The mount points and the port are the same as upstream Unmanic: `/config`,
+`/library`, `/tmp/unmanic` for the encode cache, and 8888. Two things
+inside them are not, and they matter if you are coming from Unmanic or
+from a Trawlarr image built before the rename:
 
-The web UI is at `http://<host>:8888/`, same as upstream.
+- Configuration lives at `/config/.trawlarr/` (Unmanic used
+  `/config/.unmanic/`), with the database at
+  `/config/.trawlarr/config/trawlarr.db`.
+- Environment variables are prefixed `TRAWLARR_`, not `UNMANIC_`.
+
+Both are covered in
+[Upgrading](#upgrading-from-unmanic-or-a-pre-rename-trawlarr) below. A
+fresh install needs neither.
+
+The web UI is at `http://<host>:8888/`, same as upstream — it redirects
+to `/trawlarr/ui/dashboard/`.
 
 ### Security: this is trusted-network software
 
@@ -150,19 +165,49 @@ A MAJOR bump means something needs your attention before upgrading: a
 config migration, a changed API contract, or a break in the plugin
 interface. MINOR and PATCH are always safe to take.
 
-The internal namespace inherited from upstream has been renamed
-([#49](https://github.com/rgregg/trawlarr/issues/49)). The Python
-package is `trawlarr.libs.*`, config lives at `/config/.trawlarr/`, the
-database is `trawlarr.db`, and the API is served under
-`/trawlarr/api/v2/`. Existing community plugins keep working through a
-compatibility shim that still resolves `unmanic.*` imports.
+### Upgrading from Unmanic (or a pre-rename Trawlarr)
 
-The config directory and the API path are a clean break: there is no
-migration and no alias for the old names. **Upgrading an existing
-install means moving the config directory yourself.** Stop the container
-first, and run this on the host, against whatever you bind-mount at
-`/config` — the container refuses to start, so there is nothing to
-`docker exec` into:
+The internal namespace inherited from upstream has been renamed
+([#49](https://github.com/rgregg/trawlarr/issues/49)):
+
+| | Unmanic | Trawlarr |
+|---|---|---|
+| Config directory | `~/.unmanic/` (`/config/.unmanic/`) | `~/.trawlarr/` (`/config/.trawlarr/`) |
+| Database | `config/unmanic.db` | `config/trawlarr.db` |
+| API base path | `/unmanic/api/v2/` | `/trawlarr/api/v2/` |
+| Console script | `unmanic` | `trawlarr` |
+| Env var prefix | `UNMANIC_` | `TRAWLARR_` |
+| Python package | `unmanic` | `trawlarr` |
+
+Nothing else moved. The mounts, the port, the `/tmp/unmanic` cache path,
+`settings.json` and the database schema are all unchanged — the data is
+the same data under a different directory name. You do not have to edit
+`settings.json` after moving it: the four path keys it used to persist
+(`config_path`, `log_path`, `plugins_path`, `userdata_path`) are ignored
+on read and recomputed every start, so an old file still naming
+`.unmanic` cannot drag a migrated install back to the old directory.
+
+**Plugins are the exception, and deliberately so.** `trawlarr.*` is the
+canonical import path, but `unmanic.*` resolves to the *same module
+objects* through a compatibility shim
+(`trawlarr/namespace_shim.py`), so every community plugin written
+against `unmanic.libs.*` — including everything in
+[Unmanic/unmanic-plugins](https://github.com/Unmanic/unmanic-plugins) —
+runs unmodified. The class names plugins touch (`UnmanicLogging`,
+`UnmanicFileMetadata`, `UnmanicDirectoryInfo`) are kept as aliases of
+their `Trawlarr*` equivalents. This is supported compatibility, not a
+deprecation with a countdown on it: there is no plan to remove it, and
+doing so would be a MAJOR release with notice.
+
+The config directory and the API path, by contrast, are a clean break:
+there is no migration and no alias for the old names.
+
+#### Moving the config directory
+
+**Upgrading an existing install means moving the config directory
+yourself.** Stop the container first, and run this on the host, against
+whatever you bind-mount at `/config` — the container refuses to start, so
+there is nothing to `docker exec` into:
 
 ```
 mv /config/.unmanic/config/unmanic.db /config/.unmanic/config/trawlarr.db &&
@@ -184,8 +229,48 @@ instead of burying your installation one level down.
 
 If you forget, nothing is lost and nothing starts: Trawlarr refuses to
 boot when it finds a populated `.unmanic/` and an empty `.trawlarr/`, and
-prints exactly the commands above. Anything calling the old
-`/unmanic/api/v2/` path gets a 404.
+prints exactly the commands above. The message and the block above are
+both generated from `legacy_config_migration_command_lines()` in
+[`trawlarr/libs/runtimepaths.py`](trawlarr/libs/runtimepaths.py), and a
+test fails if they drift apart. To start fresh instead and leave the old
+directory where it is, set `TRAWLARR_IGNORE_LEGACY_CONFIG=1`.
+
+Anything calling the old `/unmanic/api/v2/` path gets a **404** — not a
+redirect. Update bookmarks, scripts and reverse-proxy rules that name it.
+
+#### Renaming the environment variables
+
+`UNMANIC_*` names are not read and never fall back. If one is set,
+startup prints a warning naming its replacement and carries on with the
+built-in default — so a setting you believed was applied is silently not
+applied until you rename it. There are eight, defined in
+[`trawlarr/libs/envvars.py`](trawlarr/libs/envvars.py):
+
+| Legacy name | Current name | Read by |
+|---|---|---|
+| `UNMANIC_DEFAULT_PLUGIN_REPO_URL` | `TRAWLARR_DEFAULT_PLUGIN_REPO_URL` | application |
+| `UNMANIC_LOCAL_SESSION_LEVEL` | `TRAWLARR_LOCAL_SESSION_LEVEL` | application |
+| `UNMANIC_REMOTE_LOGGING_ENDPOINT` | `TRAWLARR_REMOTE_LOGGING_ENDPOINT` | application |
+| `UNMANIC_DB_PATH` | `TRAWLARR_DB_PATH` | Docker entrypoint |
+| `UNMANIC_SQLITE_MAINTENANCE` | `TRAWLARR_SQLITE_MAINTENANCE` | Docker entrypoint |
+| `UNMANIC_RUN_COMMAND` | `TRAWLARR_RUN_COMMAND` | Docker entrypoint |
+| `UNMANIC_BACKEND_URL` | `TRAWLARR_BACKEND_URL` | frontend dev server |
+| `PROFILE_UNMANIC` | `PROFILE_TRAWLARR` | Docker launcher |
+
+The warning scans by prefix, so an `UNMANIC_`-prefixed name not listed
+here is still reported.
+
+#### The `unmanic` command
+
+Both names still work, but they are not the same kind of leftover:
+
+- The **Python console script** `unmanic` installed by the wheel is a
+  second entry point onto exactly the same `main()` as `trawlarr`. It
+  prints nothing extra.
+- The **Docker image's `/usr/bin/unmanic`** is a wrapper that prints a
+  notice and forwards to `/usr/bin/trawlarr`. It says outright that it
+  will be removed in a later release; the image `CMD` is already
+  `/usr/bin/trawlarr`.
 
 ## Documentation
 

@@ -13,8 +13,12 @@
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-.venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
+.venv/bin/pytest tests/unit/ -v --cov=trawlarr --cov-report=term-missing
 ```
+
+`--cov=trawlarr` measures the application package. The `unmanic` package
+in the repo root is only the compatibility shim, so pointing coverage at
+it reports on one file.
 
 CI runs the same command on every push to `main` and every PR targeting
 `main` via `.github/workflows/test.yml`. Coverage HTML, coverage XML, and
@@ -126,17 +130,17 @@ docker-compose -f docker/docker-compose-test.yml up --force-recreate
 Wait for the container to start, then run:
 
 ```
-docker exec --workdir=/app unmanic-testenv pycodestyle ./
+docker exec --workdir=/app trawlarr-testenv pycodestyle ./
 ```
 
 and
 
 ```
-docker exec --workdir=/app unmanic-testenv pytest --log-cli-level=INFO
+docker exec --workdir=/app trawlarr-testenv pytest --log-cli-level=INFO
 ```
 
 When developing, if you wish to run only a single test, run:
 
 ```
-docker exec --workdir=/app unmanic-testenv pytest --log-cli-level=INFO --maxfail 1 -s tests/test_<TEST NAME>.py
+docker exec --workdir=/app trawlarr-testenv pytest --log-cli-level=INFO --maxfail 1 -s tests/test_<TEST NAME>.py
 ```

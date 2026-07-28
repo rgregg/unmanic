@@ -53,8 +53,15 @@ Code contributions are very welcome.
   not regress below it. Run the suite locally first:
 
   ```bash
-  pytest tests/unit/ --cov=unmanic --cov-report=term-missing
+  pytest tests/unit/ --cov=trawlarr --cov-report=term-missing
   ```
+
+- **Write new code against the `trawlarr` package.** The application lives
+  in `trawlarr/`; the `unmanic/` directory is a compatibility shim that
+  keeps `unmanic.*` imports resolving for community plugins. It is
+  supported, not deprecated — but it is for plugins, not for our own
+  imports. Package layout, runtime paths and the environment variables are
+  summarised in [DEVELOPING.md](DEVELOPING.md#package-layout-and-naming).
 
 - **New behaviour should come with a test.** The tests under `tests/unit/` each
   pin an invariant this fork depends on; that is what stops a careless edit

@@ -101,7 +101,13 @@ class TestTlsTestFixtureStaysLoopback:
 
     def test_ssl_compose_binds_to_loopback_only(self):
         compose = _load_yaml('docker', 'docker-compose-ssl.yml')
-        ports = compose['services']['unmanic-ssl-test']['ports']
+        # Renamed with the service in issue #49 step 5. The assertion that
+        # matters is the loopback bind, not the name -- so read whichever
+        # single service the fixture defines rather than pinning a key that
+        # a later rename can silently turn into a KeyError-shaped pass.
+        services = compose['services']
+        assert len(services) == 1, 'TLS fixture should define exactly one service'
+        ports = next(iter(services.values()))['ports']
 
         # Unauthenticated TLS test instance; must not be reachable off-host.
         for mapping in ports:

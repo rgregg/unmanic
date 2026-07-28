@@ -1,8 +1,16 @@
-# Unmanic Web frontend
+# Trawlarr Web frontend
 
 A simple tool for optimising your file library to a single, uniform format.
 
-This project contains the frontend user interface for [Unmanic](https://github.com/Unmanic/unmanic).
+This directory contains the frontend user interface for Trawlarr, inherited
+from [Unmanic](https://github.com/Unmanic/unmanic) via `git subtree`. It is a
+regular part of this repository, not a submodule.
+
+The backend rename (`unmanic` -> `trawlarr`, issue #49) moved the API to
+`/trawlarr/api/v2/`. `src/js/unmanicGlobals.js` follows it: `urlPrefix` is
+`/trawlarr` and the builder is `getTrawlarrApiUrl()`. File names, the
+`$unmanic` global and the `Unmanic*` components were **not** renamed and are
+correct as they stand.
 
 
 ---
@@ -55,4 +63,5 @@ copies or substantial portions of the Software.
 This project contains libraries imported from external authors.
 Please refer to the source of these libraries for more information on their respective licenses.
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) to learn how to contribute to Unmanic.
+See [docs/CONTRIBUTING.md](../../../docs/CONTRIBUTING.md) to learn how to
+contribute to Trawlarr.
