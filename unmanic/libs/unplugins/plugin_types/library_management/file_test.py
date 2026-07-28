@@ -7,6 +7,8 @@
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     31 Mar 2021, (5:12 PM)
 
+    Modified 2026 by Ryan Gregg as part of Trawlarr.
+
     Copyright:
            Copyright (C) Josh Sunnex - All Rights Reserved
 
@@ -46,6 +48,10 @@ class FileTest(PluginType):
         add_file_to_pending_tasks       - Boolean, is the file currently marked to be added to the queue for processing.
         priority_score                  - Integer, an additional score that can be added to set the position of the new task in the task queue.
         shared_info                     - Dictionary, information provided by previous plugin runners. This can be appended to for subsequent runners.
+        file_test_role                  - Trawlarr addition, optional. Set to 'filter' to declare that setting
+                                          add_file_to_pending_tasks to False only means "I have no work for this file",
+                                          and may be overridden by another plugin that does want it queued. If left
+                                          unset, a False vote is treated as a veto that nothing can override.
 
     :param data:
     :return:
