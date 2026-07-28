@@ -23,7 +23,7 @@ from unittest import mock
 import pytest
 import requests
 
-from unmanic.libs.plugins import PluginsHandler
+from trawlarr.libs.plugins import PluginsHandler
 
 
 def _bare_handler():
@@ -73,7 +73,7 @@ class TestFetchRepoDataDirectly:
         body = {'repo': {'name': 'Official'}, 'plugins': []}
         resp = mock.Mock(status_code=200)
         resp.json.return_value = body
-        with mock.patch('unmanic.libs.plugins.requests.get', return_value=resp) as g:
+        with mock.patch('trawlarr.libs.plugins.requests.get', return_value=resp) as g:
             result = h._fetch_repo_data_directly('https://example.com/repo.json')
         assert result == body
         g.assert_called_once_with(
@@ -82,12 +82,12 @@ class TestFetchRepoDataDirectly:
     def test_returns_none_on_non_200(self):
         h = _bare_handler()
         resp = mock.Mock(status_code=404)
-        with mock.patch('unmanic.libs.plugins.requests.get', return_value=resp):
+        with mock.patch('trawlarr.libs.plugins.requests.get', return_value=resp):
             assert h._fetch_repo_data_directly('https://example.com/repo.json') is None
 
     def test_returns_none_on_request_exception(self):
         h = _bare_handler()
-        with mock.patch('unmanic.libs.plugins.requests.get',
+        with mock.patch('trawlarr.libs.plugins.requests.get',
                         side_effect=requests.exceptions.ConnectTimeout("boom")):
             assert h._fetch_repo_data_directly('https://example.com/repo.json') is None
 
@@ -95,7 +95,7 @@ class TestFetchRepoDataDirectly:
         h = _bare_handler()
         resp = mock.Mock(status_code=200)
         resp.json.side_effect = ValueError("not json")
-        with mock.patch('unmanic.libs.plugins.requests.get', return_value=resp):
+        with mock.patch('trawlarr.libs.plugins.requests.get', return_value=resp):
             assert h._fetch_repo_data_directly('https://example.com/repo.json') is None
 
 
@@ -106,7 +106,7 @@ class TestFetchRemoteRepoDataRouting:
         body = {'repo': {'name': 'r'}, 'plugins': []}
         with mock.patch.object(h, '_fetch_repo_data_directly',
                                return_value=body) as direct, \
-                mock.patch('unmanic.libs.plugins.Session') as SessionCls:
+                mock.patch('trawlarr.libs.plugins.Session') as SessionCls:
             url = 'https://raw.githubusercontent.com/x/y/repo/repo.json'
             result = h.fetch_remote_repo_data(url)
         assert result == body
@@ -120,7 +120,7 @@ class TestFetchRemoteRepoDataRouting:
         body = {'repo': {'name': 'Official'}, 'plugins': []}
         with mock.patch.object(h, '_fetch_repo_data_directly',
                                return_value=body) as direct, \
-                mock.patch('unmanic.libs.plugins.Session') as SessionCls:
+                mock.patch('trawlarr.libs.plugins.Session') as SessionCls:
             result = h.fetch_remote_repo_data('default')
         assert result == body
         direct.assert_called_once_with(
@@ -136,7 +136,7 @@ class TestFetchRemoteRepoDataRouting:
         sess.api_get.return_value = (proxy_body, 200)
         with mock.patch.object(h, '_fetch_repo_data_directly',
                                return_value=None), \
-                mock.patch('unmanic.libs.plugins.Session', return_value=sess):
+                mock.patch('trawlarr.libs.plugins.Session', return_value=sess):
             result = h.fetch_remote_repo_data(
                 'https://raw.githubusercontent.com/x/y/repo/repo.json')
         assert result == proxy_body
@@ -150,7 +150,7 @@ class TestFetchRemoteRepoDataRouting:
         sess.get_supporter_level.return_value = 0
         sess.api_get.return_value = (proxy_body, 200)
         with mock.patch.object(h, '_fetch_repo_data_directly') as direct, \
-                mock.patch('unmanic.libs.plugins.Session', return_value=sess):
+                mock.patch('trawlarr.libs.plugins.Session', return_value=sess):
             result = h.fetch_remote_repo_data('some-shortname')
         assert result == proxy_body
         # No direct attempt was even made for a non-URL, non-default path.
@@ -165,7 +165,7 @@ class TestFetchRemoteRepoDataRouting:
         sess.get_supporter_level.return_value = 0
         sess.api_get.side_effect = [(None, 401), (proxy_body, 200)]
         with mock.patch.object(h, '_fetch_repo_data_directly', return_value=None), \
-                mock.patch('unmanic.libs.plugins.Session', return_value=sess):
+                mock.patch('trawlarr.libs.plugins.Session', return_value=sess):
             result = h.fetch_remote_repo_data(
                 'https://raw.githubusercontent.com/x/y/repo/repo.json')
         assert result == proxy_body

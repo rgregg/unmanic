@@ -28,7 +28,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.plugins import PluginsHandler
+from trawlarr.libs.plugins import PluginsHandler
 
 
 def _bare_handler():

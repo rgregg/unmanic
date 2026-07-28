@@ -19,7 +19,7 @@ import os
 
 import pytest
 
-from unmanic.libs.postprocessor import PostProcessor
+from trawlarr.libs.postprocessor import PostProcessor
 
 
 def _build_postprocessor(cache_root, dest_path, source_abspath, cache_path):

@@ -21,7 +21,7 @@
 import logging
 from unittest import mock
 
-from unmanic.libs.scheduler import ScheduledTasksManager
+from trawlarr.libs.scheduler import ScheduledTasksManager
 
 
 def _bare_manager():
@@ -34,14 +34,14 @@ class TestSimpleDelegations:
 
     def test_register_unmanic_delegates_with_force(self):
         m = _bare_manager()
-        with mock.patch("unmanic.libs.scheduler.Session") as SessionCls:
+        with mock.patch("trawlarr.libs.scheduler.Session") as SessionCls:
             m.register_unmanic()
         SessionCls.assert_called_once_with()
         SessionCls.return_value.register_unmanic.assert_called_once_with(force=True)
 
     def test_plugin_repo_update_delegates(self):
         m = _bare_manager()
-        with mock.patch("unmanic.libs.scheduler.PluginsHandler") as Handler:
+        with mock.patch("trawlarr.libs.scheduler.PluginsHandler") as Handler:
             m.plugin_repo_update()
         Handler.assert_called_once_with()
         Handler.return_value.update_plugin_repos.assert_called_once_with()

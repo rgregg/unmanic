@@ -19,7 +19,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.session import Session, LOCAL_SESSION_LEVEL
+from trawlarr.libs.session import Session, LOCAL_SESSION_LEVEL
 
 
 def _bare_session():

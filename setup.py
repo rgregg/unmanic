@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    unmanic.setup.py
+    trawlarr.setup.py
  
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     04 May 2020, (10:47 AM)

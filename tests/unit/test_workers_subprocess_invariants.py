@@ -36,7 +36,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.workers import Worker
+from trawlarr.libs.workers import Worker
 
 
 def _bare_worker():
@@ -72,10 +72,10 @@ class TestPopenNeverHasShellTrue:
     def test_popen_called_without_shell_true_for_argv_input(self):
         w = _bare_worker()
         proc = _fake_popen()
-        with mock.patch("unmanic.libs.workers.subprocess.Popen",
+        with mock.patch("trawlarr.libs.workers.subprocess.Popen",
                         return_value=proc) as popen, \
-                mock.patch("unmanic.libs.workers.psutil"), \
-                mock.patch("unmanic.libs.workers.os") as fake_os:
+                mock.patch("trawlarr.libs.workers.psutil"), \
+                mock.patch("trawlarr.libs.workers.os") as fake_os:
             fake_os.name = "posix"
             fake_os.getpid.return_value = 1
             w._Worker__exec_command_subprocess(
@@ -91,10 +91,10 @@ class TestPopenNeverHasShellTrue:
         normalises to argv first."""
         w = _bare_worker()
         proc = _fake_popen()
-        with mock.patch("unmanic.libs.workers.subprocess.Popen",
+        with mock.patch("trawlarr.libs.workers.subprocess.Popen",
                         return_value=proc) as popen, \
-                mock.patch("unmanic.libs.workers.psutil"), \
-                mock.patch("unmanic.libs.workers.os") as fake_os:
+                mock.patch("trawlarr.libs.workers.psutil"), \
+                mock.patch("trawlarr.libs.workers.os") as fake_os:
             fake_os.name = "posix"
             fake_os.getpid.return_value = 1
             w._Worker__exec_command_subprocess(
@@ -118,10 +118,10 @@ class TestCoerceCalledBeforePopen:
 
         with mock.patch.object(w, "_coerce_exec_command_to_argv",
                                side_effect=lambda c, log: (call_order.append("coerce"), ["argv0"])[1]) as coerce, \
-                mock.patch("unmanic.libs.workers.subprocess.Popen",
+                mock.patch("trawlarr.libs.workers.subprocess.Popen",
                            side_effect=lambda *a, **kw: (call_order.append("popen"), proc)[1]), \
-                mock.patch("unmanic.libs.workers.psutil"), \
-                mock.patch("unmanic.libs.workers.os") as fake_os:
+                mock.patch("trawlarr.libs.workers.psutil"), \
+                mock.patch("trawlarr.libs.workers.os") as fake_os:
             fake_os.name = "posix"
             fake_os.getpid.return_value = 1
             w._Worker__exec_command_subprocess({"exec_command": "ffmpeg in out"})
@@ -151,10 +151,10 @@ class TestShellMetacharacterImmunity:
 
         w = _bare_worker()
         proc = _fake_popen()
-        with mock.patch("unmanic.libs.workers.subprocess.Popen",
+        with mock.patch("trawlarr.libs.workers.subprocess.Popen",
                         return_value=proc) as popen, \
-                mock.patch("unmanic.libs.workers.psutil"), \
-                mock.patch("unmanic.libs.workers.os") as fake_os:
+                mock.patch("trawlarr.libs.workers.psutil"), \
+                mock.patch("trawlarr.libs.workers.os") as fake_os:
             fake_os.name = "posix"
             fake_os.getpid.return_value = 1
             w._Worker__exec_command_subprocess({"exec_command": plugin_string})

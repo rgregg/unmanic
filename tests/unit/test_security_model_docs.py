@@ -44,7 +44,7 @@ class TestDocumentedAuthBehaviour:
         # SECURITY_MODEL.md states there is no CSRF protection and no
         # session cookie. Both are Tornado application settings; if either
         # appears, the document is out of date.
-        from unmanic.libs.uiserver import tornado_settings
+        from trawlarr.libs.uiserver import tornado_settings
 
         assert 'xsrf_cookies' not in tornado_settings
         assert 'cookie_secret' not in tornado_settings

@@ -23,7 +23,7 @@ from unittest import mock
 
 import pytest
 
-from unmanic.libs.scheduler import ScheduledTasksManager
+from trawlarr.libs.scheduler import ScheduledTasksManager
 
 
 def _bare_manager():
@@ -73,8 +73,8 @@ class TestManageCompletedTasks:
         m = _bare_manager()
         settings = _make_settings(auto_manage=False)
         history_logging = _make_history([])
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         history_logging.get_historic_task_list_filtered_and_sorted.assert_not_called()
 
@@ -82,8 +82,8 @@ class TestManageCompletedTasks:
         m = _bare_manager()
         settings = _make_settings(compress=False)
         history_logging = _make_history([])  # zero rows
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         history_logging.delete_historic_tasks_recursively.assert_not_called()
         history_logging.delete_historic_task_command_logs.assert_not_called()
@@ -94,8 +94,8 @@ class TestManageCompletedTasks:
         settings = _make_settings(compress=False)
         history_logging = _make_history(
             [{"id": 1, "task_label": "a"}, {"id": 2, "task_label": "b"}, {"id": 7, "task_label": "c"}])
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         # Must be called with a list of IDs, not the dicts cursor.
         history_logging.delete_historic_tasks_recursively.assert_called_once_with([1, 2, 7])
@@ -105,8 +105,8 @@ class TestManageCompletedTasks:
         settings = _make_settings(compress=True)
         history_logging = _make_history(
             [{"id": 11, "task_label": "x"}, {"id": 12, "task_label": "y"}])
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         history_logging.delete_historic_task_command_logs.assert_called_once_with([11, 12])
         history_logging.delete_historic_tasks_recursively.assert_not_called()
@@ -116,8 +116,8 @@ class TestManageCompletedTasks:
         settings = _make_settings(compress=False)
         history_logging = _make_history(
             [{"id": 1, "task_label": "a"}], delete_returns=False)
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             # Should not raise.
             m.manage_completed_tasks()
         history_logging.delete_historic_tasks_recursively.assert_called_once()
@@ -127,8 +127,8 @@ class TestManageCompletedTasks:
         settings = _make_settings(compress=True)
         history_logging = _make_history(
             [{"id": 1, "task_label": "a"}], compress_returns=False)
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         history_logging.delete_historic_task_command_logs.assert_called_once()
 
@@ -138,8 +138,8 @@ class TestManageCompletedTasks:
         m = _bare_manager()
         settings = _make_settings(keep_failed=True, compress=False)
         history_logging = _make_history([{"id": 1, "task_label": "a"}])
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         # Inspect the call to confirm task_success kwarg.
         call = history_logging.get_historic_task_list_filtered_and_sorted.call_args_list[0]
@@ -151,8 +151,8 @@ class TestManageCompletedTasks:
         m = _bare_manager()
         settings = _make_settings(keep_failed=False, compress=False)
         history_logging = _make_history([{"id": 1, "task_label": "a"}])
-        with mock.patch("unmanic.libs.scheduler.config.Config", return_value=settings), \
-                mock.patch("unmanic.libs.history.History", return_value=history_logging):
+        with mock.patch("trawlarr.libs.scheduler.config.Config", return_value=settings), \
+                mock.patch("trawlarr.libs.history.History", return_value=history_logging):
             m.manage_completed_tasks()
         call = history_logging.get_historic_task_list_filtered_and_sorted.call_args_list[0]
         assert call.kwargs.get("task_success") is None

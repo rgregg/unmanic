@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    unmanic.ffprobe_mp4.py
+    trawlarr.ffprobe_mp4.py
  
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     21 Sep 2019, (8:29 AM)

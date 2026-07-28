@@ -29,7 +29,7 @@ import json
 import pytest
 import yaml
 
-from unmanic.webserver.api_v2.schema.swagger import build_swagger_spec, get_swagger_file_location
+from trawlarr.webserver.api_v2.schema.swagger import build_swagger_spec, get_swagger_file_location
 
 RETIRED_PATHS = [
     '/session/logout',

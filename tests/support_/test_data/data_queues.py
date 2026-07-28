@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    unmanic.data_queues.py
+    trawlarr.data_queues.py
 
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     08 May 2020, (12:32 PM)

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-    unmanic.test_taskhandler.py
+    trawlarr.test_taskhandler.py
 
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     08 May 2020, (12:28 PM)
@@ -36,8 +36,8 @@ import tempfile
 import threading
 
 from tests.support_.test_data import data_queues, mock_jobqueue_class
-from unmanic.libs.taskhandler import TaskHandler
-from unmanic.libs.unmodels.tasks import Tasks
+from trawlarr.libs.taskhandler import TaskHandler
+from trawlarr.libs.unmodels.tasks import Tasks
 
 
 class TestClass(object):
@@ -69,21 +69,21 @@ class TestClass(object):
         config_path = tempfile.mkdtemp(prefix='unmanic_tests_')
 
         # Create connection to a test DB
-        from unmanic.libs import unmodels
+        from trawlarr.libs import unmodels
         app_dir = os.path.dirname(os.path.abspath(__file__))
         database_settings = {
             "TYPE":           "SQLITE",
             "FILE":           ':memory:',
             "MIGRATIONS_DIR": os.path.join(app_dir, 'migrations'),
         }
-        from unmanic.libs.unmodels.lib import Database
+        from trawlarr.libs.unmodels.lib import Database
         self.db_connection = Database.select_database(database_settings)
 
         # Create required tables
         self.db_connection.create_tables([Tasks])
 
         # import config
-        from unmanic import config
+        from trawlarr import config
         self.settings = config.Config(config_path=config_path)
         self.settings.set_config_item('debugging', True, save_settings=False)
 

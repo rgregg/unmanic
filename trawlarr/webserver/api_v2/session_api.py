@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+    trawlarr.session_api.py
+
+    Written by:               Josh.5 <jsunnex@gmail.com>
+    Date:                     10 Mar 2021, (7:14 PM)
+
+    Copyright:
+           Copyright (C) Josh Sunnex - All Rights Reserved
+
+           Permission is hereby granted, free of charge, to any person obtaining a copy
+           of this software and associated documentation files (the "Software"), to deal
+           in the Software without restriction, including without limitation the rights
+           to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+           copies of the Software, and to permit persons to whom the Software is
+           furnished to do so, subject to the following conditions:
+
+           The above copyright notice and this permission notice shall be included in all
+           copies or substantial portions of the Software.
+
+           THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+           EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+           MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+           IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+           DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+           OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+           OR OTHER DEALINGS IN THE SOFTWARE.
+
+"""
+
+import tornado.log
+
+from trawlarr.libs import session
+from trawlarr.libs.logs import UnmanicLogging
+from trawlarr.libs.uiserver import UnmanicDataQueues
+from trawlarr.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
+from trawlarr.webserver.api_v2.schema.schemas import SessionStateSuccessSchema
+
+# Trawlarr retires the inherited central account, authentication and funding
+# endpoints. They answer 410 Gone with these messages. See write_retired().
+RETIRED_ACCOUNT_MESSAGE = "This endpoint has been retired. Trawlarr has no central account service."
+RETIRED_AUTH_MESSAGE = "This endpoint has been retired. Trawlarr does not authenticate against a remote service."
+RETIRED_FUNDING_MESSAGE = "This endpoint has been retired. Trawlarr has no funding portal."
+
+
+class ApiSessionHandler(BaseApiHandler):
+    session = None
+    config = None
+    logger = None
+    params = None
+    unmanic_data_queues = None
+
+    routes = [
+        {
+            "path_pattern":      r"/session/state",
+            "supported_methods": ["GET"],
+            "call_method":       "get_session_state",
+        },
+        {
+            "path_pattern":      r"/session/reload",
+            "supported_methods": ["POST"],
+            "call_method":       "session_reload",
+        },
+        {
+            "path_pattern":      r"/session/logout",
+            "supported_methods": ["GET"],
+            "call_method":       "session_logout",
+        },
+        {
+            "path_pattern":      r"/session/get_app_auth_code",
+            "supported_methods": ["GET"],
+            "call_method":       "get_app_auth_code",
+        },
+        {
+            "path_pattern":      r"/session/funding_proposals",
+            "supported_methods": ["GET"],
+            "call_method":       "get_funding_proposals",
+        },
+    ]
+
+    def initialize(self, **kwargs):
+        self.session = session.Session()
+        self.logger = UnmanicLogging.get_logger(name=__class__.__name__)
+        self.params = kwargs.get("params")
+        udq = UnmanicDataQueues()
+        self.unmanic_data_queues = udq.get_unmanic_data_queues()
+
+    async def get_session_state(self):
+        """
+        Session - state
+        ---
+        description: Returns the application session state.
+        responses:
+            200:
+                description: 'Sample response: Returns the application session state.'
+                content:
+                    application/json:
+                        schema:
+                            SessionStateSuccessSchema
+            400:
+                description: Bad request; Check `messages` for any validation errors
+                content:
+                    application/json:
+                        schema:
+                            BadRequestSchema
+            404:
+                description: Bad request; Requested endpoint not found
+                content:
+                    application/json:
+                        schema:
+                            BadEndpointSchema
+            405:
+                description: Bad request; Requested method is not allowed
+                content:
+                    application/json:
+                        schema:
+                            BadMethodSchema
+            500:
+                description: Internal error; Check `error` for exception
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            if not self.session.created:
+                self.set_status(self.STATUS_ERROR_INTERNAL, reason="Session has not yet been created.")
+                self.write_error()
+                return
+            else:
+                response = self.build_response(
+                    SessionStateSuccessSchema(),
+                    {
+                        "level":       self.session.level,
+                        "picture_uri": self.session.picture_uri,
+                        "name":        self.session.name,
+                        "email":       self.session.email,
+                        "created":     self.session.created,
+                        "uuid":        self.session.uuid,
+                    }
+                )
+                self.write_success(response)
+                return
+        except BaseApiError as bae:
+            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
+            return
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def session_reload(self):
+        """
+        Session - reload
+        ---
+        description: Reload the current session.
+        responses:
+            200:
+                description: 'Successful request; Returns success status'
+                content:
+                    application/json:
+                        schema:
+                            BaseSuccessSchema
+            400:
+                description: Bad request; Check `messages` for any validation errors
+                content:
+                    application/json:
+                        schema:
+                            BadRequestSchema
+            404:
+                description: Bad request; Requested endpoint not found
+                content:
+                    application/json:
+                        schema:
+                            BadEndpointSchema
+            405:
+                description: Bad request; Requested method is not allowed
+                content:
+                    application/json:
+                        schema:
+                            BadMethodSchema
+            500:
+                description: Internal error; Check `error` for exception
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            if not self.session.register_unmanic(force=True):
+                self.set_status(self.STATUS_ERROR_INTERNAL, reason="Failed to reload session")
+                self.write_error()
+                return
+            else:
+                self.write_success()
+                return
+        except BaseApiError as bae:
+            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
+            return
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def session_logout(self):
+        """
+        Session - log out of session (retired)
+        ---
+        description: >-
+            Retired. Upstream used this to unlink the installation from a central
+            user account. Trawlarr has no central account service, so there is
+            nothing to log out of. This endpoint always returns 410 Gone and
+            makes no outbound request.
+        responses:
+            410:
+                description: Endpoint permanently retired; no central account service exists
+                content:
+                    application/json:
+                        schema:
+                            RetiredEndpointSchema
+        """
+        self.write_retired(RETIRED_ACCOUNT_MESSAGE)
+
+    async def get_app_auth_code(self):
+        """
+        Session - device authentication code (retired)
+        ---
+        description: >-
+            Retired. Upstream used this to start a device authentication flow
+            against its central authentication API. Trawlarr does not authenticate
+            against any remote service; the session level is pinned locally. This
+            endpoint always returns 410 Gone and makes no outbound request.
+        responses:
+            410:
+                description: Endpoint permanently retired; no central authentication service exists
+                content:
+                    application/json:
+                        schema:
+                            RetiredEndpointSchema
+        """
+        self.write_retired(RETIRED_AUTH_MESSAGE)
+
+    async def get_funding_proposals(self):
+        """
+        Session - funding proposals (retired)
+        ---
+        description: >-
+            Retired. Upstream used this to list feature funding proposals from its
+            support credit portal. Trawlarr has no credit portal. This endpoint
+            always returns 410 Gone and makes no outbound request.
+        responses:
+            410:
+                description: Endpoint permanently retired; no funding portal exists
+                content:
+                    application/json:
+                        schema:
+                            RetiredEndpointSchema
+        """
+        self.write_retired(RETIRED_FUNDING_MESSAGE)
