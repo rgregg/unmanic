@@ -86,6 +86,7 @@
     "serverNotificationLabels": {
       "failedTaskLabel": "Task Failure",
       "pausedWorkersLabel": "Workers Paused",
+      "pluginRegistrationLabel": "Plugin Registration Problem",
       "forwardLogHandlerErrorLabel": "Error Forwarding Logs"
     }
   },
