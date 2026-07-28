@@ -1,16 +1,28 @@
 name: Build image
 
-# Builds the rgregg/trawlarr Docker image from main and
-# pushes it to GHCR.
+# Builds the rgregg/trawlarr Docker image and pushes it to GHCR.
 #
 # Image: ghcr.io/<owner>/trawlarr
-# Tags:  :local                 (rolling)
-#        :local-<sha7>          (immutable, for pinning in Komodo)
-#        :local-<py-version>    (e.g. local-0.2.16, when the python version bumps)
+#
+# On a push to main (continuous builds):
+#   :dev                 rolling — newest main build
+#   :main-<sha7>         immutable — pin a specific commit
+#
+# On a published GitHub release tagged X.Y.Z (see FORK.md "Releases"):
+#   :X.Y.Z               immutable — exact release
+#   :X.Y                 moving — newest patch in that minor line
+#   :X                   moving — newest minor+patch in that major line
+#   :latest              moving — newest stable release
+#
+# Prereleases (1.2.0-rc.1, or a release flagged prerelease in the GitHub
+# UI) publish ONLY the exact tag. They never move :latest, :X or :X.Y, so
+# pinning a major line never drags someone onto a release candidate.
 
 on:
   push:
     branches: ["main"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -74,17 +86,45 @@ jobs:
         id: tags
         env:
           OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.repository }}
-          PY_VERSION: ${{ steps.wheel.outputs.py_version }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
+          set -euo pipefail
           ORG=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
           IMAGE="ghcr.io/${ORG}/trawlarr"
           SHA_SHORT="${GITHUB_SHA::7}"
           BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          TAGS="${IMAGE}:latest,${IMAGE}:main-${SHA_SHORT}"
-          if [[ -n "${PY_VERSION}" ]]; then
-            TAGS="${TAGS},${IMAGE}:${PY_VERSION}"
+
+          if [[ "${EVENT_NAME}" == "release" ]]; then
+            # Release tags are unprefixed semver (1.2.3), matching the tag
+            # convention already in this repo and what versioninfo.py reads
+            # via `git describe`. A leading "v" would produce a PEP 440
+            # invalid wheel version, so reject it here rather than ship it.
+            if [[ ! "${RELEASE_TAG}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Release tag '${RELEASE_TAG}' is not unprefixed semver (X.Y.Z or X.Y.Z-prerelease)."
+              exit 1
+            fi
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PRERELEASE_SUFFIX="${BASH_REMATCH[4]:-}"
+
+            # The exact version tag is always published and never moves.
+            TAGS="${IMAGE}:${RELEASE_TAG}"
+
+            # Moving tags are stable-only. Either a semver prerelease suffix
+            # or the GitHub "prerelease" checkbox is enough to hold them back.
+            if [[ -z "${PRERELEASE_SUFFIX}" && "${IS_PRERELEASE}" != "true" ]]; then
+              TAGS="${TAGS},${IMAGE}:${MAJOR}.${MINOR},${IMAGE}:${MAJOR},${IMAGE}:latest"
+            else
+              echo "Prerelease — publishing only ${IMAGE}:${RELEASE_TAG}"
+            fi
+          else
+            # Continuous builds off main. :latest is deliberately absent —
+            # it belongs to releases now. Track :dev for the newest build.
+            TAGS="${IMAGE}:dev,${IMAGE}:main-${SHA_SHORT}"
           fi
+
           echo "image=${IMAGE}"           >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}"             >> "$GITHUB_OUTPUT"
           echo "sha_short=${SHA_SHORT}"   >> "$GITHUB_OUTPUT"
@@ -119,7 +159,15 @@ jobs:
         env:
           IMAGE: ${{ steps.tags.outputs.image }}
           TAGS: ${{ steps.tags.outputs.tags }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
+          # Suggest the tag that matches what was actually built, so the
+          # summary never tells someone to pull an image this run didn't push.
+          if [[ "${EVENT_NAME}" == "release" ]]; then
+            PULL_TAG="latest"
+          else
+            PULL_TAG="dev"
+          fi
           {
             echo "## Built and pushed"
             echo ""
@@ -128,6 +176,6 @@ jobs:
             echo ""
             echo "Pull with:"
             echo '```bash'
-            echo "docker pull ${IMAGE}:latest"
+            echo "docker pull ${IMAGE}:${PULL_TAG}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
