@@ -95,11 +95,8 @@ class Config(object, metaclass=SingletonType):
         # Worker settings
         self.cache_path = common.get_default_cache_path()
 
-        # Link settings
+        # Installation identity (used to label forwarded logs)
         self.installation_name = ''
-        self.installation_public_address = ''
-        self.remote_installations = []
-        self.distributed_worker_count_target = 0
 
         # Legacy config
         # TODO: Remove this before next major version bump
@@ -554,34 +551,6 @@ class Config(object, metaclass=SingletonType):
         :return:
         """
         return self.installation_name
-
-    def get_installation_public_address(self):
-        """
-        Get setting - installation_public_address
-
-        :return:
-        """
-        return self.installation_public_address
-
-    def get_remote_installations(self):
-        """
-        Get setting - remote_installations
-
-        :return:
-        """
-        remote_installations = []
-        for ri in self.remote_installations:
-            ri['distributed_worker_count_target'] = self.distributed_worker_count_target
-            remote_installations.append(ri)
-        return remote_installations
-
-    def get_distributed_worker_count_target(self):
-        """
-        Get setting - distributed_worker_count_target
-
-        :return:
-        """
-        return self.distributed_worker_count_target
 
     def get_ssl_enabled(self):
         """

@@ -44,7 +44,6 @@ from unmanic.libs import common, session
 from unmanic.libs.frontend_push_messages import FrontendPushMessages
 from unmanic.libs.uiserver import UnmanicDataQueues, UnmanicRunningTreads
 from unmanic.webserver.helpers import completed_tasks, pending_tasks
-from unmanic.webserver.proxy import resolve_proxy_target
 
 
 class UnmanicWebsocketHandler(tornado.websocket.WebSocketHandler):
@@ -72,39 +71,7 @@ class UnmanicWebsocketHandler(tornado.websocket.WebSocketHandler):
         tornado.log.app_log.warning('WS Opened', exc_info=True)
         self.close_event = tornado.locks.Event()
 
-        # Check if we are proxying to a remote installation
-        target_id = self.get_argument("target_id", None)
-
-        if target_id:
-            target_info = resolve_proxy_target(target_id)
-            if target_info:
-                self.is_proxy = True
-                # WS URL: http -> ws, https -> wss
-                url_base = target_info['url_base']
-                if url_base.startswith("https"):
-                    ws_url = url_base.replace("https", "wss", 1)
-                else:
-                    ws_url = url_base.replace("http", "ws", 1)
-
-                ws_url = f"{ws_url}/unmanic/websocket"
-
-                headers = target_info['headers']
-                try:
-                    request = tornado.httpclient.HTTPRequest(url=ws_url, headers=headers)
-                    self.remote_ws = await tornado.websocket.websocket_connect(
-                        request,
-                        on_message_callback=self.on_remote_message,
-                    )
-                except Exception as e:
-                    tornado.log.app_log.error(f"Failed to connect to remote WS: {e}")
-                    self.close()
-
     def on_message(self, message):
-        if getattr(self, 'is_proxy', False):
-            if hasattr(self, 'remote_ws') and self.remote_ws:
-                self.remote_ws.write_message(message)
-            return
-
         try:
             message_data = json.loads(message)
             if message_data.get('command'):
@@ -118,23 +85,11 @@ class UnmanicWebsocketHandler(tornado.websocket.WebSocketHandler):
         tornado.log.app_log.warning('WS Closed', exc_info=True)
         self.close_event.set()
 
-        if getattr(self, 'is_proxy', False):
-            if hasattr(self, 'remote_ws') and self.remote_ws:
-                self.remote_ws.close()
-            return
-
         self.stop_frontend_messages()
         self.stop_workers_info()
         self.stop_pending_tasks_info()
         self.stop_completed_tasks_info()
         self.stop_system_logs()
-
-    def on_remote_message(self, message):
-        if message is None:
-            # Remote closed
-            self.close()
-            return
-        self.write_message(message)
 
     def default_failure_response(self, params=None):
         """

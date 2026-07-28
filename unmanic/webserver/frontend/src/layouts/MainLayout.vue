@@ -52,10 +52,6 @@
           </q-avatar>
         </q-toolbar-title>
 
-        <div class="gt-xs">
-          <SharedLinkDropdown/>
-        </div>
-
         <q-space/>
 
         <div class="gt-xs">
@@ -140,7 +136,6 @@ import { useQuasar } from "quasar";
 import DrawerDataPanelsNav from "components/drawers/DrawerDataPanelsNav";
 import ThemeSwitch from "components/ThemeSwitch";
 import DrawerNotifications from "components/drawers/DrawerNotifications";
-import SharedLinkDropdown from "components/SharedLinkDropdown";
 import unmanicGlobals from "src/js/unmanicGlobals";
 
 export default {
@@ -149,8 +144,7 @@ export default {
     DrawerMainNav,
     DrawerNotifications,
     DrawerSettingsNav,
-    ThemeSwitch,
-    SharedLinkDropdown
+    ThemeSwitch
   },
   setup() {
     const $q = useQuasar();

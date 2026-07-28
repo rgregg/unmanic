@@ -12,7 +12,6 @@
     "library": "Whare Pukapuka",
     "workers": "Kaimahi",
     "plugins": "monomai",
-    "link": "Hononga",
     "helpAndSupport": "Āwhina & Tautoko",
     "info": "Nga korero",
     "show": "Whakaatu",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "I rahua te tiki i te rarangi monomai paewhiri raraunga kua whakahohea",
     "allowPopups": "Whakaaetia nga pahū-ake mo tenei paetukutuku.",
     "invalidWorkerEvent": "Kāore e taea te tāpiri takahanga kaimahi muhu.",
-    "remoteInstallationAlreadyInList": "Ko te wahitau i whakauruhia e koe kei te rarangi o nga whakaurunga mamao.",
-    "invalidRemoteInstallationAddress": "Ko te wahitau i whakauruhia e koe ehara i te whakaurunga Trawlarr tika.",
-    "incompatibleRemoteInstallation": "Ko te whakaurunga mamao Trawlarr e ngana ana koe ki te taapiri kaore i te hototahi ki te hono. Ngana ki te whakahou i te tuatahi.",
     "cannotRemoveDefaultLibrary": "Kaore e taea te tango i te Puna taunoa",
     "rescanLibraryError": "I puta he hapa i te wa e tono ana mo te tirotiro ano i te whare pukapuka",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Kua whakamutua e Trawlarr nga kaimahi katoa na te mea kua kitea he huringa ki te whirihoranga mono. Kia reri koe, whakaara ano i nga kaimahi mai i te papatohu.",
       "libraryScanProgress": "E rere ana te karapa whare pukapuka",
       "pendingTaskHaltedPostProcessorQueueFull": "I tae te rarangi Pou-tukatuka ki tona rohe",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Karekau nga kaimahi e whiwhi mahi hou e tatari ana kia taka ra ano te rarangi Pou-tukatuka ki raro i te tatau kaimahi kua whirihorahia inaianei",
-      "receivingRemoteFile": "Te whiwhi kōnae mamao",
-      "linkedInstallationLimits": "Kua whakamutua e Trawlarr nga mahi mahi na te mea kua honoa e koe te maha o nga whakaurunga mamao mo te taumata kore-tautoko. Whakaarohia te tautoko i te kaupapa ki te hono neke atu i te kotahi te whakaurunga mamao."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Karekau nga kaimahi e whiwhi mahi hou e tatari ana kia taka ra ano te rarangi Pou-tukatuka ki raro i te tatau kaimahi kua whirihorahia inaianei"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Rahunga Mahi"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Kua oti nga Taipitopito Mahi",
     "supportFutureDevelopment": "Tautoko i te whanaketanga a meake nei",
     "confirm": "Whakaū",
-    "configureRemoteInstallationLink": "Whirihorahia te hono whakaurunga mamao",
     "configureLibrary": "Whirihorahia te whare pukapuka",
     "configureWorkerGroup": "Whirihorahia te roopu kaimahi",
     "selectPlugin": "Tīpakohia he mono",
@@ -164,9 +157,6 @@
         "clearPendingTasksOnStart": "Ūkuia ngā mahi tārewa katoa i te tīmatanga",
         "fileTesting": "Whakamatau kōnae",
         "concurrentFileTesters": "Kaiwhakamātau kōnae kotahi",
-        "enableReceiveRemoteFilesOnly": "Whirihorahia te Puna mo te whiwhi i nga konae mamao anake",
-        "pathDisabledReceiveRemoteFilesOnly": "Kua monoa te whiringa i te mea kua whirihorahia e koe tenei puna mo te tango i nga konae mamao anake",
-        "libraryRemoteOnlyStatus": "Mamao anake",
         "enableScanner": "Whakahohehia te matawai whare pukapuka mo tenei whare pukapuka",
         "enableInotify": "Whakahohe te aroturuki kōnae mo tenei puna",
         "libraryFileMonitorStatusLabel": "Aroturuki kōnae",
@@ -213,36 +203,6 @@
           "pause": "Tatari nga kaimahi katoa",
           "resume": "Whakahokia nga kaimahi katoa"
         }
-      },
-      "link": {
-        "thisInstallation": "rohe",
-        "nameThisInstall": "Whakaingoatia tenei whakaurunga",
-        "remoteInstallations": "Nga whakaurunga mamao",
-        "name": "Ingoa",
-        "version": "Putanga",
-        "addRemoteInstallation": "Tāpiri tāutanga mamao",
-        "address": "Wāhitau",
-        "authentication": "Motuhēhēnga",
-        "username": "Ingoa Kaiwhakamahi",
-        "password": "Kupuhipa",
-        "add": "Tāpiri",
-        "connection": "Hononga",
-        "remoteTaskProcessing": "Tukatuka Mahi Mamao",
-        "allowReceivingTasks": "Whiwhi mahi mai i tenei whakaurunga ina e waatea ana nga kaimahi",
-        "linkReceivingTasksStatusLabel": "Te whiwhi mahi",
-        "allowSendingTasks": "Tukua nga mahi ki tenei whakaurunga ina e waatea ana nga kaimahi",
-        "linkSendingTasksStatusLabel": "Te tuku mahi",
-        "enableTaskPreloading": "Uta mua i etahi mahi i runga i te whakaurunga mamao e tatari ana i nga mahi e tatari ana",
-        "preloadingCount": "Kua utaina te tatau mahi e tatari ana",
-        "linkPreloadRemoteTasksStatusLabel": "Uta mua i nga mahi mamao",
-        "enableConfigMissingLibraries": "Whirihora aunoa i nga whare pukapuka ngaro i runga i te whakaurunga mamao",
-        "linkConfigRemoteLibrariesStatusLabel": "Whirihorahia nga whare pukapuka e ngaro ana",
-        "enableChecksumValidation": "Whakamana i nga whakawhitinga kōnae me nga arowhai (puturi)",
-        "linkConfigChecksumValidationStatusLabel": "Whakamanahia me nga arowhai",
-        "collectiveManagement": "Whakahaere Huihuinga",
-        "enableDistributedWorkerCount": "Whakahohehia te tatau kaimahi toha mo tenei hono",
-        "linkDistributedWorkersStatusLabel": "Nga kaimahi kua tohatohahia",
-        "workerTarget": "Te whainga kaimahi"
       },
       "support": {
         "logs": "Rangitaki",

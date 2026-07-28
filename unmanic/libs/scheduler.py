@@ -31,16 +31,12 @@
            OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-import random
 import threading
-import time
 from datetime import datetime, timedelta
 
 import schedule
 
 from unmanic import config
-from unmanic.libs import task
-from unmanic.libs.installation_link import Links
 from unmanic.libs.logs import UnmanicLogging
 from unmanic.libs.plugins import PluginsHandler
 from unmanic.libs.session import Session
@@ -58,7 +54,6 @@ class ScheduledTasksManager(threading.Thread):
         self.abort_flag = threading.Event()
         self.abort_flag.clear()
         self.scheduler = schedule.Scheduler()
-        self.force_local_worker_timer = 0
 
     def stop(self):
         self.abort_flag.set()
@@ -72,10 +67,6 @@ class ScheduledTasksManager(threading.Thread):
         # is a local-only no-op stub, so a recurring schedule has no value.
         # Run the plugin repo update every 3 hours
         self.scheduler.every(3).hours.do(self.plugin_repo_update)
-        # Run the remote installation link update every 10 seconds
-        self.scheduler.every(10).seconds.do(self.update_remote_installation_links)
-        # Run the remote installation distributed worker counter sync every minute
-        self.scheduler.every(1).minutes.do(self.set_worker_count_based_on_remote_installation_links)
         # Run a completed task cleanup every 60 minutes and on startup
         self.scheduler.every(12).hours.do(self.manage_completed_tasks)
         self.manage_completed_tasks()
@@ -99,71 +90,6 @@ class ScheduledTasksManager(threading.Thread):
         self.logger.info("Checking for updates to plugin repos")
         plugin_handler = PluginsHandler()
         plugin_handler.update_plugin_repos()
-
-    def update_remote_installation_links(self):
-        # Don't log this as it will happen often
-        links = Links()
-        links.update_all_remote_installation_links()
-
-    def set_worker_count_based_on_remote_installation_links(self):
-        settings = config.Config()
-
-        # Get local task count as int
-        task_handler = task.Task()
-        local_task_count = int(task_handler.get_total_task_list_count())
-
-        # Get target count
-        target_count = int(settings.get_distributed_worker_count_target())
-        # # TODO: Check if we should be aiming for one less than the target
-        # if target_count > 1:
-        #     target_count -= 1
-
-        linked_configs = []
-        for local_config in settings.get_remote_installations():
-            if local_config.get('enable_distributed_worker_count'):
-                linked_configs.append(local_config)
-
-        # If no remote links are configured, then return here
-        if not linked_configs:
-            return
-
-        # There is a link config with distributed worker counts enabled
-        self.logger.info("Syncing distributed worker count for this installation")
-
-        # Get total tasks count of pending tasks across all linked_configs
-        total_tasks = local_task_count
-        for linked_config in linked_configs:
-            total_tasks += int(linked_config.get('task_count', 0))
-
-        # From the counts fetched from all linked_configs, balance out the target count (including this installation)
-        allocated_worker_count = 0
-        for linked_config in linked_configs:
-            if linked_config.get('task_count', 0) == 0:
-                continue
-            allocated_worker_count += round((int(linked_config.get('task_count', 0)) / total_tasks) * target_count)
-
-        # Calculate worker count for local
-        target_workers_for_this_installation = 0
-        if local_task_count > 0:
-            target_workers_for_this_installation = round((local_task_count / total_tasks) * target_count)
-
-        # If the total allocated worker count is now above our target, set this installation back to 0
-        if allocated_worker_count > target_count:
-            target_workers_for_this_installation = 0
-
-        # Every 10-12 minutes (make it random), give this installation at least 1 worker if it has pending tasks.
-        #       This should cause the pending task queue to sit idle if there is only one task in the queue and it will provide
-        #           rotation of workers when the pending task queue is close to the same.
-        #       EG. If time now (seconds) > time last checked (seconds) + 10mins (600 seconds) + random seconds within 2mins
-        time_now = time.time()
-        time_to_next_force_local_worker = int(self.force_local_worker_timer + 600 + random.randrange(120))
-        if time_now > time_to_next_force_local_worker:
-            if (local_task_count > 1) and (target_workers_for_this_installation < 1):
-                target_workers_for_this_installation = 1
-                self.force_local_worker_timer = time_now
-
-        self.logger.info("Configuring worker count as %s for this installation", target_workers_for_this_installation)
-        settings.set_config_item('number_of_workers', target_workers_for_this_installation, save_settings=True)
 
     def manage_completed_tasks(self):
         settings = config.Config()

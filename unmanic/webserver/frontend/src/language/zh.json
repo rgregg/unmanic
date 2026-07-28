@@ -12,7 +12,6 @@
     "library": "图书馆",
     "workers": "工人",
     "plugins": "插件",
-    "link": "关联",
     "helpAndSupport": "帮助支持",
     "info": "信息",
     "show": "展示",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "无法获取启用的数据面板插件列表",
     "allowPopups": "请允许该网站弹出窗口。",
     "invalidWorkerEvent": "无法添加无效的工作器事件。",
-    "remoteInstallationAlreadyInList": "您输入的地址已在远程安装列表中。",
-    "invalidRemoteInstallationAddress": "您输入的地址不是有效的 Trawlarr 安装地址。",
-    "incompatibleRemoteInstallation": "您尝试添加的远程 Trawlarr 安装与链接不兼容。先尝试更新一下。",
     "cannotRemoveDefaultLibrary": "无法删除默认库",
     "rescanLibraryError": "请求重新扫描库时遇到错误",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr 已停止所有工作程序，因为它检测到插件配置发生更改。准备好后，从仪表板恢复工作人员。",
       "libraryScanProgress": "库扫描正在运行",
       "pendingTaskHaltedPostProcessorQueueFull": "后处理器队列达到极限",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "在后处理器队列降至当前配置的工作人员数量以下之前，工作人员不会收到新的待处理任务",
-      "receivingRemoteFile": "接收远程文件",
-      "linkedInstallationLimits": "Trawlarr 已停止处理任务，因为您为非支持者层链接了太多远程安装。考虑赞助该项目以链接多个远程安装。"
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "在后处理器队列降至当前配置的工作人员数量以下之前，工作人员不会收到新的待处理任务"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "任务失败"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "已完成的任务详细信息",
     "supportFutureDevelopment": "支持未来发展",
     "confirm": "确认",
-    "configureRemoteInstallationLink": "配置远程安装链接",
     "configureLibrary": "配置库",
     "configureWorkerGroup": "配置工作组",
     "selectPlugin": "选择一个插件",
@@ -164,9 +157,6 @@
         "clearPendingTasksOnStart": "启动时清除所有待处理任务",
         "fileTesting": "文件测试",
         "concurrentFileTesters": "并发文件测试器",
-        "enableReceiveRemoteFilesOnly": "配置库仅接收远程文件",
-        "pathDisabledReceiveRemoteFilesOnly": "选项已禁用，因为您已将此库配置为仅接收远程文件",
-        "libraryRemoteOnlyStatus": "仅远程",
         "enableScanner": "为此库启用库扫描器",
         "enableInotify": "为此库启用文件监视器",
         "libraryFileMonitorStatusLabel": "文件监控",
@@ -213,36 +203,6 @@
           "pause": "暂停所有工人",
           "resume": "恢复所有工人"
         }
-      },
-      "link": {
-        "thisInstallation": "当地的",
-        "nameThisInstall": "命名此安装",
-        "remoteInstallations": "远程安装",
-        "name": "姓名",
-        "version": "版本",
-        "addRemoteInstallation": "添加远程安装",
-        "address": "地址",
-        "authentication": "验证",
-        "username": "用户名",
-        "password": "密码",
-        "add": "添加",
-        "connection": "联系",
-        "remoteTaskProcessing": "远程任务处理",
-        "allowReceivingTasks": "当工作人员有空时从该安装接收任务",
-        "linkReceivingTasksStatusLabel": "接收任务",
-        "allowSendingTasks": "当工作人员有空时将任务发送到此安装",
-        "linkSendingTasksStatusLabel": "发送任务",
-        "enableTaskPreloading": "在远程安装挂起任务队列中预加载一些任务",
-        "preloadingCount": "预加载的待处理任务计数",
-        "linkPreloadRemoteTasksStatusLabel": "预加载远程任务",
-        "enableConfigMissingLibraries": "自动配置远程安装上缺少的库",
-        "linkConfigRemoteLibrariesStatusLabel": "配置缺失的库",
-        "enableChecksumValidation": "使用校验和验证文件传输（慢）",
-        "linkConfigChecksumValidationStatusLabel": "使用校验和进行验证",
-        "collectiveManagement": "集体管理",
-        "enableDistributedWorkerCount": "为此链接启用分布式工作人员计数",
-        "linkDistributedWorkersStatusLabel": "分布式工人",
-        "workerTarget": "工人目标"
       },
       "support": {
         "logs": "日志",

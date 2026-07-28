@@ -12,7 +12,6 @@
     "library": "Bibliothèque",
     "workers": "Ouvriers",
     "plugins": "Plugins",
-    "link": "Lien",
     "helpAndSupport": "Support d'aide",
     "info": "Info",
     "show": "Montrer",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Échec de la récupération de la liste des plugins du panneau de données activés",
     "allowPopups": "Veuillez autoriser les popups pour ce site Web.",
     "invalidWorkerEvent": "Impossible d'ajouter un événement de travail non valide.",
-    "remoteInstallationAlreadyInList": "L'adresse que vous avez saisie figure déjà dans la liste des installations distantes.",
-    "invalidRemoteInstallationAddress": "L'adresse que vous avez saisie n'était pas une installation Trawlarr valide.",
-    "incompatibleRemoteInstallation": "L'installation distante d'Trawlarr que vous essayez d'ajouter n'est pas compatible avec la liaison. Essayez d'abord de le mettre à jour.",
     "cannotRemoveDefaultLibrary": "Impossible de supprimer la bibliothèque par défaut",
     "rescanLibraryError": "Une erreur s'est produite lors de la demande d'une nouvelle analyse de la bibliothèque",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr a arrêté tous les travailleurs car il a détecté une modification dans la configuration des plugins. Lorsque vous êtes prêt, reprenez les travailleurs depuis le tableau de bord.",
       "libraryScanProgress": "Analyse de la bibliothèque en cours",
       "pendingTaskHaltedPostProcessorQueueFull": "La file d'attente du post-processeur a atteint sa limite",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Les travailleurs ne recevront pas de nouvelle tâche en attente jusqu'à ce que la file d'attente du post-processeur tombe en dessous du nombre de travailleurs configuré actuellement.",
-      "receivingRemoteFile": "Réception de fichier distant",
-      "linkedInstallationLimits": "Trawlarr a arrêté de traiter les tâches car vous avez lié trop d'installations distantes pour un niveau non supporteur. Envisagez de parrainer le projet pour relier plusieurs installations distantes."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Les travailleurs ne recevront pas de nouvelle tâche en attente jusqu'à ce que la file d'attente du post-processeur tombe en dessous du nombre de travailleurs configuré actuellement."
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Échec de la tâche"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Détails de la tâche terminée",
     "supportFutureDevelopment": "Soutenir le développement futur",
     "confirm": "Confirmer",
-    "configureRemoteInstallationLink": "Configurer le lien d'installation à distance",
     "configureLibrary": "Configurer la bibliothèque",
     "configureWorkerGroup": "Configurer le groupe de travailleurs",
     "selectPlugin": "Sélectionnez un plugin",
@@ -164,9 +157,6 @@
         "clearPendingTasksOnStart": "Effacer toutes les tâches en attente au démarrage",
         "fileTesting": "Test de fichiers",
         "concurrentFileTesters": "Testeurs de fichiers simultanés",
-        "enableReceiveRemoteFilesOnly": "Configurer la bibliothèque pour recevoir uniquement des fichiers distants",
-        "pathDisabledReceiveRemoteFilesOnly": "Option désactivée car vous avez configuré cette bibliothèque pour recevoir uniquement des fichiers distants",
-        "libraryRemoteOnlyStatus": "À distance uniquement",
         "enableScanner": "Activer l'analyseur de bibliothèque pour cette bibliothèque",
         "enableInotify": "Activer le moniteur de fichiers pour cette bibliothèque",
         "libraryFileMonitorStatusLabel": "Moniteur de fichiers",
@@ -213,36 +203,6 @@
           "pause": "Suspendre tous les travailleurs",
           "resume": "Reprendre tous les travailleurs"
         }
-      },
-      "link": {
-        "thisInstallation": "Locale",
-        "nameThisInstall": "Nommer cette installation",
-        "remoteInstallations": "Installations à distance",
-        "name": "Nom",
-        "version": "Version",
-        "addRemoteInstallation": "Ajouter une installation à distance",
-        "address": "Adresse",
-        "authentication": "Authentification",
-        "username": "Nom d'utilisateur",
-        "password": "Mot de passe",
-        "add": "Ajouter",
-        "connection": "Connexion",
-        "remoteTaskProcessing": "Traitement des tâches à distance",
-        "allowReceivingTasks": "Recevoir des tâches de cette installation lorsque des travailleurs sont disponibles",
-        "linkReceivingTasksStatusLabel": "Réception de tâches",
-        "allowSendingTasks": "Envoyer des tâches à cette installation lorsque des travailleurs sont disponibles",
-        "linkSendingTasksStatusLabel": "Envoi de tâches",
-        "enableTaskPreloading": "Précharger certaines tâches dans la file d'attente des tâches en attente de l'installation à distance",
-        "preloadingCount": "Nombre de tâches en attente préchargées",
-        "linkPreloadRemoteTasksStatusLabel": "Précharger les tâches à distance",
-        "enableConfigMissingLibraries": "Configurer automatiquement les bibliothèques manquantes sur l'installation à distance",
-        "linkConfigRemoteLibrariesStatusLabel": "Configurer les bibliothèques manquantes",
-        "enableChecksumValidation": "Valider les transferts de fichiers avec des sommes de contrôle (lent)",
-        "linkConfigChecksumValidationStatusLabel": "Valider avec des sommes de contrôle",
-        "collectiveManagement": "Gestion collective",
-        "enableDistributedWorkerCount": "Activer le nombre de nœuds de calcul distribués pour ce lien",
-        "linkDistributedWorkersStatusLabel": "Travailleurs distribués",
-        "workerTarget": "Cible des travailleurs"
       },
       "support": {
         "logs": "Journaux",

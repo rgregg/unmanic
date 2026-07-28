@@ -12,7 +12,6 @@
     "library": "図書館",
     "workers": "労働者",
     "plugins": "プラグイン",
-    "link": "リンク",
     "helpAndSupport": "ヘルプサポート",
     "info": "情報",
     "show": "見せる",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "有効なデータ パネル プラグイン リストの取得に失敗しました",
     "allowPopups": "この Web サイトのポップアップを許可してください。",
     "invalidWorkerEvent": "無効なワーカー イベントを追加できません。",
-    "remoteInstallationAlreadyInList": "入力したアドレスはすでにリモート インストールのリストに含まれています。",
-    "invalidRemoteInstallationAddress": "入力したアドレスは有効な Trawlarr インストールではありませんでした。",
-    "incompatibleRemoteInstallation": "追加しようとしているリモート Trawlarr インストールは、リンクと互換性がありません。まずはアップデートしてみてください。",
     "cannotRemoveDefaultLibrary": "デフォルトのライブラリを削除できません",
     "rescanLibraryError": "ライブラリの再スキャンを要求中にエラーが発生しました",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr はプラグイン設定の変更を検出したため、すべてのワーカーを停止しました。準備ができたら、ダッシュボードからワーカーを再開します。",
       "libraryScanProgress": "ライブラリスキャン実行中",
       "pendingTaskHaltedPostProcessorQueueFull": "ポストプロセッサキューが限界に達しました",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "ポストプロセッサキューが現在設定されているワーカー数を下回るまで、ワーカーは新しい保留中のタスクを受け取りません。",
-      "receivingRemoteFile": "リモートファイルを受信中",
-      "linkedInstallationLimits": "非サポート層にリンクされているリモート インストールが多すぎるため、Trawlarr はタスクの処理を停止しました。複数のリモート インストールをリンクするプロジェクトのスポンサーになることを検討してください。"
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "ポストプロセッサキューが現在設定されているワーカー数を下回るまで、ワーカーは新しい保留中のタスクを受け取りません。"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "タスクの失敗"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "完了したタスクの詳細",
     "supportFutureDevelopment": "今後の開発をサポート",
     "confirm": "確認する",
-    "configureRemoteInstallationLink": "リモート インストール リンクの構成",
     "configureLibrary": "ライブラリの構成",
     "configureWorkerGroup": "ワーカーグループの構成",
     "selectPlugin": "プラグインを選択してください",
@@ -164,9 +157,6 @@
         "clearPendingTasksOnStart": "起動時に保留中のタスクをすべてクリアする",
         "fileTesting": "ファイルのテスト",
         "concurrentFileTesters": "同時ファイルテスター",
-        "enableReceiveRemoteFilesOnly": "リモート ファイルのみを受信するようにライブラリを構成する",
-        "pathDisabledReceiveRemoteFilesOnly": "このライブラリはリモート ファイルのみを受信するように構成されているため、オプションは無効になっています",
-        "libraryRemoteOnlyStatus": "リモートのみ",
         "enableScanner": "このライブラリに対してライブラリ スキャナを有効にする",
         "enableInotify": "このライブラリのファイル モニターを有効にする",
         "libraryFileMonitorStatusLabel": "ファイルモニター",
@@ -213,36 +203,6 @@
           "pause": "すべてのワーカーを一時停止する",
           "resume": "すべてのワーカーを再開する"
         }
-      },
-      "link": {
-        "thisInstallation": "地元",
-        "nameThisInstall": "このインストールに名前を付けます",
-        "remoteInstallations": "リモートインストール",
-        "name": "名前",
-        "version": "バージョン",
-        "addRemoteInstallation": "リモートインストールを追加する",
-        "address": "住所",
-        "authentication": "認証",
-        "username": "ユーザー名",
-        "password": "パスワード",
-        "add": "追加",
-        "connection": "繋がり",
-        "remoteTaskProcessing": "リモートタスク処理",
-        "allowReceivingTasks": "作業者が対応可能なときにこのインストールからタスクを受信します",
-        "linkReceivingTasksStatusLabel": "タスクの受信",
-        "allowSendingTasks": "ワーカーが利用可能なときにタスクをこのインストールに送信します",
-        "linkSendingTasksStatusLabel": "タスクの送信",
-        "enableTaskPreloading": "リモート インストールの保留中のタスク キューにいくつかのタスクをプリロードします。",
-        "preloadingCount": "プリロードされた保留中のタスクの数",
-        "linkPreloadRemoteTasksStatusLabel": "リモートタスクをプリロードする",
-        "enableConfigMissingLibraries": "リモート インストールで不足しているライブラリを自動的に構成する",
-        "linkConfigRemoteLibrariesStatusLabel": "不足しているライブラリを構成する",
-        "enableChecksumValidation": "チェックサムを使用してファイル転送を検証します (遅い)",
-        "linkConfigChecksumValidationStatusLabel": "チェックサムで検証する",
-        "collectiveManagement": "一括管理",
-        "enableDistributedWorkerCount": "このリンクの分散ワーカー数を有効にする",
-        "linkDistributedWorkersStatusLabel": "分散労働者",
-        "workerTarget": "労働者対象"
       },
       "support": {
         "logs": "ログ",

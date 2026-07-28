@@ -44,9 +44,6 @@ The software reaches out to the network in only these situations:
  - **Plugin icons in the web interface.** Plugin listings reference icon images
    hosted on GitHub, which your browser loads directly when you view the plugin
    pages.
- - **Linked installations.** If you configure links to other Trawlarr or Unmanic
-   installations, this instance communicates with the addresses you supplied.
-   These are your machines, typically on your own network.
  - **Remote log forwarding — off unless you turn it on.** Trawlarr can forward
    its logs to a log sink you operate. This is disabled by default and only
    activates when you set the `UNMANIC_REMOTE_LOGGING_ENDPOINT` environment

@@ -149,16 +149,6 @@ class TestRegisterUnmanicPinsLevel:
         s.requests_session.post.assert_not_called()
 
 
-class TestSyncRemoteInstallationsStubbed:
-
-    def test_sync_returns_immediately_without_http(self):
-        s = _bare_session()
-        # Name-mangled because of double-underscore prefix.
-        result = s._Session__sync_remote_installation_addresses()
-        assert result is None
-        s.requests_session.get.assert_not_called()
-
-
 class TestLoginUrlsReturnEmpty:
     """Upstream returned URLs into api.unmanic.app's OAuth flows. Local
     fork: empty strings so the frontend renders the buttons as no-ops
