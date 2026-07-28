@@ -14,7 +14,7 @@ regressed below the floor.
 
 - [ ] New Python files carry an SPDX header, and any upstream file modified for
 the first time carries a modification notice — see the
-[Contributing Docs](CONTRIBUTING.md#license-headers).
+[Contributing Docs](../docs/CONTRIBUTING.md#license-headers).
 `devops/check_license_headers.sh` checks this.
 
 <!--
