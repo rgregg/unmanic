@@ -78,6 +78,18 @@ auditing what we've changed:
   manual-config-only and carried unfixed defects. See issue #52.
 - `unmanic/webserver/api_v2/plugins_api.py` — the community-forks endpoint
   short-circuits to an empty list.
+- **Central account/auth/funding endpoints retired (HTTP 410).** There is no
+  central account service, no remote authentication and no funding portal, so
+  the inherited routes answer `410 Gone` with
+  `{"error": "410: ...", "messages": {}, "retired": true}` and make no
+  outbound request. 410 rather than 404 (which reads as a wrong URL), a 200
+  with empty data (which reads as a half-working feature), or the 500s some of
+  them used to produce. Retired: v2 `GET /session/logout`,
+  `GET /session/get_app_auth_code`, `GET /session/funding_proposals`; all of
+  v1 `/api/v1/session/*` (`unmanic-sign-out-url`, `unmanic-patreon-login-url`,
+  `unmanic-github-login-url`, `unmanic-discord-login-url`,
+  `unmanic-patreon-page`). `GET /session/state` and `POST /session/reload`
+  describe the local installation and are unaffected. See issue #21.
 - `unmanic/webserver/frontend/` — footer bar, sign-in/sign-out UI,
   Unmanic Central nav entry, avatar/name/support button, and funding
   portal click handlers all stripped.

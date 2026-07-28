@@ -69,6 +69,7 @@ class BaseApiHandler(RequestHandler):
     STATUS_ERROR_EXTERNAL = 400
     STATUS_ERROR_ENDPOINT_NOT_FOUND = 404
     STATUS_ERROR_METHOD_NOT_ALLOWED = 405
+    STATUS_ERROR_GONE = 410
     STATUS_ERROR_INTERNAL = 500
 
     def set_default_headers(self):
@@ -137,6 +138,32 @@ class BaseApiHandler(RequestHandler):
         if response is None:
             response = {'success': True}
         self.set_status(self.STATUS_SUCCESS)
+        self.finish(response)
+
+    def write_retired(self, message):
+        """
+        Write data out as HTTP code 410 Gone.
+        Finishes this response, ending the HTTP request.
+
+        Used for endpoints that Trawlarr has permanently retired because the
+        service behind them (the upstream central account, authentication and
+        funding APIs) is not part of this fork. 410 is chosen over 404 so that
+        clients can tell "this endpoint is gone for good" apart from "you got
+        the URL wrong", and over 200-with-empty-data so that no caller is
+        tricked into rendering a half-working feature.
+
+        The response body carries the standard error envelope plus a
+        machine-readable ``retired`` flag.
+
+        :param message: Human readable explanation of why the endpoint is gone
+        :return:
+        """
+        self.set_status(self.STATUS_ERROR_GONE, reason=message)
+        response = {
+            'error':    "%(code)d: %(message)s" % {"code": self.STATUS_ERROR_GONE, "message": message},
+            'messages': {},
+            'retired':  True,
+        }
         self.finish(response)
 
     def write_error(self, status_code=None, **kwargs: Any) -> None:

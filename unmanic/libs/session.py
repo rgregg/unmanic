@@ -363,7 +363,11 @@ class Session(object, metaclass=SingletonType):
         """
         self.logger.debug("Resetting session installation data.")
         previous_level = self.level
-        self.level = 0
+        # Local fork: the level is not granted by a remote account, it is
+        # pinned locally by register_unmanic. Dropping it to 0 here would lock
+        # the user out of their own features until the next registration, so
+        # clearing the (unused) account identity leaves the pinned level be.
+        self.level = LOCAL_SESSION_LEVEL
         self.picture_uri = ""
         self.name = ""
         self.email = ""
@@ -550,8 +554,12 @@ class Session(object, metaclass=SingletonType):
     def sign_out(self, remote=True):
         """
         Remove any user auth. Local fork: never calls the remote logout
-        endpoint; the local DB row is wiped and register_unmanic will
-        re-pin the level on the next call.
+        endpoint; the stored account identity and tokens are cleared while the
+        locally pinned supporter level is left intact.
+
+        No longer reachable over the API - /session/logout is retired (410).
+        Retained because it is the only way to clear inherited account data
+        from an installation row migrated in from upstream.
         """
         self.__reset_session_installation_data()
         return True

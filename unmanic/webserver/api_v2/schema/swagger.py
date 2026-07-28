@@ -65,13 +65,25 @@ def find_all_handlers():
     return return_list
 
 
-def generate_swagger_file():
-    """Automatically generates Swagger spec file based on RequestHandler
-    docstrings and saves it to the specified file_location.
+def get_swagger_file_location():
+    """
+    Return the path (without extension) of the checked-in API contract files.
+
+    :return:
+    """
+    return os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'api_schema_v{}'.format(API_VERSION))
+
+
+def build_swagger_spec():
+    """Build the APISpec object from the RequestHandler docstrings.
+
+    Split out from generate_swagger_file so the contract can be built in
+    memory - the drift test compares this against the checked-in files
+    without writing over them.
+
+    :return: tuple of (spec, errors)
     """
     errors = []
-
-    file_location = os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'api_schema_v{}'.format(API_VERSION))
 
     # Starting to generate Swagger spec file. All the relevant
     # information can be found from here https://apispec.readthedocs.io/
@@ -97,6 +109,17 @@ def generate_swagger_file():
         except APISpecError as e:
             errors.append("API Docs - Failed to append spec path - {}".format(str(e)))
             pass
+
+    return spec, errors
+
+
+def generate_swagger_file():
+    """Automatically generates Swagger spec file based on RequestHandler
+    docstrings and saves it to the specified file_location.
+    """
+    file_location = get_swagger_file_location()
+
+    spec, errors = build_swagger_spec()
 
     # Write the Swagger file into specified location.
     with open('{}.json'.format(file_location), "w", encoding="utf-8") as file:
