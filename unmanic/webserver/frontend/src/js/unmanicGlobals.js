@@ -56,9 +56,6 @@ export default {
   getUnmanicSession(options = {}) {
     return new Promise((resolve, reject) => {
       let cacheKey = 'session';
-      if (options.skipProxy) {
-        cacheKey = 'localSession';
-      }
 
       if (typeof $unmanic[cacheKey] === 'undefined') {
         axios({

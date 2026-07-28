@@ -25,7 +25,6 @@ cd "${project_root}"
 # any kind. Grandfathered deliberately — do not add fork-authored files here.
 GRANDFATHERED=(
     "unmanic/migrations_v1/001_rename_ffmpeg_log_to_log.py"
-    "unmanic/webserver/proxy.py"
 )
 
 is_grandfathered() {

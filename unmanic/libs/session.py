@@ -94,11 +94,6 @@ class Session(object, metaclass=SingletonType):
     library_count = 2
 
     """
-    non supporter linked installations count
-    """
-    link_count = 3
-
-    """
     picture_uri - The user avatar
     """
     picture_uri = ""
@@ -359,13 +354,6 @@ class Session(object, metaclass=SingletonType):
                 UnmanicLogging.enable_remote_logging(endpoint, self.uuid, log_buffer_retention)
                 return
         UnmanicLogging.disable_remote_logging(log_buffer_retention)
-
-    def __sync_remote_installation_addresses(self):
-        """
-        Local fork: no phone-home. Linked installation addresses are managed
-        locally only.
-        """
-        return
 
     def __reset_session_installation_data(self):
         """

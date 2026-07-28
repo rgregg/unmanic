@@ -12,7 +12,6 @@
     "library": "Biblioteca",
     "workers": "Trabajadores",
     "plugins": "Complementos",
-    "link": "Enlace",
     "helpAndSupport": "Servicio de asistencia",
     "info": "Información",
     "show": "Espectáculo",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "No se pudo recuperar la lista de complementos del panel de datos habilitados",
     "allowPopups": "Permita ventanas emergentes para este sitio web.",
     "invalidWorkerEvent": "No se puede agregar un evento de trabajador no válido.",
-    "remoteInstallationAlreadyInList": "La dirección que ingresó ya está en la lista de instalaciones remotas.",
-    "invalidRemoteInstallationAddress": "La dirección que ingresó no era una instalación Trawlarr válida.",
-    "incompatibleRemoteInstallation": "La instalación remota de Trawlarr que está intentando agregar no es compatible con la vinculación. Intente actualizarlo primero.",
     "cannotRemoveDefaultLibrary": "No se puede eliminar la biblioteca predeterminada",
     "rescanLibraryError": "Se encontró un error al solicitar una nueva exploración de la biblioteca",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr detuvo a todos los trabajadores porque detectó un cambio en la configuración de los complementos. Cuando esté listo, reanude a los trabajadores desde el panel.",
       "libraryScanProgress": "Exploración de biblioteca en ejecución",
       "pendingTaskHaltedPostProcessorQueueFull": "La cola de posprocesador alcanzó su límite",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Los trabajadores no recibirán una nueva tarea pendiente hasta que la cola del posprocesador caiga por debajo del recuento de trabajadores configurado actualmente.",
-      "receivingRemoteFile": "Recibir archivo remoto",
-      "linkedInstallationLimits": "Trawlarr dejó de procesar tareas porque vinculó demasiadas instalaciones remotas para un nivel que no es de soporte. Considere patrocinar el proyecto para vincular más de una instalación remota."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Los trabajadores no recibirán una nueva tarea pendiente hasta que la cola del posprocesador caiga por debajo del recuento de trabajadores configurado actualmente."
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Fallo de tarea"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Detalles de la tarea completada",
     "supportFutureDevelopment": "Apoyar el desarrollo futuro",
     "confirm": "Confirmar",
-    "configureRemoteInstallationLink": "Configurar enlace de instalación remota",
     "configureLibrary": "Configurar biblioteca",
     "configureWorkerGroup": "Configurar grupo de trabajadores",
     "selectPlugin": "Seleccione un complemento",
@@ -213,36 +206,6 @@
           "pause": "Pausar a todos los trabajadores",
           "resume": "Reanudar a todos los trabajadores"
         }
-      },
-      "link": {
-        "thisInstallation": "Local",
-        "nameThisInstall": "Nombra esta instalación",
-        "remoteInstallations": "Instalaciones remotas",
-        "name": "Nombre",
-        "version": "Versión",
-        "addRemoteInstallation": "Agregar instalación remota",
-        "address": "DIRECCIÓN",
-        "authentication": "Autenticación",
-        "username": "Nombre de usuario",
-        "password": "Contraseña",
-        "add": "Agregar",
-        "connection": "Conexión",
-        "remoteTaskProcessing": "Procesamiento remoto de tareas",
-        "allowReceivingTasks": "Recibir tareas de esta instalación cuando haya trabajadores disponibles",
-        "linkReceivingTasksStatusLabel": "Recepción de tareas",
-        "allowSendingTasks": "Enviar tareas a esta instalación cuando haya trabajadores disponibles",
-        "linkSendingTasksStatusLabel": "Enviando tareas",
-        "enableTaskPreloading": "Precargue algunas tareas en la cola de Tareas pendientes de instalación remota",
-        "preloadingCount": "Recuento de tareas pendientes precargadas",
-        "linkPreloadRemoteTasksStatusLabel": "Precargar tareas remotas",
-        "enableConfigMissingLibraries": "Configurar automáticamente las bibliotecas que faltan en la instalación remota",
-        "linkConfigRemoteLibrariesStatusLabel": "Configurar bibliotecas faltantes",
-        "enableChecksumValidation": "Validar transferencias de archivos con sumas de verificación (lento)",
-        "linkConfigChecksumValidationStatusLabel": "Validar con sumas de verificación",
-        "collectiveManagement": "Gestión Colectiva",
-        "enableDistributedWorkerCount": "Habilitar el recuento de trabajadores distribuidos para este enlace",
-        "linkDistributedWorkersStatusLabel": "Trabajadores distribuidos",
-        "workerTarget": "Objetivo del trabajador"
       },
       "support": {
         "logs": "Registros",

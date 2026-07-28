@@ -45,24 +45,6 @@ class TestLibraryCountLimits:
         sess.assert_not_called()
 
 
-class TestLinkedInstallationLimits:
-
-    def test_within_enabled_link_limits_always_returns_true(self):
-        # Upstream gated this on `s.level > 1` and capped at 3 linked
-        # installations via Session.link_count.
-        from unmanic.libs.installation_link import Links
-        # Bypass Links.__init__ — it expects config + DB state.
-        links = Links.__new__(Links)
-        assert links.within_enabled_link_limits() is True
-
-    def test_within_enabled_link_limits_does_not_call_session(self):
-        from unmanic.libs.installation_link import Links
-        links = Links.__new__(Links)
-        with mock.patch("unmanic.libs.session.Session") as sess:
-            links.within_enabled_link_limits()
-        sess.assert_not_called()
-
-
 class TestPluginSettingsReqLevGateRemoved:
 
     def test_save_plugin_settings_no_longer_consults_req_lev(self):

@@ -29,7 +29,6 @@
            OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-import os
 from unmanic.libs import task
 from unmanic.libs import filetest
 from unmanic.libs.library import Library
@@ -229,26 +228,6 @@ def reorder_pending_tasks(pending_task_ids, direction="top"):
     # Fetch tasks
     task_handler = task.Task()
     return task_handler.reorder_tasks(pending_task_ids, direction)
-
-
-def add_remote_tasks(pathname):
-    """
-    Adds an upload file path to the pending task list as a 'remote' task
-    Returns the task ID
-
-    :param pathname:
-    :return:
-    """
-    abspath = os.path.abspath(pathname)
-
-    # Create a new task
-    new_task = task.Task()
-
-    if not new_task.create_task_by_absolute_path(abspath, task_type='remote'):
-        # File was not created.
-        # Do not carry on.
-        return False
-    return new_task.get_task_data()
 
 
 def update_pending_tasks_status(pending_task_ids, status='pending'):

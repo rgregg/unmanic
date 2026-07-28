@@ -18,9 +18,9 @@
         v-bind:prevEnabled="true"
         v-bind:prevLabel="$t('navigation.workers')"
         v-bind:prevPath="'/ui/settings-workers'"
-        v-bind:nextEnabled="true"
-        v-bind:nextLabel="$t('navigation.link')"
-        v-bind:nextPath="'/ui/settings-link'"/>
+        v-bind:nextEnabled="false"
+        v-bind:nextLabel="'none'"
+        v-bind:nextPath="'/ui/settings-plugins'"/>
 
     </div>
   </q-page>

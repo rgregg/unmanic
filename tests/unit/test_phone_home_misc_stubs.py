@@ -42,8 +42,7 @@ class TestSchedulerHeartbeatRemoved:
 
     def test_run_does_not_schedule_register_unmanic(self):
         """The 60-min `register_unmanic` heartbeat is removed. The fork
-        ScheduledTasksManager.run() should set up plugin_repo_update,
-        update_remote_installation_links, set_worker_count..., and
+        ScheduledTasksManager.run() should set up plugin_repo_update and
         manage_completed_tasks — but no register_unmanic schedule."""
         m = ScheduledTasksManager.__new__(ScheduledTasksManager)
         m.logger = mock.Mock()
@@ -71,7 +70,6 @@ class TestSchedulerHeartbeatRemoved:
         # Sanity: at least one of the kept schedules is present.
         assert any("plugin_repo_update" in n
                    or "manage_completed_tasks" in n
-                   or "update_remote_installation_links" in n
                    for n in scheduled_names), (
             f"expected at least one of the kept schedules; got: {scheduled_names}")
 

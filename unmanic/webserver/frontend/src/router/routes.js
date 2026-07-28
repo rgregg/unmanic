@@ -76,17 +76,6 @@ const routes = [
       showSettingsDrawer: true,
     }
   },
-  {
-    path: '/ui/settings-link',
-    component: () => import('layouts/MainLayout.vue'),
-    children: [
-      { path: '', component: () => import('pages/SettingsLink.vue') }
-    ],
-    meta: {
-      showHome: true,
-      showSettingsDrawer: true,
-    }
-  },
   // Always leave this as last one,
   // but you can also remove it
   {

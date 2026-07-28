@@ -12,7 +12,6 @@
     "library": "Bibliotek",
     "workers": "Arbetare",
     "plugins": "Plugins",
-    "link": "Länk",
     "helpAndSupport": "Hjälp & Support",
     "info": "Info",
     "show": "Show",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Det gick inte att hämta listan över aktiverade datapanelpluginprogram",
     "allowPopups": "Tillåt popup-fönster för denna webbplats.",
     "invalidWorkerEvent": "Det gick inte att lägga till ogiltig arbetshändelse.",
-    "remoteInstallationAlreadyInList": "Adressen du angav finns redan i listan över fjärrinstallationer.",
-    "invalidRemoteInstallationAddress": "Adressen du angav var inte en giltig Trawlarr-installation.",
-    "incompatibleRemoteInstallation": "Fjärrinstallationen av Trawlarr som du försöker lägga till är inte kompatibel med länkning. Försök att uppdatera den först.",
     "cannotRemoveDefaultLibrary": "Det går inte att ta bort standardbiblioteket",
     "rescanLibraryError": "Ett fel påträffades när en omsökning av biblioteket begärdes",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr har stoppat alla arbetare eftersom de har upptäckt en ändring av plugins-konfigurationen. När du är redo, återuppta arbetarna från instrumentpanelen.",
       "libraryScanProgress": "Bibliotekssökning körs",
       "pendingTaskHaltedPostProcessorQueueFull": "Efterbehandlingskön nådde sin gräns",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Arbetare kommer inte att få en ny väntande uppgift förrän efterbehandlarkön sjunker under det nuvarande konfigurerade antalet arbetare",
-      "receivingRemoteFile": "Tar emot fjärrfil",
-      "linkedInstallationLimits": "Trawlarr har slutat bearbeta uppgifter eftersom du har länkat för många fjärrinstallationer för en icke-supporternivå. Överväg att sponsra projektet för att länka mer än en fjärrinstallation."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Arbetare kommer inte att få en ny väntande uppgift förrän efterbehandlarkön sjunker under det nuvarande konfigurerade antalet arbetare"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Uppgift misslyckande"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Slutförd uppgiftsdetaljer",
     "supportFutureDevelopment": "Stöd framtida utveckling",
     "confirm": "Bekräfta",
-    "configureRemoteInstallationLink": "Konfigurera länk för fjärrinstallation",
     "configureLibrary": "Konfigurera bibliotek",
     "configureWorkerGroup": "Konfigurera arbetsgrupp",
     "selectPlugin": "Välj ett plugin",
@@ -213,36 +206,6 @@
           "pause": "Pausa alla arbetare",
           "resume": "Återuppta alla arbetare"
         }
-      },
-      "link": {
-        "thisInstallation": "Lokal",
-        "nameThisInstall": "Namnge denna installation",
-        "remoteInstallations": "Fjärrinstallationer",
-        "name": "namn",
-        "version": "Version",
-        "addRemoteInstallation": "Lägg till fjärrinstallation",
-        "address": "Adress",
-        "authentication": "Autentisering",
-        "username": "Användarnamn",
-        "password": "Lösenord",
-        "add": "Lägg till",
-        "connection": "Förbindelse",
-        "remoteTaskProcessing": "Fjärruppgiftsbearbetning",
-        "allowReceivingTasks": "Ta emot uppgifter från den här installationen när arbetare är tillgängliga",
-        "linkReceivingTasksStatusLabel": "Ta emot uppgifter",
-        "allowSendingTasks": "Skicka uppgifter till den här installationen när arbetare är tillgängliga",
-        "linkSendingTasksStatusLabel": "Skickar uppgifter",
-        "enableTaskPreloading": "Förladda vissa uppgifter på fjärrinstallationens kön för väntande uppgifter",
-        "preloadingCount": "Antal förinstallerade väntande uppgifter",
-        "linkPreloadRemoteTasksStatusLabel": "Förladda fjärruppgifter",
-        "enableConfigMissingLibraries": "Konfigurera saknade bibliotek automatiskt på fjärrinstallationen",
-        "linkConfigRemoteLibrariesStatusLabel": "Konfigurera saknade bibliotek",
-        "enableChecksumValidation": "Validera filöverföringar med kontrollsummor (långsamma)",
-        "linkConfigChecksumValidationStatusLabel": "Validera med kontrollsummor",
-        "collectiveManagement": "Kollektiv förvaltning",
-        "enableDistributedWorkerCount": "Aktivera distribuerat antal arbetare för den här länken",
-        "linkDistributedWorkersStatusLabel": "Distribuerade arbetare",
-        "workerTarget": "Arbetarmål"
       },
       "support": {
         "logs": "Loggar",

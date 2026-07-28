@@ -34,7 +34,6 @@ The project follows the standard Quasar directory structure:
     - **`settings/`**: Components specific to the Settings pages.
       - **`library/`**: Components specific to the Libraries settings page.
         - **`partials/`**: Smaller library-specific subcomponents (e.g., lists, panels).
-      - **`link/`**: Components specific to the Link settings page.
       - **`plugins/`**: Components specific to the Plugins settings page.
         - **`partials/`**: Smaller plugin-specific subcomponents (e.g., inline managers).
       - **`workers/`**: Components specific to the Workers settings page.

@@ -282,6 +282,11 @@
                         "description": "Item success status",
                         "example": true
                     },
+                    "start_time": {
+                        "type": "integer",
+                        "description": "Item start time",
+                        "example": 1627392550.123456
+                    },
                     "finish_time": {
                         "type": "integer",
                         "description": "Item finish time",
@@ -297,6 +302,7 @@
                     "finish_time",
                     "has_metadata",
                     "id",
+                    "start_time",
                     "task_label",
                     "task_success"
                 ],
@@ -1456,11 +1462,6 @@
                         "description": "The plugin has the ability to be configured",
                         "example": true
                     },
-                    "package_url": {
-                        "type": "string",
-                        "description": "The plugin package download URL",
-                        "example": "https://raw.githubusercontent.com/Unmanic/unmanic-plugins/repo/plugin_id/plugin_id-1.0.0.zip"
-                    },
                     "changelog_url": {
                         "type": "string",
                         "description": "The plugin package download URL",
@@ -1844,53 +1845,6 @@
                 ],
                 "additionalProperties": false
             },
-            "RequestSettingsRemoteInstallationAddressValidation": {
-                "type": "object",
-                "properties": {
-                    "address": {
-                        "type": "string",
-                        "description": "The address of the remote installation",
-                        "example": "192.168.1.2:8888"
-                    },
-                    "auth": {
-                        "type": "string",
-                        "description": "Authentication type",
-                        "example": "Basic",
-                        "nullable": true
-                    },
-                    "username": {
-                        "type": "string",
-                        "description": "An optional username",
-                        "example": "foo",
-                        "nullable": true
-                    },
-                    "password": {
-                        "type": "string",
-                        "description": "An optional password",
-                        "example": "bar",
-                        "nullable": true
-                    }
-                },
-                "required": [
-                    "address"
-                ],
-                "additionalProperties": false
-            },
-            "SettingsRemoteInstallationData": {
-                "type": "object",
-                "properties": {
-                    "installation": {
-                        "type": "object",
-                        "description": "The data from the remote installation",
-                        "example": {},
-                        "additionalProperties": {}
-                    }
-                },
-                "required": [
-                    "installation"
-                ],
-                "additionalProperties": false
-            },
             "WorkerEventScheduleResults": {
                 "type": "object",
                 "properties": {
@@ -2004,56 +1958,6 @@
                 },
                 "required": [
                     "id"
-                ],
-                "additionalProperties": false
-            },
-            "RequestRemoteInstallationLinkConfig": {
-                "type": "object",
-                "properties": {
-                    "uuid": {
-                        "type": "string",
-                        "description": "The uuid of the remote installation",
-                        "example": "7cd35429-76ab-4a29-8649-8c91236b5f8b"
-                    }
-                },
-                "required": [
-                    "uuid"
-                ],
-                "additionalProperties": false
-            },
-            "SettingsRemoteInstallationLinkConfig": {
-                "type": "object",
-                "properties": {
-                    "link_config": {
-                        "type": "object",
-                        "description": "The configuration for the remote installation link",
-                        "example": {
-                            "address": "10.0.0.2:8888",
-                            "auth": "None",
-                            "username": "",
-                            "password": "",
-                            "available": true,
-                            "name": "API schema generated",
-                            "version": "0.1.3",
-                            "last_updated": 1636166593.013826,
-                            "enable_receiving_tasks": false,
-                            "enable_sending_tasks": false,
-                            "enable_task_preloading": true,
-                            "enable_distributed_worker_count": false,
-                            "preloading_count": 2,
-                            "enable_checksum_validation": false,
-                            "enable_config_missing_libraries": false
-                        },
-                        "additionalProperties": {}
-                    },
-                    "distributed_worker_count_target": {
-                        "type": "integer",
-                        "description": "The target count of workers to be distributed across any configured linked installations",
-                        "example": 4
-                    }
-                },
-                "required": [
-                    "link_config"
                 ],
                 "additionalProperties": false
             },
@@ -5356,74 +5260,6 @@
                 }
             }
         },
-        "/settings/link/validate": {
-            "post": {
-                "description": "Validate a remote installation address",
-                "requestBody": {
-                    "description": "The details of the remote installation to validate",
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/RequestSettingsRemoteInstallationAddressValidation"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Sample response: Returns the remote installation data.",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SettingsRemoteInstallationData"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/settings/worker_groups": {
             "get": {
                 "description": "Returns a list of all worker groups.",
@@ -5627,210 +5463,6 @@
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/RequestDatabaseItemById"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful request; Returns success status",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BaseSuccess"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/settings/link/read": {
-            "post": {
-                "description": "Read the configuration of a remote installation link",
-                "requestBody": {
-                    "description": "The UUID of the remote installation",
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/RequestRemoteInstallationLinkConfig"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Sample response: Returns the remote installation link configuration.",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SettingsRemoteInstallationLinkConfig"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/settings/link/write": {
-            "post": {
-                "description": "Write the configuration of a remote installation link",
-                "requestBody": {
-                    "description": "The UUID of the remote installation and its configuration",
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/SettingsRemoteInstallationLinkConfig"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful request; Returns success status",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BaseSuccess"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/settings/link/remove": {
-            "delete": {
-                "description": "Remove a configuration for a remote installation link",
-                "requestBody": {
-                    "description": "Requested a remote installation link to remove.",
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/RequestRemoteInstallationLinkConfig"
                             }
                         }
                     }
@@ -6239,80 +5871,6 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/BaseSuccess"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request; Check `messages` for any validation errors",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadRequest"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Bad request; Requested endpoint not found",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadEndpoint"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "Bad request; Requested method is not allowed",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/BadMethod"
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error; Check `error` for exception",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/InternalError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/upload/pending/file": {
-            "post": {
-                "description": "Uploads a file to the pending tasks list",
-                "requestBody": {
-                    "description": "Uploads a file to the pending tasks list",
-                    "required": true,
-                    "content": {
-                        "multipart/form-data": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "fileName": {
-                                        "type": "string",
-                                        "format": "binary"
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful request; Returns data for the generated task",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/PendingTasksTableResults"
                                 }
                             }
                         }

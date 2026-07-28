@@ -89,16 +89,6 @@
 
         <q-separator spaced/>
 
-        <div v-if="$q.screen.lt.sm && unmanicSession && unmanicSession.level > 1 && unmanicSession.level !== 9">
-          <q-item-label header>{{ $t('navigation.installations') }}:</q-item-label>
-          <q-item>
-            <q-item-section>
-              <SharedLinkDropdown/>
-            </q-item-section>
-          </q-item>
-          <q-separator spaced/>
-        </div>
-
 
         <q-item-label header>{{ $t('navigation.documentation') }}:</q-item-label>
         <!--START SUPPORT SELECT-->
@@ -169,7 +159,6 @@
 import DrawerUserProfileHeader from "components/drawers/partials/DrawerUserProfileHeader.vue";
 import LanguageSwitch from "components/LanguageSwitch";
 import ThemeSwitch from "components/ThemeSwitch";
-import SharedLinkDropdown from "components/SharedLinkDropdown";
 import { ref } from "vue";
 import unmanicGlobals from "src/js/unmanicGlobals";
 import FooterData from "components/FooterData";
@@ -185,7 +174,6 @@ export default {
     FooterData,
     LanguageSwitch,
     ThemeSwitch,
-    SharedLinkDropdown,
     HelpSupportDialog,
     ApplicationLogsDialog,
     PrivacyPolicyDialog,

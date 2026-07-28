@@ -12,7 +12,6 @@
     "library": "Библиотека",
     "workers": "Рабочие",
     "plugins": "Плагины",
-    "link": "Связь",
     "helpAndSupport": "Помощь и поддержка",
     "info": "Информация",
     "show": "Показывать",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Не удалось получить список включенных плагинов панели данных.",
     "allowPopups": "Пожалуйста, разрешите всплывающие окна для этого сайта.",
     "invalidWorkerEvent": "Невозможно добавить недопустимое рабочее событие.",
-    "remoteInstallationAlreadyInList": "Введенный вами адрес уже есть в списке удаленных установок.",
-    "invalidRemoteInstallationAddress": "Введенный вами адрес не является действительной установкой Trawlarr.",
-    "incompatibleRemoteInstallation": "Удаленная установка Trawlarr, которую вы пытаетесь добавить, несовместима с связыванием. Попробуйте сначала обновить его.",
     "cannotRemoveDefaultLibrary": "Невозможно удалить библиотеку по умолчанию.",
     "rescanLibraryError": "Произошла ошибка при запросе повторного сканирования библиотеки.",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr остановил всех исполнителей, поскольку обнаружил изменение конфигурации плагинов. Когда вы будете готовы, возобновите работу рабочих с панели управления.",
       "libraryScanProgress": "Сканирование библиотеки выполняется",
       "pendingTaskHaltedPostProcessorQueueFull": "Очередь постпроцессора достигла своего предела",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Рабочие не получат новую ожидающую задачу, пока очередь постпроцессора не упадет ниже текущего настроенного количества рабочих.",
-      "receivingRemoteFile": "Получение удаленного файла",
-      "linkedInstallationLimits": "Trawlarr прекратил обработку задач, поскольку вы связали слишком много удаленных установок с уровнем, не поддерживающим поддержку. Рассмотрите возможность спонсирования проекта, чтобы связать более одной удаленной установки."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Рабочие не получат новую ожидающую задачу, пока очередь постпроцессора не упадет ниже текущего настроенного количества рабочих."
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Сбой задачи"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Подробности о выполненной задаче",
     "supportFutureDevelopment": "Поддержка будущего развития",
     "confirm": "Подтверждать",
-    "configureRemoteInstallationLink": "Настройка ссылки для удаленной установки",
     "configureLibrary": "Настроить библиотеку",
     "configureWorkerGroup": "Настроить рабочую группу",
     "selectPlugin": "Выберите плагин",
@@ -213,36 +206,6 @@
           "pause": "Приостановить всех работников",
           "resume": "Возобновить работу всех работников"
         }
-      },
-      "link": {
-        "thisInstallation": "Местный",
-        "nameThisInstall": "Назовите эту установку",
-        "remoteInstallations": "Удаленные установки",
-        "name": "Имя",
-        "version": "Версия",
-        "addRemoteInstallation": "Добавить удаленную установку",
-        "address": "Адрес",
-        "authentication": "Аутентификация",
-        "username": "Имя пользователя",
-        "password": "Пароль",
-        "add": "Добавлять",
-        "connection": "Связь",
-        "remoteTaskProcessing": "Удаленная обработка задач",
-        "allowReceivingTasks": "Получайте задачи из этой установки, когда рабочие доступны.",
-        "linkReceivingTasksStatusLabel": "Получение заданий",
-        "allowSendingTasks": "Отправляйте задачи на эту установку, когда рабочие доступны.",
-        "linkSendingTasksStatusLabel": "Отправка задач",
-        "enableTaskPreloading": "Предварительная загрузка некоторых задач в очередь ожидающих задач удаленной установки.",
-        "preloadingCount": "Количество предварительно загруженных ожидающих задач",
-        "linkPreloadRemoteTasksStatusLabel": "Предварительная загрузка удаленных задач",
-        "enableConfigMissingLibraries": "Автоматически настраивать недостающие библиотеки при удаленной установке.",
-        "linkConfigRemoteLibrariesStatusLabel": "Настройка недостающих библиотек",
-        "enableChecksumValidation": "Проверка передачи файлов с помощью контрольных сумм (медленно)",
-        "linkConfigChecksumValidationStatusLabel": "Проверка с помощью контрольных сумм",
-        "collectiveManagement": "Коллективное управление",
-        "enableDistributedWorkerCount": "Включить распределенный счетчик рабочих для этой ссылки",
-        "linkDistributedWorkersStatusLabel": "Распределенные рабочие",
-        "workerTarget": "Цель работника"
       },
       "support": {
         "logs": "Журналы",

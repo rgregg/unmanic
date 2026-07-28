@@ -53,7 +53,7 @@ can reach the port can, among other things:
 - **Browse the filesystem.** The file browser API lists any directory
   the process can read, not just configured library paths.
 - **Read and rewrite configuration** — library paths, cache path,
-  worker counts, linked installations — via the settings API.
+  worker counts — via the settings API.
 - **Read and delete task history and pending tasks**, and queue work
   against any path the process can see.
 - **Move and delete media.** That is the application's whole job; a

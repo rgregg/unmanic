@@ -12,7 +12,6 @@
     "library": "Biblioteca",
     "workers": "Trabalhadores",
     "plugins": "Plug-ins",
-    "link": "Link",
     "helpAndSupport": "Ajuda e suporte",
     "info": "Informações",
     "show": "Mostrar",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Falha ao buscar a lista de plug-ins do painel de dados ativados",
     "allowPopups": "Por favor, permita pop-ups para este site.",
     "invalidWorkerEvent": "Não foi possível adicionar um evento de trabalho inválido.",
-    "remoteInstallationAlreadyInList": "O endereço que você digitou já está na lista de instalações remotas.",
-    "invalidRemoteInstallationAddress": "O endereço que você digitou não era uma instalação Trawlarr válida.",
-    "incompatibleRemoteInstallation": "A instalação remota do Trawlarr que você está tentando adicionar não é compatível com vinculação. Tente atualizá-lo primeiro.",
     "cannotRemoveDefaultLibrary": "Não é possível remover a biblioteca padrão",
     "rescanLibraryError": "Foi encontrado um erro ao solicitar uma nova verificação da biblioteca",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr parou todos os trabalhadores porque detectou uma alteração na configuração dos plugins. Quando estiver pronto, retome os trabalhadores no painel.",
       "libraryScanProgress": "Verificação da biblioteca em execução",
       "pendingTaskHaltedPostProcessorQueueFull": "A fila do pós-processador atingiu seu limite",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Os trabalhadores não receberão uma nova tarefa pendente até que a fila do pós-processador fique abaixo da contagem de trabalhadores configurada atualmente",
-      "receivingRemoteFile": "Recebendo arquivo remoto",
-      "linkedInstallationLimits": "A Trawlarr parou de processar tarefas porque você vinculou muitas instalações remotas para uma camada que não é de suporte. Considere patrocinar o projeto para vincular mais de uma instalação remota."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Os trabalhadores não receberão uma nova tarefa pendente até que a fila do pós-processador fique abaixo da contagem de trabalhadores configurada atualmente"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Falha na tarefa"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Detalhes da tarefa concluída",
     "supportFutureDevelopment": "Apoie o desenvolvimento futuro",
     "confirm": "confirme",
-    "configureRemoteInstallationLink": "Configurar link de instalação remota",
     "configureLibrary": "Configurar biblioteca",
     "configureWorkerGroup": "Configurar grupo de trabalhadores",
     "selectPlugin": "Selecione um plug-in",
@@ -213,36 +206,6 @@
           "pause": "Pausar todos os trabalhadores",
           "resume": "Retomar todos os trabalhadores"
         }
-      },
-      "link": {
-        "thisInstallation": "Local",
-        "nameThisInstall": "Nomeie esta instalação",
-        "remoteInstallations": "Instalações remotas",
-        "name": "Nome",
-        "version": "Versão",
-        "addRemoteInstallation": "Adicionar instalação remota",
-        "address": "Endereço",
-        "authentication": "Autenticação",
-        "username": "Nome de usuário",
-        "password": "Senha",
-        "add": "Adicionar",
-        "connection": "Conexão",
-        "remoteTaskProcessing": "Processamento Remoto de Tarefas",
-        "allowReceivingTasks": "Receba tarefas desta instalação quando os trabalhadores estiverem disponíveis",
-        "linkReceivingTasksStatusLabel": "Recebendo tarefas",
-        "allowSendingTasks": "Envie tarefas para esta instalação quando os trabalhadores estiverem disponíveis",
-        "linkSendingTasksStatusLabel": "Enviando tarefas",
-        "enableTaskPreloading": "Pré-carregar algumas tarefas na fila de tarefas pendentes de instalação remota",
-        "preloadingCount": "Contagem de tarefas pendentes pré-carregadas",
-        "linkPreloadRemoteTasksStatusLabel": "Pré-carregar tarefas remotas",
-        "enableConfigMissingLibraries": "Configure automaticamente bibliotecas ausentes na instalação remota",
-        "linkConfigRemoteLibrariesStatusLabel": "Configurar bibliotecas ausentes",
-        "enableChecksumValidation": "Validar transferências de arquivos com somas de verificação (lento)",
-        "linkConfigChecksumValidationStatusLabel": "Validar com somas de verificação",
-        "collectiveManagement": "Gestão Coletiva",
-        "enableDistributedWorkerCount": "Habilitar contagem de trabalhadores distribuídos para este link",
-        "linkDistributedWorkersStatusLabel": "Trabalhadores distribuídos",
-        "workerTarget": "Alvo do trabalhador"
       },
       "support": {
         "logs": "Histórico",

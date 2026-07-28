@@ -12,7 +12,6 @@
     "library": "Bibliotheek",
     "workers": "Werknemers",
     "plugins": "Plug-ins",
-    "link": "Koppeling",
     "helpAndSupport": "Help & Ondersteuning",
     "info": "Info",
     "show": "Show",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Kan de lijst met ingeschakelde plug-ins voor het datapaneel niet ophalen",
     "allowPopups": "Sta pop-ups toe voor deze website.",
     "invalidWorkerEvent": "Kan ongeldige werkergebeurtenis niet toevoegen.",
-    "remoteInstallationAlreadyInList": "Het door u ingevoerde adres staat al in de lijst met externe installaties.",
-    "invalidRemoteInstallationAddress": "Het door u ingevoerde adres was geen geldige Trawlarr-installatie.",
-    "incompatibleRemoteInstallation": "De externe Trawlarr-installatie die u probeert toe te voegen, is niet compatibel met koppelen. Probeer het eerst te updaten.",
     "cannotRemoveDefaultLibrary": "Kan de standaardbibliotheek niet verwijderen",
     "rescanLibraryError": "Er is een fout opgetreden bij het aanvragen van een nieuwe bibliotheekscan",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr heeft alle werkers gestopt omdat het een wijziging in de configuratie van de plug-ins heeft gedetecteerd. Wanneer u klaar bent, hervat u de werknemers vanaf het dashboard.",
       "libraryScanProgress": "Bibliotheekscan actief",
       "pendingTaskHaltedPostProcessorQueueFull": "De post-processorwachtrij heeft zijn limiet bereikt",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Werknemers ontvangen pas een nieuwe taak in behandeling als de post-processorwachtrij onder het huidige geconfigureerde aantal werknemers komt",
-      "receivingRemoteFile": "Extern bestand ontvangen",
-      "linkedInstallationLimits": "Trawlarr is gestopt met het verwerken van taken omdat u te veel externe installaties heeft gekoppeld voor een niet-ondersteunende laag. Overweeg om het project te sponsoren om meer dan één installatie op afstand te koppelen."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Werknemers ontvangen pas een nieuwe taak in behandeling als de post-processorwachtrij onder het huidige geconfigureerde aantal werknemers komt"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Taak mislukt"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Voltooide taakdetails",
     "supportFutureDevelopment": "Ondersteuning van toekomstige ontwikkeling",
     "confirm": "Bevestigen",
-    "configureRemoteInstallationLink": "Configureer de link voor installatie op afstand",
     "configureLibrary": "Bibliotheek configureren",
     "configureWorkerGroup": "Configureer de werknemersgroep",
     "selectPlugin": "Selecteer een plug-in",
@@ -213,36 +206,6 @@
           "pause": "Pauzeer alle werknemers",
           "resume": "Hervat alle werknemers"
         }
-      },
-      "link": {
-        "thisInstallation": "Lokaal",
-        "nameThisInstall": "Geef deze installatie een naam",
-        "remoteInstallations": "Installaties op afstand",
-        "name": "Naam",
-        "version": "Versie",
-        "addRemoteInstallation": "Voeg installatie op afstand toe",
-        "address": "Adres",
-        "authentication": "Authenticatie",
-        "username": "Gebruikersnaam",
-        "password": "Wachtwoord",
-        "add": "Toevoegen",
-        "connection": "Verbinding",
-        "remoteTaskProcessing": "Verwerking van taken op afstand",
-        "allowReceivingTasks": "Ontvang taken van deze installatie wanneer er werknemers beschikbaar zijn",
-        "linkReceivingTasksStatusLabel": "Taken ontvangen",
-        "allowSendingTasks": "Verzend taken naar deze installatie wanneer er werknemers beschikbaar zijn",
-        "linkSendingTasksStatusLabel": "Taken verzenden",
-        "enableTaskPreloading": "Laad een aantal taken vooraf in de wachtrij voor in behandeling zijnde taken voor installatie op afstand",
-        "preloadingCount": "Vooraf geladen aantal taken in behandeling",
-        "linkPreloadRemoteTasksStatusLabel": "Laad taken op afstand vooraf",
-        "enableConfigMissingLibraries": "Configureer automatisch ontbrekende bibliotheken tijdens de externe installatie",
-        "linkConfigRemoteLibrariesStatusLabel": "Configureer ontbrekende bibliotheken",
-        "enableChecksumValidation": "Valideer bestandsoverdrachten met controlesommen (langzaam)",
-        "linkConfigChecksumValidationStatusLabel": "Valideer met controlesommen",
-        "collectiveManagement": "Collectief Beheer",
-        "enableDistributedWorkerCount": "Schakel gedistribueerd aantal werknemers in voor deze link",
-        "linkDistributedWorkersStatusLabel": "Gedistribueerde werknemers",
-        "workerTarget": "Werknemer doelwit"
       },
       "support": {
         "logs": "Logboeken",

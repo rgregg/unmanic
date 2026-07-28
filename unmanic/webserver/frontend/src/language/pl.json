@@ -12,7 +12,6 @@
     "library": "Biblioteka",
     "workers": "Pracownicy",
     "plugins": "Wtyczki",
-    "link": "Połączyć",
     "helpAndSupport": "Pomoc wsparcie",
     "info": "Informacje",
     "show": "Pokazywać",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Nie udało się pobrać listy włączonych wtyczek panelu danych",
     "allowPopups": "Zezwól na wyświetlanie wyskakujących okienek w tej witrynie.",
     "invalidWorkerEvent": "Nie można dodać nieprawidłowego zdarzenia roboczego.",
-    "remoteInstallationAlreadyInList": "Wprowadzony adres znajduje się już na liście instalacji zdalnych.",
-    "invalidRemoteInstallationAddress": "Wprowadzony adres nie był prawidłową instalacją Trawlarr.",
-    "incompatibleRemoteInstallation": "Zdalna instalacja Trawlarr, którą próbujesz dodać, nie jest kompatybilna z łączeniem. Spróbuj najpierw zaktualizować.",
     "cannotRemoveDefaultLibrary": "Nie można usunąć domyślnej biblioteki",
     "rescanLibraryError": "Wystąpił błąd podczas żądania ponownego przeskanowania biblioteki",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr zatrzymał wszystkich pracowników, ponieważ wykrył zmianę w konfiguracji wtyczek. Kiedy będziesz gotowy, wznów pracę pracowników z poziomu pulpitu nawigacyjnego.",
       "libraryScanProgress": "Trwa skanowanie biblioteki",
       "pendingTaskHaltedPostProcessorQueueFull": "Kolejka postprocesora osiągnęła swój limit",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Pracownicy nie otrzymają nowego oczekującego zadania, dopóki kolejka postprocesora nie spadnie poniżej aktualnie skonfigurowanej liczby pracowników",
-      "receivingRemoteFile": "Odbieranie pliku zdalnego",
-      "linkedInstallationLimits": "Trawlarr przestał przetwarzać zadania, ponieważ podłączyłeś zbyt wiele zdalnych instalacji dla poziomu nieobsługiwanego. Rozważ sponsorowanie projektu mającego na celu połączenie więcej niż jednej zdalnej instalacji."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Pracownicy nie otrzymają nowego oczekującego zadania, dopóki kolejka postprocesora nie spadnie poniżej aktualnie skonfigurowanej liczby pracowników"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Niepowodzenie zadania"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Ukończono szczegóły zadania",
     "supportFutureDevelopment": "Wspieraj przyszły rozwój",
     "confirm": "Potwierdzać",
-    "configureRemoteInstallationLink": "Skonfiguruj łącze do zdalnej instalacji",
     "configureLibrary": "Skonfiguruj bibliotekę",
     "configureWorkerGroup": "Skonfiguruj grupę roboczą",
     "selectPlugin": "Wybierz wtyczkę",
@@ -213,36 +206,6 @@
           "pause": "Wstrzymaj wszystkich pracowników",
           "resume": "Wznów pracę wszystkich pracowników"
         }
-      },
-      "link": {
-        "thisInstallation": "Lokalny",
-        "nameThisInstall": "Nazwij tę instalację",
-        "remoteInstallations": "Instalacje zdalne",
-        "name": "Nazwa",
-        "version": "Wersja",
-        "addRemoteInstallation": "Dodaj instalację zdalną",
-        "address": "Adres",
-        "authentication": "Uwierzytelnianie",
-        "username": "Nazwa użytkownika",
-        "password": "Hasło",
-        "add": "Dodać",
-        "connection": "Połączenie",
-        "remoteTaskProcessing": "Zdalne przetwarzanie zadań",
-        "allowReceivingTasks": "Otrzymuj zadania z tej instalacji, gdy pracownicy są dostępni",
-        "linkReceivingTasksStatusLabel": "Odbiór zadań",
-        "allowSendingTasks": "Wysyłaj zadania do tej instalacji, gdy pracownicy będą dostępni",
-        "linkSendingTasksStatusLabel": "Wysyłanie zadań",
-        "enableTaskPreloading": "Załaduj wstępnie niektóre zadania w kolejce oczekujących zadań instalacji zdalnej",
-        "preloadingCount": "Wstępnie załadowana liczba oczekujących zadań",
-        "linkPreloadRemoteTasksStatusLabel": "Wstępnie załaduj zadania zdalne",
-        "enableConfigMissingLibraries": "Automatycznie skonfiguruj brakujące biblioteki podczas instalacji zdalnej",
-        "linkConfigRemoteLibrariesStatusLabel": "Skonfiguruj brakujące biblioteki",
-        "enableChecksumValidation": "Zweryfikuj transfery plików za pomocą sum kontrolnych (powoli)",
-        "linkConfigChecksumValidationStatusLabel": "Sprawdź za pomocą sum kontrolnych",
-        "collectiveManagement": "Zarządzanie zbiorowe",
-        "enableDistributedWorkerCount": "Włącz rozproszoną liczbę procesów roboczych dla tego łącza",
-        "linkDistributedWorkersStatusLabel": "Rozproszeni pracownicy",
-        "workerTarget": "Cel pracownika"
       },
       "support": {
         "logs": "Dzienniki",

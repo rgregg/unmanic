@@ -61,8 +61,8 @@ auditing what we've changed:
 - `unmanic/libs/scheduler.py` — 60-min `register_unmanic` heartbeat
   removed; `manage_completed_tasks` dict-vs-model bug fixed (was killing
   the ScheduledTasksManager thread at startup).
-- `unmanic/libs/library.py`, `unmanic/libs/installation_link.py`,
-  `unmanic/libs/unplugins/executor.py`, `unmanic/webserver/helpers/plugins.py`
+- `unmanic/libs/library.py`, `unmanic/libs/unplugins/executor.py`,
+  `unmanic/webserver/helpers/plugins.py`
   — every supporter-level gate (`s.level <= 1`, `s.level > 1`, `req_lev`)
   removed or returned True.
 - `unmanic/libs/workers.py` — plugin string `exec_command` no longer runs
@@ -70,6 +70,12 @@ auditing what we've changed:
   before reaching `subprocess.Popen`.
 - `unmanic/libs/postprocessor.py` — source files are no longer removed
   before the cache copy succeeds (was a data-loss path).
+- **Link (distributed processing) removed.** `installation_link.py`,
+  `webserver/proxy.py`, the `/settings/link/*` and `/upload/pending/file`
+  API routes, the `remote_installations` config key, and the
+  Settings > Link page are all gone. Peer discovery came from
+  `api.unmanic.app`, which this fork does not talk to, so linking was
+  manual-config-only and carried unfixed defects. See issue #52.
 - `unmanic/webserver/api_v2/plugins_api.py` — the community-forks endpoint
   short-circuits to an empty list.
 - `unmanic/webserver/frontend/` — footer bar, sign-in/sign-out UI,

@@ -12,7 +12,6 @@
     "library": "Bibliothek",
     "workers": "Worker",
     "plugins": "Plugins",
-    "link": "Verknüpfung",
     "helpAndSupport": "Hilfe & Unterstützung",
     "info": "Info",
     "show": "Zeigen",
@@ -63,9 +62,6 @@
     "failedToFetchEnabledDataPanelPlugins": "Die Liste der aktivierten Datenpanel-Plugins konnte nicht abgerufen werden",
     "allowPopups": "Bitte erlauben Sie Popups für diese Website.",
     "invalidWorkerEvent": "Ungültiges Worker-Ereignis konnte nicht hinzugefügt werden.",
-    "remoteInstallationAlreadyInList": "Die von Ihnen eingegebene Adresse befindet sich bereits in der Liste der Remote-Installationen.",
-    "invalidRemoteInstallationAddress": "Die von Ihnen eingegebene Adresse war keine gültige Trawlarr-Installation.",
-    "incompatibleRemoteInstallation": "Die Remote-Trawlarr-Installation, die Sie hinzufügen möchten, ist nicht mit der Verknüpfung kompatibel. Versuchen Sie zunächst, es zu aktualisieren.",
     "cannotRemoveDefaultLibrary": "Die Standardbibliothek kann nicht entfernt werden",
     "rescanLibraryError": "Beim Anfordern eines erneuten Bibliotheksscans ist ein Fehler aufgetreten",
     "serverMessages": {
@@ -81,9 +77,7 @@
       "pluginSettingsChangeWorkersStopped": "Trawlarr hat alle Worker gestoppt, da es eine Änderung an der Plugin-Konfiguration festgestellt hat. Wenn Sie bereit sind, setzen Sie die Worker über das Dashboard fort.",
       "libraryScanProgress": "Bibliotheksscan läuft",
       "pendingTaskHaltedPostProcessorQueueFull": "Die Postprozessor-Warteschlange hat ihr Limit erreicht",
-      "pendingTaskHaltedPostProcessorQueueFullMessage": "Worker erhalten keine neue ausstehende Aufgabe, bis die Postprozessor-Warteschlange unter die aktuell konfigurierte Worker-Anzahl fällt",
-      "receivingRemoteFile": "Remote-Datei wird empfangen",
-      "linkedInstallationLimits": "Trawlarr hat die Verarbeitung von Aufgaben eingestellt, da Sie zu viele Remote-Installationen für eine Nicht-Supporter-Stufe verknüpft haben. Erwägen Sie, das Projekt zu sponsern, um mehr als eine Remote-Installation zu verknüpfen."
+      "pendingTaskHaltedPostProcessorQueueFullMessage": "Worker erhalten keine neue ausstehende Aufgabe, bis die Postprozessor-Warteschlange unter die aktuell konfigurierte Worker-Anzahl fällt"
     },
     "serverNotificationLabels": {
       "failedTaskLabel": "Fehler bei einer Aufgabe"
@@ -106,7 +100,6 @@
     "completedTaskDetails": "Details zur abgeschlossenen Aufgabe",
     "supportFutureDevelopment": "Unterstützen Sie die zukünftige Entwicklung",
     "confirm": "Bestätigen",
-    "configureRemoteInstallationLink": "Konfigurieren Sie den Remote-Installationslink",
     "configureLibrary": "Bibliothek konfigurieren",
     "configureWorkerGroup": "Konfigurieren Sie die Worker-Gruppe",
     "selectPlugin": "Wählen Sie ein Plugin aus",
@@ -213,36 +206,6 @@
           "pause": "Alle Arbeiter pausieren",
           "resume": "Nehmen Sie alle Arbeiter wieder auf"
         }
-      },
-      "link": {
-        "thisInstallation": "Lokal",
-        "nameThisInstall": "Benennen Sie diese Installation",
-        "remoteInstallations": "Remote-Installationen",
-        "name": "Name",
-        "version": "Ausführung",
-        "addRemoteInstallation": "Remote-Installation hinzufügen",
-        "address": "Adresse",
-        "authentication": "Authentifizierung",
-        "username": "Nutzername",
-        "password": "Passwort",
-        "add": "Hinzufügen",
-        "connection": "Verbindung",
-        "remoteTaskProcessing": "Remote-Aufgabenverarbeitung",
-        "allowReceivingTasks": "Erhalten Sie Aufgaben von dieser Installation, wenn Arbeitskräfte verfügbar sind",
-        "linkReceivingTasksStatusLabel": "Aufgaben entgegennehmen",
-        "allowSendingTasks": "Senden Sie Aufgaben an diese Installation, wenn Arbeitskräfte verfügbar sind",
-        "linkSendingTasksStatusLabel": "Aufgaben senden",
-        "enableTaskPreloading": "Laden Sie einige Aufgaben vorab in die Warteschlange für ausstehende Aufgaben der Remote-Installation",
-        "preloadingCount": "Vorinstallierte Anzahl ausstehender Aufgaben",
-        "linkPreloadRemoteTasksStatusLabel": "Remote-Aufgaben vorab laden",
-        "enableConfigMissingLibraries": "Fehlende Bibliotheken bei der Remote-Installation automatisch konfigurieren",
-        "linkConfigRemoteLibrariesStatusLabel": "Fehlende Bibliotheken konfigurieren",
-        "enableChecksumValidation": "Dateiübertragungen mit Prüfsummen validieren (langsam)",
-        "linkConfigChecksumValidationStatusLabel": "Mit Prüfsummen validieren",
-        "collectiveManagement": "Kollektive Verwaltung",
-        "enableDistributedWorkerCount": "Aktivieren Sie die Anzahl verteilter Worker für diesen Link",
-        "linkDistributedWorkersStatusLabel": "Verteilte Arbeiter",
-        "workerTarget": "Arbeiterziel"
       },
       "support": {
         "logs": "Protokolle",
