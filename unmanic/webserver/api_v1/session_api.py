@@ -36,6 +36,14 @@ from unmanic.libs import session
 from unmanic.libs.uiserver import UnmanicDataQueues
 from unmanic.webserver.api_v1.base_api_handler import BaseApiHandler
 
+# Every route on this handler is an inherited upstream central account
+# surface: OAuth sign-in links, the sign-out URL and the sponsor page. None of
+# them have a service behind them in Trawlarr, so they all answer 410 Gone
+# rather than reporting a generic failure that reads as a broken install.
+RETIRED_ACCOUNT_MESSAGE = "This endpoint has been retired. Trawlarr has no central account service."
+RETIRED_LOGIN_MESSAGE = "This endpoint has been retired. Trawlarr does not support central account sign-in."
+RETIRED_FUNDING_MESSAGE = "This endpoint has been retired. Trawlarr has no funding portal."
+
 
 class ApiSessionHandler(BaseApiHandler):
     name = None
@@ -89,82 +97,35 @@ class ApiSessionHandler(BaseApiHandler):
     def post(self, path):
         self.action_route()
 
+    def write_retired(self, message):
+        """
+        Answer a retired endpoint with HTTP 410 Gone.
+
+        The v1 API predates the v2 error envelope, so the body keeps the v1
+        ``success`` field (always False here) and adds the same
+        machine-readable ``retired`` marker the v2 API uses.
+
+        :param message: Human readable explanation of why the endpoint is gone
+        :return:
+        """
+        self.set_status(410, reason=message)
+        self.write(json.dumps({
+            "success": False,
+            "retired": True,
+            "error":   "410: {}".format(message),
+        }))
+
     def get_sign_out_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        sign_out_url = self.session.get_sign_out_url()
-        if not sign_out_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": sign_out_url,
-                }
-            }))
-            return
+        self.write_retired(RETIRED_ACCOUNT_MESSAGE)
 
     def get_patreon_login_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        patreon_oauth_url = self.session.get_patreon_login_url()
-        if not patreon_oauth_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": patreon_oauth_url,
-                }
-            }))
-            return
+        self.write_retired(RETIRED_LOGIN_MESSAGE)
 
     def get_github_login_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        github_oauth_url = self.session.get_github_login_url()
-        if not github_oauth_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": github_oauth_url,
-                }
-            }))
-            return
+        self.write_retired(RETIRED_LOGIN_MESSAGE)
 
     def get_discord_login_url(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        discord_oauth_url = self.session.get_discord_login_url()
-        if not discord_oauth_url:
-            self.write(json.dumps({"success": False}))
-            return
-        else:
-            self.write(json.dumps({
-                "success": True,
-                "uuid":    uuid,
-                "data":    {
-                    "url": discord_oauth_url,
-                }
-            }))
-            return
+        self.write_retired(RETIRED_LOGIN_MESSAGE)
 
     def get_patreon_page(self, *args, **kwargs):
-        uuid = self.session.get_installation_uuid()
-        patreon_sponsor_page_data = self.session.get_patreon_sponsor_page()
-        if not patreon_sponsor_page_data:
-            self.write(json.dumps({"success": False}))
-            return
-        sponsor_page = patreon_sponsor_page_data.get("sponsor_page")
-        self.write(json.dumps({
-            "success": True,
-            "uuid":    uuid,
-            "data":    {
-                "sponsor_page": sponsor_page,
-            }
-        }))
-        return
+        self.write_retired(RETIRED_FUNDING_MESSAGE)

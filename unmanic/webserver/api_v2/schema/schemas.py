@@ -97,6 +97,33 @@ class BadMethodSchema(BaseSchema):
     )
 
 
+class RetiredEndpointSchema(BaseSchema):
+    """
+    STATUS_ERROR_GONE = 410
+
+    Returned by endpoints that Trawlarr has permanently retired. These are the
+    inherited upstream central account, authentication and funding routes,
+    which have no service behind them in this fork. They will never return
+    data again, so they answer 410 rather than 404 (wrong URL), 200 with empty
+    data (looks half-working) or 500 (looks broken).
+    """
+    error = fields.Str(
+        required=True,
+        description="Return status code and reason",
+        example="410: This endpoint has been retired. Trawlarr has no central account service.",
+    )
+    messages = fields.Dict(
+        required=True,
+        description="Always empty for retired endpoints. Present for envelope compatibility.",
+        example={},
+    )
+    retired = fields.Boolean(
+        required=True,
+        description='Always "True". Machine-readable marker that this endpoint is permanently gone',
+        example=True,
+    )
+
+
 class InternalErrorSchema(BaseErrorSchema):
     """STATUS_ERROR_INTERNAL = 500"""
     error = fields.Str(
@@ -1352,36 +1379,6 @@ class SessionStateSuccessSchema(BaseSchema):
         required=True,
         description="Installation uuid",
         example="b429fcc7-9ce1-bcb3-2b8a-b094747f226e",
-    )
-
-
-class SessionAuthCodeSchema(BaseSchema):
-    """Schema for returning a verification auth code request"""
-
-    user_code = fields.Str(
-        required=True,
-        description="The user code",
-        example="123456",
-    )
-    device_code = fields.Str(
-        required=True,
-        description="A device code",
-        example="6f6867e0006f7240c9a85703a521f1705873630355f68ebbcf251a07b080172b",
-    )
-    verification_uri = fields.Str(
-        required=True,
-        description="The verification URI to submit the code manually",
-        example="/support-auth-api/link",
-    )
-    verification_uri_complete = fields.Str(
-        required=True,
-        description="User email",
-        example="/support-auth-api/v2/app_auth/link_with_user_code/123456",
-    )
-    expires_in = fields.Number(
-        required=True,
-        description="The time until the user_code expires",
-        example=120,
     )
 
 
