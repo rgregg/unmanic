@@ -37,7 +37,7 @@ import threading
 import time
 
 from trawlarr import config
-from trawlarr.libs import common, history
+from trawlarr.libs import common, history, sanity
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
@@ -192,6 +192,13 @@ class PostProcessor(threading.Thread):
         file_move_processes_success = True
         # Create a list for filling with destination paths
         destination_files = []
+
+        # Sanity-check the output before it is allowed anywhere near the
+        # library. A failure marks the task failed, which skips the file
+        # movement below and leaves the original file untouched.
+        if self.current_task.task.success:
+            self.run_output_sanity_checks(source_data, destination_data, cache_path)
+
         if self.current_task.task.success:
             # Run a postprocess file movement on the cache file for each plugin that configures it
 
@@ -316,6 +323,101 @@ class PostProcessor(threading.Thread):
         self.__cleanup_cache_files(cache_path)
         self._last_destination_files = destination_files
         self._last_file_move_processes_success = file_move_processes_success
+
+    def run_output_sanity_checks(self, source_data, destination_data, cache_path):
+        """
+        Compare the worker's output against the source file and refuse to
+        deliver it if the comparison says the pipeline is damaging the file.
+
+        See trawlarr/libs/sanity.py for what is checked and why. In short: a
+        plugin bug that appends an audio track on every scan looks exactly like
+        twenty-five successful tasks. This is the point where somebody finally
+        looks at the result.
+
+        On failure the task is marked failed. That is the whole enforcement
+        mechanism, and it is deliberately reusing machinery that already
+        exists:
+          - the caller skips file movement for failed tasks, so the output is
+            discarded and the original file is left exactly as it was;
+          - write_history_log() raises the "new failed task" UI notification;
+          - FileTest.file_failed_in_history() will not queue a file that has
+            failed, so the next library scan does not start the cycle again.
+        Halting is the point. Compounding the damage for another twenty-four
+        passes is the alternative.
+
+        The reason is appended to the task log so it is visible in the UI next
+        to the failed task, not just in the daemon log.
+
+        Fork addition; see issue #35.
+
+        :param source_data:
+        :param destination_data:
+        :param cache_path:
+        :return: True when the checks passed (or could not be run)
+        """
+        source_abspath = (source_data or {}).get('abspath')
+        destination_abspath = (destination_data or {}).get('abspath')
+        try:
+            check_settings = sanity.SanityCheckSettings.from_settings(self.settings)
+            if not check_settings.enabled:
+                return True
+            result = sanity.check_task_output(
+                source_path=source_abspath,
+                output_path=cache_path,
+                settings=check_settings,
+                task_id=self.current_task.get_task_id(),
+            )
+        except Exception as e:
+            # A broken checker must not be able to stall the pipeline, but it
+            # must not be silent about it either.
+            self._log("Exception while running output sanity checks on '{}'".format(cache_path),
+                      message2=str(e), level="exception")
+            return True
+
+        if not result.checked:
+            self._log("Output sanity checks could not be run for '{}' (no usable probe data)".format(cache_path),
+                      level='debug')
+            return True
+
+        if not result.failed:
+            # Record the streak state against the path the file is about to
+            # take, so the next task on it can see what this one did.
+            sanity.save_state(destination_abspath or source_abspath, result.state,
+                              previous_abspath=source_abspath)
+            return True
+
+        for failure in result.failures:
+            self._log("Output sanity check '{}' failed for '{}': {}".format(
+                failure.get('id'), source_abspath, failure.get('message')), level="error")
+
+        # The output is being discarded, so the file on disk is still the
+        # source. Keep the streak against the source path.
+        sanity.save_state(source_abspath, result.state)
+
+        try:
+            self.current_task.save_command_log(result.report())
+        except Exception as e:
+            self._log("Unable to append sanity check report to task log", message2=str(e), level="warning")
+        try:
+            self.current_task.set_success(False)
+        except Exception as e:
+            # If we cannot mark the task failed we cannot stop the file
+            # movement, and a silent delivery is the outcome this whole check
+            # exists to prevent. Raise so the caller's handler logs it.
+            self._log("Unable to mark task as failed after sanity check failure",
+                      message2=str(e), level="exception")
+            raise
+
+        TrawlarrLogging.data(
+            "task_sanity_check_failed",
+            data_search_key=source_abspath,
+            task_id=self.current_task.get_task_id(),
+            source_path=source_abspath,
+            cache_path=cache_path,
+            failed_checks=[f.get('id') for f in result.failures],
+            messages=[f.get('message') for f in result.failures],
+        )
+        return False
 
     def post_process_remote_file(self):
         """

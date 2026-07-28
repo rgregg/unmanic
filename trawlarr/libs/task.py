@@ -677,6 +677,26 @@ class TaskDataStore:
                 cls._task_state.pop(tid, None)
 
     @classmethod
+    def export_runner_state(cls, task_id):
+        """
+        Export the whole immutable runner state for a task as a deep-copied
+        {plugin_id: {runner: {key: value}}} dict.
+
+        get_runner_value() can only answer "what did plugin P's runner R store
+        under key K", which requires knowing P and R. Core code that wants to
+        reuse whatever a plugin happened to cache - the output sanity checks
+        looking for an existing ffprobe result, for instance - has no way to
+        know that. This gives it the whole map to search.
+
+        Fork addition; see trawlarr/libs/sanity.py and issue #35.
+
+        :param task_id: Integer ID of the task to export.
+        :return: Dict of plugin_id→runner→key→value for that task, or {}.
+        """
+        with cls._lock:
+            return deepcopy(cls._runner_state.get(task_id, {}))
+
+    @classmethod
     def export_task_state(cls, task_id):
         """
         Export the mutable state for a specific task as a deep-copied dict.
