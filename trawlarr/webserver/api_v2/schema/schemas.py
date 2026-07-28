@@ -1593,6 +1593,12 @@ class LibraryResultsSchema(BaseSchema):
         description="If the library is configured to monitor for file changes",
         example=False,
     )
+    file_extension_allowlist = fields.List(
+        cls_or_instance=fields.Str,
+        required=True,
+        description="File extensions this library will consider for processing. An empty list means no restriction",
+        example=['mkv', 'mp4'],
+    )
     tags = fields.List(
         cls_or_instance=fields.Str,
         required=True,
@@ -1630,13 +1636,14 @@ class SettingsLibraryConfigReadAndWriteSchema(BaseSchema):
         required=True,
         description="The library configuration",
         example={
-            "id":             1,
-            "name":           "Default",
-            "path":           "/library",
-            "enable_scanner": False,
-            "enable_inotify": False,
-            "priority_score": 0,
-            "tags":           [],
+            "id":                       1,
+            "name":                     "Default",
+            "path":                     "/library",
+            "enable_scanner":           False,
+            "enable_inotify":           False,
+            "priority_score":           0,
+            "file_extension_allowlist": [],
+            "tags":                     [],
         },
     )
 
@@ -1704,13 +1711,14 @@ class SettingsLibraryPluginConfigExportSchema(BaseSchema):
         required=False,
         description="The library configuration",
         example={
-            "id":             1,
-            "name":           "Default",
-            "path":           "/library",
-            "enable_scanner": False,
-            "enable_inotify": False,
-            "priority_score": 0,
-            "tags":           [],
+            "id":                       1,
+            "name":                     "Default",
+            "path":                     "/library",
+            "enable_scanner":           False,
+            "enable_inotify":           False,
+            "priority_score":           0,
+            "file_extension_allowlist": [],
+            "tags":                     [],
         },
     )
 

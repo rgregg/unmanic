@@ -176,6 +176,25 @@
 
             <div class="q-pb-sm">
               <q-skeleton
+                v-if="fileExtensionAllowlist === null"
+                type="QInput"/>
+              <q-select
+                v-else
+                filled
+                use-input
+                use-chips
+                multiple
+                hide-dropdown-icon
+                input-debounce="0"
+                new-value-mode="add-unique"
+                v-model="fileExtensionAllowlist"
+                :label="$t('components.settings.library.fileExtensionAllowlist')"
+                :hint="$t('components.settings.library.fileExtensionAllowlistHint')"
+              />
+            </div>
+
+            <div class="q-pb-sm">
+              <q-skeleton
                 v-if="tags === null"
                 type="QInput"/>
               <q-select
@@ -321,6 +340,7 @@ const path = ref(null)
 const enableScanner = ref(null)
 const enableInotify = ref(null)
 const priorityScore = ref(null)
+const fileExtensionAllowlist = ref(null)
 const tags = ref(null)
 const enabledPlugins = ref(null)
 const componentKey = ref(1)
@@ -355,6 +375,7 @@ const currentSnapshot = computed(() => {
     enableScanner.value === null ||
     enableInotify.value === null ||
     priorityScore.value === null ||
+    fileExtensionAllowlist.value === null ||
     tags.value === null ||
     enabledPlugins.value === null
   ) {
@@ -372,6 +393,7 @@ const currentSnapshot = computed(() => {
     enableScanner: enableScanner.value,
     enableInotify: enableInotify.value,
     priorityScore: priorityScore.value,
+    fileExtensionAllowlist: [...fileExtensionAllowlist.value],
     tags: [...tags.value],
     enabledPlugins: pluginSnapshot
   })
@@ -405,6 +427,7 @@ const fetchLibraryConfig = (libraryId) => {
     enableScanner.value = libraryConfig.enable_scanner
     enableInotify.value = libraryConfig.enable_inotify
     priorityScore.value = libraryConfig.priority_score
+    fileExtensionAllowlist.value = libraryConfig.file_extension_allowlist ?? []
     tags.value = libraryConfig.tags
     enabledPlugins.value = response.data.plugins.enabled_plugins
     updateSnapshot()
@@ -421,6 +444,7 @@ const saveLibraryConfig = async ({ hideOnSuccess = false } = {}) => {
       enable_scanner: enableScanner.value,
       enable_inotify: enableInotify.value,
       priority_score: priorityScore.value,
+      file_extension_allowlist: fileExtensionAllowlist.value,
       tags: tags.value,
     },
     plugins: {
@@ -634,6 +658,7 @@ const cloneLibrary = () => {
       enable_scanner: enableScanner.value,
       enable_inotify: enableInotify.value,
       priority_score: priorityScore.value,
+      file_extension_allowlist: fileExtensionAllowlist.value,
       tags: tags.value,
     }
     const importString = JSON.stringify(configData, null, 2)

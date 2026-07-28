@@ -35,6 +35,7 @@ from __future__ import absolute_import
 from .completedtaskscommandlogs import CompletedTasksCommandLogs
 from .completedtasks import CompletedTasks
 from .enabledplugins import EnabledPlugins
+from .filecompletionstate import FileCompletionState
 from .filemetadata import FileMetadata
 from .filemetadatapaths import FileMetadataPaths
 from .filesanitystate import FileSanityState
