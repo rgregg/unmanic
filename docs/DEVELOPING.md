@@ -1,4 +1,4 @@
-# Unmanic development
+# Trawlarr development
 
 The development environment can be configured in 2 ways:
 
@@ -9,7 +9,14 @@ The development environment can be configured in 2 ways:
 
 Depending on what you are trying to develop, one way may work better than the other.
 
-Regardless of the method you use, you will need to pull in the frontend component and build it.
+Regardless of the method you use, you will need to build the frontend component.
+
+> **Note on naming:** the project brand is Trawlarr, but the Python package,
+> the CLI entry point, the config directory (`~/.unmanic/`) and the API base
+> path are all still `unmanic`. That is inherited from upstream, not a
+> decision — it is being cleaned up, tracked in
+> [#49](https://github.com/rgregg/trawlarr/issues/49). Commands and import
+> paths below still use `unmanic` until that lands.
 
 
 
@@ -81,15 +88,12 @@ unmanic --version
 
 ## Building the Frontend
 
-The Unmanic frontend UI exists in a submodule.
+The frontend UI lives at `unmanic/webserver/frontend/`. It is a regular part of
+this repository — **not** a submodule. (Upstream keeps it in a separate repo;
+this fork absorbed it via `git subtree`, so there is nothing to initialise or
+pull separately.)
 
-Start by pulling the latest changes
-
-```
-git submodule update --init --recursive 
-```
-
-Once you have done this, run the frontend_install.sh script.
+Run the frontend_install.sh script.
 
 ```
 devops/frontend_install.sh
@@ -107,7 +111,7 @@ Use a clean profile config prefix and enable profiling with `--profiling`.
 ./devops/run_docker.sh --force-recreate --config-prefix=profiling --profiling
 ```
 
-Wait for the container logs to show Unmanic is running before opening the UI:
+Wait for the container logs to show Trawlarr is running before opening the UI:
 
 ```
 ./devops/run_docker.sh logs --tail 200
@@ -128,7 +132,7 @@ PY
 
 ### Profiling (Chrome DevTools)
 
-Open Unmanic in Chrome at `http://localhost:8888`, then open DevTools:
+Open Trawlarr in Chrome at `http://localhost:8888`, then open DevTools:
 
 1. Performance tab: record 10-30 seconds while idle.
 2. Network tab: check for repeated polling/websocket traffic.
@@ -136,11 +140,32 @@ Open Unmanic in Chrome at `http://localhost:8888`, then open DevTools:
 
 ### Testing
 
-Run the Python test suite from a host venv:
+Run the unit test suite from a host venv — this is what CI runs, and it must
+pass on every PR:
 
 ```
-python3 -m pytest
+python3 -m pytest tests/unit/ --cov=unmanic --cov-report=term-missing
 ```
+
+CI also enforces a coverage floor (see `.github/workflows/test.yml`); coverage
+must not regress below it.
+
+The tests under `tests/unit/` are fork-authored and each pins an invariant this
+fork relies on. `tests/integration/` is inherited from upstream and is not part
+of the CI run.
+
+### License headers
+
+Every Python file carries a license header — upstream's block on inherited
+files, an SPDX identifier on fork-authored ones. CI checks this; run it locally
+before pushing:
+
+```
+devops/check_license_headers.sh
+```
+
+The policy, and the header to use on new files, is in
+[CONTRIBUTING.md](CONTRIBUTING.md#license-headers).
 
 
 
@@ -151,3 +176,12 @@ This project uses Peewee migrations for managing the sqlite database.
 ```
 devops/migrations.sh --help
 ```
+
+
+
+## Builds and releases
+
+There is no manual release process. Every push to `main` builds the Python
+wheel and the Docker image and publishes to GHCR. The workflows, the image
+tags, and how to trigger a manual rebuild are documented in
+[`FORK.md`](../FORK.md#build-pipeline).
