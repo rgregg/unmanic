@@ -1,10 +1,17 @@
-# Unmanic Frontend - Agent Guide
+# Trawlarr Frontend - Agent Guide
 
-This document is designed to help AI agents understand the structure, technology stack, and development workflows of the Unmanic Frontend project.
+This document is designed to help AI agents understand the structure, technology stack, and development workflows of the Trawlarr frontend.
 
 ## Project Overview
 
-**Unmanic Frontend** is the web-based user interface for [Unmanic](https://github.com/Unmanic/unmanic), a tool for optimizing video libraries to a uniform format. It interacts with the Unmanic backend API to manage tasks, plugins, settings, and monitor progress.
+**Trawlarr Frontend** is the web-based user interface for Trawlarr, a fork of [Unmanic](https://github.com/Unmanic/unmanic) for optimizing video libraries to a uniform format. It interacts with the Trawlarr backend API to manage tasks, plugins, settings, and monitor progress.
+
+> **Naming:** the backend package, config directory and API path were renamed
+> `unmanic` -> `trawlarr` (issue #49); the API is served under
+> `/trawlarr/api/v2/`. The frontend's own file and component names were **not**
+> renamed — `unmanicGlobals.js`, the `$unmanic` global and the `Unmanic*`
+> components below are current, not stale. Inside `unmanicGlobals.js`,
+> `urlPrefix` is `/trawlarr` and the URL builder is `getTrawlarrApiUrl()`.
 
 ## Technology Stack
 

@@ -1,5 +1,5 @@
 ################
-# Unmanic Docker Compose template
+# Trawlarr Docker Compose template
 #
 # Use this template when enabling VAAPI Hardware accelerated encoding
 #
@@ -7,8 +7,11 @@
 #     <PUID>                            -  User id for folder/file permissions
 #     <PGID>                            -  Group id for folder/file permissions
 #     <TZ>                              -  Your time zone, eg - Pacific/Auckland
-#     <PATH_TO_CONFIG>                  -  Path where Unmanic will store config files
-#     <PATH_TO_LIBRARY>                 -  Path where you store the files that Unmanic will scan
+#     <PATH_TO_CONFIG>                  -  Path where Trawlarr will store config files.
+#                                          Trawlarr writes <PATH_TO_CONFIG>/.trawlarr/;
+#                                          upgrading from Unmanic needs a one-off move,
+#                                          see ../README.md
+#     <PATH_TO_LIBRARY>                 -  Path where you store the files that Trawlarr will scan
 #     <PATH_TO_ENCODE_CACHE>            -  Cache path for in-progress encoding tasks
 #
 
@@ -16,9 +19,9 @@
 version: '2.4'
 
 services:
-  unmanic:
-    container_name: unmanic
-    image: josh5/unmanic:latest
+  trawlarr:
+    container_name: trawlarr
+    image: ghcr.io/rgregg/trawlarr:1
     ports:
       - 8888:8888
     environment:

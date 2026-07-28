@@ -11,18 +11,48 @@ Depending on what you are trying to develop, one way may work better than the ot
 
 Regardless of the method you use, you will need to build the frontend component.
 
-> **Note on naming:** the Python package is `trawlarr`, the distribution on
-> disk is `trawlarr`, the config directory is `~/.trawlarr/`, the API base
-> path is `/trawlarr/api/v2/` and environment variables are prefixed
-> `TRAWLARR_`. The console script is `trawlarr`; `unmanic` remains as a
-> legacy alias that runs the same entry point. `unmanic.*` imports keep
-> resolving through the compatibility shim, so existing plugins are
-> unaffected.
->
-> Environment variables are a clean break: `UNMANIC_*` names are **not**
-> read. If one is set, startup prints a warning naming the `TRAWLARR_*`
-> variable that replaced it — see `trawlarr/libs/envvars.py` for the full
-> list.
+## Package layout and naming
+
+The application is the `trawlarr/` package. `unmanic/` beside it is a
+one-file bootstrap that installs the meta path finder in
+`trawlarr/namespace_shim.py`; both ship in the wheel.
+
+| | Value |
+|---|---|
+| Python package | `trawlarr` |
+| Distribution / wheel | `trawlarr` (`dist/trawlarr-*`) |
+| Console script | `trawlarr` |
+| Config directory | `~/.trawlarr/` (`/config/.trawlarr/` in Docker) |
+| Database | `~/.trawlarr/config/trawlarr.db` |
+| API base path | `/trawlarr/api/v2/` |
+| Env var prefix | `TRAWLARR_` |
+
+Write new code against `trawlarr.*`. `unmanic.*` resolves to the same
+module objects through the shim, which is what keeps every community
+plugin working; it is supported compatibility, not a deprecation. Do not
+add new intra-project imports through it — a duplicate import path in
+our own code buys nothing and confuses `--cov=trawlarr`.
+
+The console script `unmanic` installed by the wheel is a second entry
+point onto the same `main()`. The Docker image's `/usr/bin/unmanic` is a
+different thing: a wrapper that prints a notice and execs
+`/usr/bin/trawlarr`, and it says it will be removed in a later release.
+
+Environment variables are a clean break: `UNMANIC_*` names are **not**
+read and never fall back. If one is set, startup prints a warning naming
+the `TRAWLARR_*` variable that replaced it. `RENAMED_ENV_VARS` in
+`trawlarr/libs/envvars.py` is the full list (eight entries); the scan
+itself is by prefix, so unlisted `UNMANIC_*` names are reported too.
+
+The on-disk and on-the-wire names all come from
+`trawlarr/libs/runtimepaths.py`. Change them there, not inline. Both that
+module and `envvars.py` must stay free of intra-package imports — they
+run before the config and the logger exist.
+
+Some names deliberately still say `unmanic`: the encode cache path
+`/tmp/unmanic`, the log file `logs/unmanic.log`, the frontend's
+`unmanicGlobals.js` / `$unmanic` / `Unmanic*` components, and every
+reference to upstream. See [`FORK.md`](../FORK.md#the-rename-issue-49).
 
 
 
@@ -81,13 +111,17 @@ This creates an egg symlink to the project directory for development.
 To later uninstall the development symlink:
 
 ```
-python3 -m pip uninstall unmanic
+python3 -m pip uninstall trawlarr
 ```
 
-You should now be able to run unmanic from the commandline:
+If the checkout predates the rename you may also have an `unmanic`
+distribution installed; uninstall that too, or its `unmanic` package
+directory will shadow the alias shim.
+
+You should now be able to run Trawlarr from the commandline:
 ```
 # In develop mode this should return "UNKNOWN"
-unmanic --version
+trawlarr --version
 ```
 
 
@@ -124,14 +158,14 @@ Wait for the container logs to show Trawlarr is running before opening the UI:
 ```
 
 The profile output is written to the host path:
-`dev_environment/config-profiling/unmanic-yappi.pstat`
+`dev_environment/config-profiling/trawlarr-yappi.pstat`
 
 To summarize the results:
 
 ```
 python - <<'PY'
 import pstats
-p = pstats.Stats('dev_environment/config-profiling/unmanic-yappi.pstat')
+p = pstats.Stats('dev_environment/config-profiling/trawlarr-yappi.pstat')
 p.strip_dirs().sort_stats('tottime').print_stats(40)
 PY
 ```
@@ -150,8 +184,11 @@ Run the unit test suite from a host venv — this is what CI runs, and it must
 pass on every PR:
 
 ```
-python3 -m pytest tests/unit/ --cov=unmanic --cov-report=term-missing
+python3 -m pytest tests/unit/ --cov=trawlarr --cov-report=term-missing
 ```
+
+Coverage must be measured against `trawlarr`, not the `unmanic` alias —
+the alias is a one-file bootstrap and reports on almost nothing.
 
 CI also enforces a coverage floor (see `.github/workflows/test.yml`); coverage
 must not regress below it.
@@ -187,7 +224,13 @@ devops/migrations.sh --help
 
 ## Builds and releases
 
-There is no manual release process. Every push to `main` builds the Python
-wheel and the Docker image and publishes to GHCR. The workflows, the image
-tags, and how to trigger a manual rebuild are documented in
-[`FORK.md`](../FORK.md#build-pipeline).
+Every push to `main` builds the Python wheel and the Docker image and
+publishes a development build (`:dev`, `:main-<sha7>`) to GHCR. Versioned
+tags come only from publishing a GitHub Release. The workflows, the image
+tags, the semver policy and how to trigger a manual rebuild are documented
+in [`FORK.md`](../FORK.md#build-pipeline).
+
+Note that the plugin-facing surface — `trawlarr.libs.*` imports, the
+`unmanic.*` alias, the `~/.trawlarr` config directory and the
+`/trawlarr/api/v2/` paths — counts as public API for versioning purposes.
+Breaking third-party plugins is a MAJOR release.

@@ -1,7 +1,12 @@
 ################
 # SSL/TLS enabled Docker Compose file for testing
 #
-# This compose file runs Unmanic with HTTPS enabled using local test certificates.
+# This compose file runs Trawlarr with HTTPS enabled using local test certificates.
+#
+# It runs a locally built image, not a published one. Build it first from
+# the project root:
+#
+#   docker build -f ./docker/Dockerfile -t trawlarr-ssl:test .
 #
 # NOT A DEPLOYMENT TEMPLATE. This is a TLS test fixture: a self-signed
 # certificate, the dev_environment/ tree, and no authentication of any
@@ -18,9 +23,9 @@
 version: '2'
 
 services:
-  unmanic-ssl-test:
-    container_name: unmanic-ssl-test
-    image: unmanic-ssl:test
+  trawlarr-ssl-test:
+    container_name: trawlarr-ssl-test
+    image: trawlarr-ssl:test
     ports:
       # Loopback only — unauthenticated test instance, see the header.
       - 127.0.0.1:8888:8888
@@ -29,9 +34,9 @@ services:
       - PGID=1000
       # SSL/TLS Configuration
       - ssl_enabled=true
-      - ssl_certfilepath=/etc/ssl/unmanic/cert.pem
-      - ssl_keyfilepath=/etc/ssl/unmanic/key.pem
-      # Standard Unmanic Configuration
+      - ssl_certfilepath=/etc/ssl/trawlarr/cert.pem
+      - ssl_keyfilepath=/etc/ssl/trawlarr/key.pem
+      # Standard Trawlarr Configuration
       - DEBUGGING=true
       - TZ=America/Edmonton
     volumes:
@@ -47,5 +52,5 @@ services:
       #   -out /path/to/test-cert.pem \
       #   -days 10950 -nodes \
       #   -subj "/C=XX/ST=Test/L=Test/O=Test/CN=localhost"
-      - ./test-cert.pem:/etc/ssl/unmanic/cert.pem:ro
-      - ./test-key.pem:/etc/ssl/unmanic/key.pem:ro
+      - ./test-cert.pem:/etc/ssl/trawlarr/cert.pem:ro
+      - ./test-key.pem:/etc/ssl/trawlarr/key.pem:ro

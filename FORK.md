@@ -41,6 +41,13 @@ upstream-tracking branch; upstream changes get pulled in selectively via
 `git fetch <upstream-url>` + cherry-pick when something specific is
 worth absorbing.
 
+The application lives in `trawlarr/`. The `unmanic/` directory beside it
+is a single-file compatibility bootstrap (`unmanic/__init__.py`, which
+installs the finder from `trawlarr/namespace_shim.py`), not a second copy
+of anything — it exists so `import unmanic.*` keeps resolving for
+community plugins, and both directories ship in the wheel. See
+[The rename](#the-rename-issue-49).
+
 The frontend (`trawlarr/webserver/frontend/`) is a regular tree in this
 repo — not a submodule. Originally absorbed via `git subtree add --squash`
 from a now-archived intermediate fork.
@@ -98,8 +105,123 @@ auditing what we've changed:
 - Build/test/smoke CI workflows (`.github/workflows/`) and a `HEALTHCHECK`
   in the Dockerfile.
 - Test infrastructure: pytest + coverage configured to run on every push,
-  113 unit tests pinning the invariants this fork relies on so a careless
+  311 unit tests pinning the invariants this fork relies on so a careless
   edit doesn't silently re-introduce upstream behaviour.
+- **The internal namespace renamed to `trawlarr`** (issue #49) — see
+  [The rename](#the-rename-issue-49) below.
+
+## The rename (issue #49)
+
+The fork inherited a codebase that called itself `unmanic` everywhere.
+Issue #49 renamed the internal namespace to match the project. It landed
+in five reviewable steps (#63, #64, #65, #66, and the docs pass); this
+section is the end state, not the sequence.
+
+### What changed
+
+| | Unmanic | Trawlarr | Defined in |
+|---|---|---|---|
+| Python package | `unmanic/` | `trawlarr/` | the tree |
+| Distribution / wheel | `unmanic` | `trawlarr` | `setup.cfg`, `versioninfo.py` |
+| Console script | `unmanic` | `trawlarr` | `setup.py` `entry_points` |
+| Config directory | `~/.unmanic/` | `~/.trawlarr/` | `runtimepaths.APP_DIR_NAME` |
+| Database | `unmanic.db` | `trawlarr.db` | `runtimepaths.DATABASE_FILE_NAME` |
+| URL prefix | `/unmanic` | `/trawlarr` | `runtimepaths.URL_PREFIX` |
+| API base path | `/unmanic/api/v2/` | `/trawlarr/api/v2/` | `runtimepaths.API_URL_PREFIX` |
+| Env var prefix | `UNMANIC_` | `TRAWLARR_` | `envvars.ENV_VAR_PREFIX` |
+
+`trawlarr/libs/runtimepaths.py` is the single source for the on-disk and
+on-the-wire names, and `trawlarr/libs/envvars.py` for the environment.
+Both are deliberately free of intra-package imports — they are read
+during startup before the config and the logger exist.
+
+### Plugin compatibility
+
+`trawlarr.*` is canonical. `unmanic.*` still resolves, to the *same
+module objects*, via a meta path finder in
+`trawlarr/namespace_shim.py`. A `sys.modules['unmanic'] = trawlarr`
+entry would not have been enough: the import machinery resolves
+submodules through the parent's `__path__`, so `unmanic.libs.filetest`
+would have been loaded a second time as an independent module and every
+module-level singleton in the tree would silently exist twice. The
+finder is consulted before the path-based finder at every depth, so it
+hands back the already-imported real module instead.
+
+Plugin-facing class names are aliased in place:
+`UnmanicLogging`/`TrawlarrLogging`, `UnmanicFileMetadata`,
+`UnmanicDirectoryInfo`, `UnmanicDataQueues`, `UnmanicRunningTreads`.
+Both classes in each pair are the same object, which matters for the
+`SingletonType` ones — a plugin holding `UnmanicDataQueues()` and the
+service holding `TrawlarrDataQueues()` are talking to one instance.
+
+This counts as public API (see [Versioning](#versioning)). It is not
+scheduled for removal.
+
+### The two breaks, and how each fails
+
+Neither the config directory nor the API path is aliased. They fail in
+opposite ways, so they get opposite treatment:
+
+- **Config directory — refuse to start.** A missing config directory is
+  silent: the app would create a new empty one and come up looking like
+  a fresh install, with every library, plugin and task apparently gone.
+  `check_for_legacy_config_directory()` detects "data in `.unmanic/`,
+  nothing in `.trawlarr/`" and the service refuses to boot, printing the
+  migration. `TRAWLARR_IGNORE_LEGACY_CONFIG=1` suppresses it.
+  The emptiness test matters: the Docker entrypoint pre-creates
+  `/config/.trawlarr`, so "the directory exists" would defeat the guard
+  on the first upgraded start.
+- **API path — 404, and specifically not 301.** The route list used to
+  end in a catch-all `RedirectHandler`, and Tornado's
+  `add_handlers` inserts at `-1`, so the catch-all stayed last and
+  nothing could ever 404 — the retired `/unmanic/api/v2/` answered a
+  *permanent* redirect to the dashboard, which browsers and `curl -L`
+  cache and which hands an API client HTML where it asked for JSON. It
+  is now a `NotFoundHandler` wired in as `default_handler_class`. Only
+  `/`, `/trawlarr/` and `/trawlarr/ui/` redirect, and those are
+  temporary.
+- **`settings.json` — recompute, never persist.** `config.py` excludes
+  `DERIVED_PATH_CONFIG_KEYS` (`config_path`, `log_path`, `plugins_path`,
+  `userdata_path`) from both the write and the read. Persisting them is
+  how the move used to undo itself: a correctly migrated install would
+  read `<HOME>/.unmanic/...` back out of its own settings file, recreate
+  the legacy directory and run entirely from it — new empty database, new
+  logs, migrated data ignored — and because both directories then held
+  data, the guard above stayed quiet forever. The location is a function
+  of how the process was launched, and only the launch surface
+  (`--config`, the environment) may override it.
+- **Env vars — warn and continue.** An ignored variable is not a reason
+  to refuse to boot, but it is a reason to say something:
+  `check_for_legacy_env_vars()` scans by prefix, names the `TRAWLARR_`
+  replacement for each `UNMANIC_` variable found, and says plainly that
+  the old one is having no effect. The eight known renames are tabulated
+  in the [README](README.md#renaming-the-environment-variables);
+  `RENAMED_ENV_VARS` in `envvars.py` is the source.
+
+### What deliberately still says "unmanic"
+
+Not everything named `unmanic` is a leftover, and grep alone will not
+tell them apart:
+
+- **Upstream references.** `github.com/Unmanic/unmanic`, the plugin
+  catalog at `Unmanic/unmanic-plugins`, `docs.unmanic.app`, and the
+  `api.unmanic.app` endpoints this fork stubs out are all correct as
+  written and must stay.
+- **The encode cache path `/tmp/unmanic`.** Still the default from
+  `common.get_default_cache_path()`, still the mount every compose file
+  uses. Out of scope for #49, which covered the package, config, DB, API
+  and env vars.
+- **The log file `logs/unmanic.log`.** `libs/logs.py` still writes that
+  filename inside `~/.trawlarr/logs/`.
+- **Frontend internals.** `src/js/unmanicGlobals.js`, the `$unmanic`
+  global, the `Unmanic*` Quasar components. The frontend arrived as a
+  subtree and its file names were not part of this rename.
+- **`trawlarr/migrations_v1/`.** The migration history is upstream's and
+  is described as such.
+
+Renaming any of these is a separate change with its own migration
+question, and none of them is user-visible in the way the config
+directory was.
 
 ## Build pipeline
 
@@ -193,11 +315,12 @@ the runbook.
 
 > **Until 1.0.0 is cut, production tracks `:dev`.**
 >
-> The first release is deliberately gated behind the `unmanic` → `trawlarr`
+> The first release was deliberately gated behind the `unmanic` → `trawlarr`
 > rename ([#49](https://github.com/rgregg/trawlarr/issues/49)) so that 1.0.0
-> ships with the internal namespace already correct. Until that lands there
-> are no releases, so `:1` and `:latest` either do not exist or sit frozen at
-> the last build made under the old tagging scheme.
+> would ship with the internal namespace already correct. That gate is now
+> satisfied — the rename has landed — but until 1.0.0 is actually cut there
+> are still no releases, so `:1` and `:latest` either do not exist or sit
+> frozen at the last build made under the old tagging scheme.
 >
 > Pointing production at `:dev` in the meantime is the difference between
 > continuing to receive fixes and silently receiving nothing. Move it to `:1`
@@ -245,7 +368,13 @@ the runbook.
 5. Verify on the running install:
    - `curl http://10.0.0.203:8888/trawlarr/api/v2/version/read` → 200
    - `curl http://10.0.0.203:8888/trawlarr/api/v2/session/state` → `"level": 7`
+   - `curl http://10.0.0.203:8888/unmanic/api/v2/version/read` → 404
+     (the legacy prefix must not redirect)
    - `docker exec unmanic cat /config/.trawlarr/logs/unmanic.log | tail -50` → no `api.unmanic.app` references, no `AttributeError`
+
+   The container is still named `unmanic` in the stack, and the log file
+   is still `unmanic.log` — only the directory around it moved. Rename
+   the stack when convenient; nothing depends on it.
 6. Watch one full transcode cycle to confirm runtime ffmpeg layers
    resolve correctly under load.
 
@@ -307,8 +436,13 @@ Unit tests live under `tests/unit/`. Run locally:
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-.venv/bin/pytest tests/unit/ -v --cov=unmanic --cov-report=term-missing
+.venv/bin/pytest tests/unit/ -v --cov=trawlarr --cov-report=term-missing
 ```
+
+`--cov=trawlarr` measures the real package. Pointing it at the `unmanic`
+alias would report on the one-file bootstrap and nothing else —
+`namespace_shim.py` lives inside `trawlarr/`, so `--cov=unmanic` never
+sees it.
 
 CI runs the same command on every push to `main` and on PRs targeting
 `main`. Failing tests fail the build. The coverage floor (currently 13%)
@@ -324,10 +458,6 @@ singleton bare via `__new__`, mock collaborators, assert.
 
 Tracked in [the issue tracker](https://github.com/rgregg/trawlarr/issues):
 
-- **[#1 mDNS-based node discovery](https://github.com/rgregg/trawlarr/issues/1)**
-  — replace the unmanic.app `installation_data/list` mechanism (already
-  stubbed) with `_unmanic._tcp.local` mDNS advertisement so workers
-  discover each other on the LAN.
 - **[#5 Multi-stage Dockerfile](https://github.com/rgregg/trawlarr/issues/5)**
   — split build-time from runtime to shrink image size and speed cold
   builds. Needs careful runtime-soname iteration.

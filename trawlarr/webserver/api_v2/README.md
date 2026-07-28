@@ -1,4 +1,8 @@
-# Unmanic API
+# Trawlarr API
+
+Served under `/trawlarr/api/v2/` — the prefix comes from
+`API_URL_PREFIX` in `trawlarr/libs/runtimepaths.py`. The legacy
+`/unmanic/api/v2/` prefix is not aliased and returns 404.
 
 ## Rules regarding endpoint creation:
 1. All data will be returned in JSON format.

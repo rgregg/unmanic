@@ -20,14 +20,17 @@ missed call fails immediately rather than reaching a third party.
 ## What is stored, and where
 
 Everything Trawlarr stores stays on the machine you run it on, under your
-configuration directory (`/config/.trawlarr/` in the Docker image):
+configuration directory — `~/.trawlarr/`, which is `/config/.trawlarr/` in the
+Docker image:
 
- - **Configuration and library settings** — in a local SQLite database.
+ - **Configuration and library settings** — in a local SQLite database, at
+   `config/trawlarr.db` inside that directory.
  - **Installed plugins and their settings** — including any credentials you
    enter into a plugin's configuration.
  - **Task history** — the files processed, their sizes, and the outcome.
- - **Logs** — these record file paths and file names from your library, and are
-   more verbose when debugging is enabled.
+ - **Logs** — at `logs/unmanic.log` inside that directory (the filename still
+   carries the pre-fork name). These record file paths and file names from your
+   library, and are more verbose when debugging is enabled.
 
 None of this is transmitted anywhere. It is yours to inspect, back up, or
 delete. Removing the configuration directory removes all of it.
@@ -84,12 +87,17 @@ project's git history.
 
 <div style="text-align: right">
 <b>Effective Date:</b>
-27 July, 2026
+28 July, 2026
 </div>
 
 ---
 
 ## Changelog
+
+**28 July, 2026**
+ - Named the database and log files inside the configuration directory, so the
+   claim that removing that directory removes everything can be checked. No
+   change to what is stored or transmitted.
 
 **27 July, 2026**
  - Rewritten for Trawlarr. The previous version was inherited from upstream
