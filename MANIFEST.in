@@ -9,6 +9,8 @@ include requirements-dev.txt
 
 # Include module files
 recursive-include unmanic **
+# Fork addition: the `trawlarr` namespace alias shim
+recursive-include trawlarr **
 include versioninfo.py
 
 # Exclude compiled files

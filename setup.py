@@ -47,6 +47,8 @@ import versioninfo
 
 project_root_dir = os.path.dirname(os.path.realpath(__file__))
 src_dir = 'unmanic'
+# Fork addition: the `trawlarr` namespace alias shim (see unmanic/namespace_shim.py)
+alias_dir = 'trawlarr'
 
 module_name = versioninfo.name()
 module_version = versioninfo.version()
@@ -202,7 +204,11 @@ setup(
     extras_require={
         'dev': requirements_dev()
     },
-    packages=find_namespace_packages(include=[f"{src_dir}*"]),
+    # Fork addition: `alias_dir` is the `trawlarr` namespace shim (issue #49
+    # step 1) -- a few lines that redirect into `src_dir`. It has to ship in
+    # the wheel or the alias only exists in a source checkout. The rest of the
+    # packaging metadata still says `unmanic`; renaming it is a later step.
+    packages=find_namespace_packages(include=[f"{src_dir}*", f"{alias_dir}*"]),
     include_package_data=True,
     entry_points={
         'console_scripts': [
