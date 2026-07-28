@@ -45,7 +45,7 @@ from operator import attrgetter
 import requests
 
 from trawlarr import config
-from trawlarr.libs import common, envvars
+from trawlarr.libs import common, envvars, plugin_dependencies
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
@@ -651,11 +651,31 @@ class PluginsHandler(object, metaclass=SingletonType):
         plugin_info = self.get_plugin_info(plugin_id)
         # Run through any required dependency installation
         post_install_python_requirements = os.path.join(str(plugin_directory), 'requirements.post-install.txt')
+        requirements_txt = os.path.join(str(plugin_directory), 'requirements.txt')
+        # A plugin declaring python_dependencies (issue #39) must not ALSO ship a
+        # requirements file: both install into the same site-packages directory and each
+        # rebuilds it from scratch, so whichever ran second would silently delete the
+        # other's packages. Refuse rather than pick a winner.
+        declared_dependencies = plugin_dependencies.read_declared_dependencies(plugin_info)
+        if declared_dependencies:
+            conflicting = [os.path.basename(f) for f in (requirements_txt, post_install_python_requirements)
+                           if os.path.exists(f)]
+            if conflicting:
+                raise plugin_dependencies.PluginDependencyError(
+                    "Plugin '{}' declares '{}' in its info.json and also ships {}. Both install into the "
+                    "same site-packages directory and each rebuilds it, so one would silently erase the "
+                    "other. Declare the requirements in one place only.".format(
+                        plugin_id, plugin_dependencies.INFO_JSON_KEY, ' and '.join(conflicting)))
         if os.path.exists(post_install_python_requirements):
             self.install_plugin_requirements(plugin_directory, requirements_file=post_install_python_requirements)
         if plugin_info.get('defer_dependency_install', False):
             self.install_plugin_requirements(plugin_directory)
             self.install_npm_modules(plugin_directory)
+        # Install the dependencies the plugin DECLARES in its metadata. Deliberately
+        # allowed to raise: a plugin whose declared dependencies cannot be installed must
+        # not end up recorded as installed, because the failure would otherwise surface as
+        # an ImportError in the middle of processing a file.
+        plugin_dependencies.install_dependencies(plugin_id, plugin_directory, declared_dependencies)
         # Return installed plugin info
         return plugin_info
 

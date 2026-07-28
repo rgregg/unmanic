@@ -49,7 +49,12 @@ can reach the port can, among other things:
   Trawlarr process, and the upload API
   (`/trawlarr/api/v2/upload/plugin`) accepts a plugin zip and installs
   it. Plugin install is remote code execution as the container user,
-  by design.
+  by design. If
+  `TRAWLARR_ALLOW_PLUGIN_DEPENDENCY_INSTALL` is enabled, installing a
+  plugin can additionally run `pip install` for package names taken
+  from that plugin's metadata — see
+  [`PLUGIN-DEPENDENCIES.md`](PLUGIN-DEPENDENCIES.md). That setting is
+  off by default.
 - **Browse the filesystem.** The file browser API lists any directory
   the process can read, not just configured library paths.
 - **Read and rewrite configuration** — library paths, cache path,

@@ -34,6 +34,7 @@
 import copy
 import gc
 import inspect
+import json
 import os
 import importlib.util
 import importlib
@@ -41,7 +42,7 @@ import sys
 
 from trawlarr import config
 from . import plugin_types
-from trawlarr.libs import common
+from trawlarr.libs import common, plugin_dependencies
 from ..logs import TrawlarrLogging
 from ..task import TaskDataStore
 from trawlarr.libs.metadata import TrawlarrFileMetadata
@@ -138,6 +139,40 @@ class PluginExecutor(object):
         if os.path.exists(path) and path not in sys.path:
             sys.path.append(path)
 
+    def __declared_dependencies_are_missing(self, plugin_id, path):
+        """
+        Refuse to import a plugin whose DECLARED Python dependencies are not
+        installed (issue #39).
+
+        Without this a plugin whose site-packages did not survive an image
+        update imports fine and then raises ImportError somewhere in the
+        middle of processing a file - a task that fails for a reason with no
+        obvious connection to the plugin. Better to refuse the plugin, loudly,
+        and never start the work.
+
+        A plugin that declares no dependencies - i.e. every plugin that
+        exists today - returns False here after one info.json read.
+
+        :param plugin_id:
+        :param path:
+        :return: True when the plugin must not be loaded
+        """
+        info_file = os.path.join(path, 'info.json')
+        if not os.path.isfile(info_file):
+            return False
+        try:
+            with open(info_file) as handle:
+                plugin_info = json.load(handle)
+            result = plugin_dependencies.check_dependencies(plugin_id, path, plugin_info)
+        except Exception:
+            # A broken health check must not stop a plugin that would have run.
+            self.logger.debug("Unable to check declared dependencies for plugin '%s'", plugin_id, exc_info=True)
+            return False
+        if result is None:
+            return False
+        self.logger.error("Refusing to load plugin '%s'. %s", plugin_id, result[1])
+        return True
+
     def __load_plugin_module(self, plugin_id, path):
         """
         Loads and returns the python module from a given plugin path.
@@ -162,6 +197,9 @@ class PluginExecutor(object):
         # Don't re-import the module if it is already loaded.
         if module_name in sys.modules:
             return sys.modules[module_name]
+
+        if self.__declared_dependencies_are_missing(plugin_id, path):
+            return None
 
         try:
             # First import the module namespace

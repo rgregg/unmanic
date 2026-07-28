@@ -59,6 +59,11 @@ LOCAL_SESSION_LEVEL_ENV_VAR = ENV_VAR_PREFIX + 'LOCAL_SESSION_LEVEL'
 #: Opt in to forwarding logs to a self-hosted sink.
 REMOTE_LOGGING_ENDPOINT_ENV_VAR = ENV_VAR_PREFIX + 'REMOTE_LOGGING_ENDPOINT'
 
+#: Opt in to letting a plugin's declared dependencies drive pip (issue #39).
+#: New in Trawlarr, so it has no legacy counterpart below. Off by default:
+#: see docs/PLUGIN-DEPENDENCIES.md for what enabling it asks you to trust.
+ALLOW_PLUGIN_DEPENDENCY_INSTALL_ENV_VAR = ENV_VAR_PREFIX + 'ALLOW_PLUGIN_DEPENDENCY_INSTALL'
+
 #: Legacy name -> current name, for every variable renamed by issue #49.
 #:
 #: The last four are not read by Python at all -- ``DB_PATH``,
