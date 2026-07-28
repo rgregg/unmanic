@@ -32,6 +32,15 @@
 
 import warnings
 
+# Fork addition: register `trawlarr` as an alias of this package, so that
+# `trawlarr.<anything>` resolves to the very same module objects as
+# `unmanic.<anything>`. Installed here rather than in a helper that
+# callers must remember to import, so it is live for anything that
+# touches the package at all. See unmanic/namespace_shim.py and issue #49.
+from .namespace_shim import install as _install_namespace_alias
+
+_install_namespace_alias()
+
 from .metadata import __author__
 from .metadata import __version__
 from .metadata import __description__
