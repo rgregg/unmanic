@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Ryan Gregg
+#
+# This file is part of Trawlarr, a fork of Unmanic.
+# See LICENSE for the full license text.
 
 """
     test_plugins_zip_safety.py

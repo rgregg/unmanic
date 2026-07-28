@@ -6,6 +6,8 @@
  
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     23 Apr 2019, (7:33 PM)
+
+    Modified 2026 by Ryan Gregg as part of Trawlarr.
  
     Copyright:
            Copyright (C) Josh Sunnex - All Rights Reserved

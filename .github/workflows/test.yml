@@ -39,6 +39,13 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
+      - name: Check license headers
+        run: |
+          # Every .py file is either upstream's (Unmanic copyright block) or
+          # fork-authored (SPDX identifier). Catches new fork files committed
+          # without a header. Policy lives in docs/CONTRIBUTING.md.
+          ./devops/check_license_headers.sh
+
       - name: Lint (errors only)
         run: |
           # E9 syntax errors, F63 invalid is/in comparisons, F7 forward
