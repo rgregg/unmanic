@@ -26,8 +26,15 @@
     3. Duplicates the pipeline did not create - a file that already carried
        two identical tracks before the task - are not flagged, or every pass
        over an already-damaged library would fail forever.
-    4. Two audio tracks that agree on codec/channels/language but differ in
+    4. Two audio tracks that agree on channels and language but differ in
        title (a commentary track) are not duplicates.
+    4a. Duplication is measured as GROWTH against the source, never as
+       likeness within the output. A task that does not increase the audio
+       stream count is never flagged, so normalising a dual-codec Blu-ray
+       remux (DTS-HD 5.1 + AC3 5.1 -> two EAC3 5.1 tracks) passes. This check
+       has no repeat tolerance, so a false positive costs a good encode
+       immediately while a false negative costs one extra scan cycle; the
+       bias goes to the false negative.
     5. Growth is only a failure once it repeats `growth_repeats` times in a
        row on the same file; a non-growing task resets the streak.
     6. On failure the post-processor discards the output, leaves the source
@@ -130,6 +137,34 @@ class TestRunawayAudioDuplication:
         )
         assert sanity.CHECK_DUPLICATE_AUDIO in [f['id'] for f in result.failures]
 
+    def test_appended_copy_in_a_different_codec_is_still_caught(self):
+        """The duplicate the plugin appends need not match on codec. Comparing
+        on channels/language/title catches a stereo track that was appended as
+        Opus next to the AAC one it copied."""
+        source = _probe([_video(), _audio(codec='ac3', channels=6, layout='5.1'), _audio()])
+        output = _probe([_video(), _audio(codec='ac3', channels=6, layout='5.1'),
+                         _audio(), _audio(codec='opus')])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=2100,
+            previous_state={},
+        )
+        assert sanity.CHECK_DUPLICATE_AUDIO in [f['id'] for f in result.failures]
+
+    def test_duplication_during_a_dual_codec_normalisation_is_still_caught(self):
+        """The healthy case is two-in/two-out. Two in and THREE out, all
+        matching, is the runaway starting on a remux - and still fails."""
+        source = _probe([_video(), _audio(codec='dts', channels=6, layout='5.1'),
+                         _audio(codec='ac3', channels=6, layout='5.1')])
+        output = _probe([_video()] + [_audio(codec='eac3', channels=6, layout='5.1')
+                                      for _ in range(3)])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=2100,
+            previous_state={},
+        )
+        assert sanity.CHECK_DUPLICATE_AUDIO in [f['id'] for f in result.failures]
+
 
 # ---------------------------------------------------------------------------
 # False positives
@@ -184,6 +219,112 @@ class TestDoesNotCryWolf:
         assert result.failed is False
         assert result.state['stream_growth_streak'] == 0
         assert result.state['size_growth_streak'] == 0
+
+    def test_dual_codec_source_normalised_to_one_codec_is_not_flagged(self):
+        """The regression this class exists for.
+
+        A standard Blu-ray remux carries the same mix twice in two codecs -
+        DTS-HD 5.1 English AND AC3 5.1 English. A plugin that normalises all
+        audio to EAC3 turns those into two output tracks that match each
+        other. Two tracks went in, two came out: nothing multiplied. Flagging
+        it would discard a correct transcode on its first pass, with no repeat
+        tolerance to soften it."""
+        source = _probe([_video(), _audio(codec='dts', channels=6, layout='5.1'),
+                         _audio(codec='ac3', channels=6, layout='5.1')])
+        output = _probe([_video(), _audio(codec='eac3', channels=6, layout='5.1'),
+                         _audio(codec='eac3', channels=6, layout='5.1')])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=1500,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
+
+    def test_stereo_downmix_added_once_alongside_the_surround_track(self):
+        """The single most common legitimate plugin flow there is."""
+        source = _probe([_video(), _audio(codec='dts', channels=6, layout='5.1')])
+        output = _probe([_video(), _audio(codec='eac3', channels=6, layout='5.1'), _audio()])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=1800,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
+
+    def test_commentary_matching_the_main_track_after_normalisation(self):
+        """Main and commentary already share codec, language and channels;
+        after a re-encode they share sample rate too. Only the title tells
+        them apart, and neither of them multiplied."""
+        source = _probe([_video(), _audio(codec='ac3', title='Main'),
+                         _audio(codec='ac3', title='Commentary')])
+        output = _probe([_video(), _audio(codec='aac', title='Main'),
+                         _audio(codec='aac', title='Commentary')])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=1500,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
+
+    def test_untitled_commentary_alongside_an_untitled_main_track(self):
+        """A remux that drops the title tags leaves two tracks that are
+        indistinguishable in the output. The count did not change, so this
+        is still conservation and must pass - the invariant is about growth,
+        not about how alike the output tracks look."""
+        source = _probe([_video(), _audio(codec='ac3', title='Main'),
+                         _audio(codec='ac3', title='Commentary')])
+        output = _probe([_video(), _audio(codec='aac'), _audio(codec='aac')])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=1500,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
+
+    def test_multi_language_release_sharing_one_codec(self):
+        """Four language tracks normalised to a single codec. Four in, four
+        out."""
+        languages = ['eng', 'fra', 'deu', 'spa']
+        source = _probe([_video()] + [_audio(codec='ac3', channels=6, layout='5.1', language=lang)
+                                      for lang in languages])
+        output = _probe([_video()] + [_audio(codec='eac3', channels=6, layout='5.1', language=lang)
+                                      for lang in languages])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=4000, output_size=3000,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
+
+    def test_reencode_keeping_the_same_track_layout(self):
+        """Same layout in and out, every stream re-encoded. Nothing about a
+        codec, sample rate or layout-spelling change is evidence of
+        duplication."""
+        source = _probe([_video(), _audio(codec='dts', channels=6, layout='5.1', rate='48000'),
+                         _audio(codec='dts', channels=2, rate='48000')])
+        output = _probe([_video(), _audio(codec='opus', channels=6, layout='5.1(side)', rate='44100'),
+                         _audio(codec='opus', channels=2, rate='44100')])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=2000, output_size=1000,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
+
+    def test_audio_track_dropped_during_normalisation_is_not_flagged(self):
+        """Fewer audio streams out than in cannot be duplication, however
+        alike the survivors look."""
+        source = _probe([_video(), _audio(codec='dts', channels=6, layout='5.1'),
+                         _audio(codec='ac3', channels=6, layout='5.1'),
+                         _audio(codec='truehd', channels=6, layout='5.1')])
+        output = _probe([_video(), _audio(codec='eac3', channels=6, layout='5.1'),
+                         _audio(codec='eac3', channels=6, layout='5.1')])
+        result = sanity.evaluate(
+            source_probe=source, output_probe=output,
+            source_size=3000, output_size=1500,
+            previous_state={},
+        )
+        assert result.failed is False, result.report()
 
     def test_container_overhead_is_not_size_growth(self):
         """A rewrite that lands a fraction of a percent larger has not 'grown'

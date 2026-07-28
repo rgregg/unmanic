@@ -158,8 +158,12 @@ class Config(object, metaclass=SingletonType):
         # Output/input size ratio above which a task counts as having grown the
         # file. A few percent of container overhead is not growth.
         self.sanity_check_size_growth_ratio = 1.05
-        # Flag a task that leaves more copies of an identical audio stream than
-        # the input had. Needs no repeat count - once is already wrong.
+        # Flag a task that ends up with MORE audio streams than the input and
+        # more copies of some comparable track (same channels/language/title)
+        # than the input had. Needs no repeat count - multiplying audio once is
+        # already wrong. A task that does not increase the audio stream count is
+        # never flagged, so normalising a dual-codec remux to a single codec is
+        # not mistaken for duplication.
         self.sanity_check_duplicate_audio = True
 
         # Worker settings

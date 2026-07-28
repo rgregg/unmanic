@@ -25,9 +25,9 @@
     Three cheap assertions, run in the post-processor after the worker has
     finished but before the output is allowed anywhere near the library:
 
-      duplicate_audio  - the output contains more copies of an identical audio
-                         stream (same codec, channel count, layout, sample
-                         rate, language and title) than the input did.
+      duplicate_audio  - the output has MORE audio streams than the input, and
+                         more copies of some comparable audio track (same
+                         channel count, language and title) than the input had.
       stream_growth    - the output has more streams than the input, and so did
                          the previous N tasks on this same file.
       size_growth      - the output is materially larger than the input, and so
@@ -47,10 +47,32 @@
     which catches the runaway on the second pass instead of the twenty-fifth
     while letting the one-off downmix through.
 
-    Duplicate identical audio streams need no repeat count. One task producing
-    two byte-identical-looking stereo tracks where the input had one is already
-    wrong, and it is measured relative to the input so a library that is
-    already damaged does not flag on files this pipeline did not touch.
+    Multiplying audio needs no repeat count. One task turning one stereo track
+    into two is already wrong. But because it fires on the first pass and
+    discards the transcode, it is measured entirely as GROWTH relative to the
+    input, never as identity within the output:
+
+      - if the output has no more audio streams than the input, it cannot
+        have multiplied anything, and is never flagged. Normalising a Blu-ray
+        remux that carries the same 5.1 mix as both DTS-HD and AC3 down to one
+        codec yields two matching tracks in the output, but two went in and
+        two came out. That is conservation, and it is healthy.
+      - comparison ignores codec, layout spelling and sample rate, since those
+        are exactly what a transcode is supposed to change, and keeps channel
+        count, language and title, which are what identify a distinct track.
+      - a file that already carried duplicates before the task keeps them
+        without flagging, or every pass over an already-damaged library would
+        fail forever.
+
+    The dial is set that way on purpose. A false positive here throws away a
+    good encode and teaches an operator to switch the checks off; a false
+    negative costs one more scan cycle, because a runaway that appends a track
+    every pass trips the very next time round. Those costs are not symmetric.
+
+    The other two checks already work this way: both compare a COUNT (or a
+    size) against the input rather than inspecting the output on its own, and
+    both additionally require the growth to repeat, so neither can be tripped
+    by a task that merely rearranged or re-encoded what it was given.
 
     All the thresholds are configurable, because "materially larger" and "how
     many repeats" genuinely depend on what a given library's plugin flow is
@@ -216,8 +238,16 @@ def audio_stream_signature(stream):
     """
     The identity of an audio stream for duplicate detection.
 
-    Deliberately includes the title tag: two 2-channel English AAC tracks are
-    not duplicates if one of them is labelled "Commentary".
+    What a transcode is ALLOWED to change is deliberately excluded: codec,
+    channel layout spelling and sample rate. Normalising a Blu-ray remux that
+    carries the same 5.1 English mix twice (DTS-HD plus AC3) to a single codec
+    produces two tracks that only a codec-blind signature can recognise as the
+    same two tracks that went in. Comparing on codec made that healthy pipeline
+    look like duplication.
+
+    What identifies a distinct track is kept: channel count, language, and the
+    title tag - two 2-channel English tracks are not the same track if one of
+    them is labelled "Commentary".
 
     :param stream:
     :return:
@@ -226,10 +256,7 @@ def audio_stream_signature(stream):
     if not isinstance(tags, dict):
         tags = {}
     return (
-        str(stream.get('codec_name', '')).lower(),
         str(stream.get('channels', '')),
-        str(stream.get('channel_layout', '')).lower(),
-        str(stream.get('sample_rate', '')),
         str(tags.get('language', '')).lower(),
         str(tags.get('title', '')).lower(),
     )
@@ -268,19 +295,51 @@ def audio_signature_counts(probe):
     return counts
 
 
+def audio_stream_count(probe):
+    """
+    Number of audio streams in a probe result.
+
+    :param probe:
+    :return:
+    """
+    return sum(1 for s in _streams(probe) if str(s.get('codec_type', '')).lower() == 'audio')
+
+
 def new_duplicate_audio_groups(source_probe, output_probe):
     """
-    Audio stream signatures the task multiplied.
+    Audio signatures the task MULTIPLIED.
 
-    Only signatures whose count went UP and ended at two or more are reported.
-    A file that already carried duplicates before this task is not this task's
-    doing and is not reported, or every pass over an already-damaged library
-    would fail forever.
+    The pathology from the incident is audio tracks breeding: more of a given
+    track coming out than went in. It is not the mere presence of two matching
+    tracks in the output - a source can perfectly well contain two of the same
+    thing, and a normalising plugin can perfectly well make two differing
+    tracks look alike.
+
+    Two guards, in order:
+
+      1. If the output has no more audio streams than the input, nothing was
+         multiplied and nothing is reported, whatever the signatures say. This
+         is the hard invariant: a transcode that does not increase the audio
+         track count can never be flagged, so re-tagging, re-titling or
+         re-coding a fixed track layout is always safe.
+      2. Otherwise, report only signatures whose count went UP and ended at
+         two or more. A file that already carried duplicates before this task
+         is not this task's doing, or every pass over an already-damaged
+         library would fail forever.
+
+    Both guards err the same way, deliberately. This check has no repeat
+    tolerance - it fails a task on its first pass and discards the transcode -
+    so a false positive costs a good encode and an operator's trust, while a
+    false negative costs one more scan cycle before the runaway is caught on
+    the following pass. Those are not symmetric, and the tolerance goes to the
+    false negative.
 
     :param source_probe:
     :param output_probe:
     :return: list of (signature, source_count, output_count)
     """
+    if audio_stream_count(output_probe) <= audio_stream_count(source_probe):
+        return []
     source_counts = audio_signature_counts(source_probe)
     output_counts = audio_signature_counts(output_probe)
     duplicated = []
@@ -292,14 +351,10 @@ def new_duplicate_audio_groups(source_probe, output_probe):
 
 
 def _describe_signature(signature):
-    codec, channels, layout, sample_rate, language, title = signature
-    parts = [codec or 'unknown codec']
+    channels, language, title = signature
+    parts = []
     if channels:
         parts.append('{}ch'.format(channels))
-    if layout:
-        parts.append(layout)
-    if sample_rate:
-        parts.append('{}Hz'.format(sample_rate))
     parts.append('lang={}'.format(language or 'und'))
     if title:
         parts.append('title={!r}'.format(title))
@@ -338,8 +393,9 @@ def evaluate(source_probe, output_probe, source_size, output_size, previous_stat
             failures.append({
                 'id':      CHECK_DUPLICATE_AUDIO,
                 'message': (
-                    'Output contains {} identical audio streams ({}) where the input had {}. '
-                    'A plugin is duplicating audio rather than replacing it.'
+                    'Output contains {} matching audio streams ({}) where the input had {}, '
+                    'and more audio streams overall. A plugin is duplicating audio rather '
+                    'than replacing it.'
                 ).format(output_count, _describe_signature(signature), source_count),
             })
 
