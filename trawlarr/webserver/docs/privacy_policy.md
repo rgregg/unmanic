@@ -77,7 +77,7 @@ automatically.
 Changes will be recorded in the changelog below, and the effective date updated.
 Because Trawlarr is self-hosted, this policy is only ever the one shipped in the
 version you are running — you can read it in the source at
-`unmanic/webserver/docs/privacy_policy.md`, and check what changed in the
+`trawlarr/webserver/docs/privacy_policy.md`, and check what changed in the
 project's git history.
 
 ---
