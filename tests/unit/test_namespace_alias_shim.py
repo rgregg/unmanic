@@ -345,3 +345,59 @@ class TestLegacyPluginFacingClassNames(object):
 
         assert result.returncode == 0, result.stderr
         assert 'ok' in result.stdout
+
+
+@pytest.mark.unittest
+class TestAliasedNamespaceIsRunnableAsAModule(object):
+    """
+    `runpy` reaches for the loader's InspectLoader/ExecutionLoader methods
+    rather than going through the module object, so the alias loader has to
+    forward them to whoever loaded the real module.
+
+    This is not academic: docker/root/usr/bin/unmanic runs the service under
+    the profiler with `runpy.run_module("unmanic", run_name="__main__")`.
+    Before the loader grew is_package/get_code, that raised
+    `AttributeError: 'AliasLoader' object has no attribute 'get_code'` --
+    spec_from_loader() left submodule_search_locations unset, so runpy saw a
+    plain module and went straight for its code instead of finding __main__.
+    """
+
+    def test_python_dash_m_works_through_the_alias(self):
+        result = subprocess.run(
+            [sys.executable, '-m', 'unmanic', '--version'],
+            cwd=PROJECT_ROOT, capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert 'AttributeError' not in result.stderr
+
+    def test_python_dash_m_matches_the_canonical_package(self):
+        alias = subprocess.run(
+            [sys.executable, '-m', 'unmanic', '--version'],
+            cwd=PROJECT_ROOT, capture_output=True, text=True,
+        )
+        canonical = subprocess.run(
+            [sys.executable, '-m', 'trawlarr', '--version'],
+            cwd=PROJECT_ROOT, capture_output=True, text=True,
+        )
+        assert alias.returncode == canonical.returncode
+        assert alias.stdout == canonical.stdout
+
+    def test_runpy_run_module_works_as_the_docker_profiler_uses_it(self):
+        result = _run_in_fresh_interpreter(
+            'import runpy, sys\n'
+            'sys.argv = ["unmanic", "--version"]\n'
+            'runpy.run_module("unmanic", run_name="__main__")\n'
+        )
+        assert result.returncode == 0, result.stderr
+
+    def test_alias_package_reports_itself_as_a_package(self):
+        import trawlarr  # noqa: F401  (installs the shim)
+        import importlib.util
+        spec = importlib.util.find_spec('unmanic')
+        assert spec is not None
+        assert spec.submodule_search_locations is not None
+
+    def test_loader_still_declines_names_it_cannot_supply(self):
+        import trawlarr  # noqa: F401
+        import importlib.util
+        assert importlib.util.find_spec('unmanic.libs.nope') is None

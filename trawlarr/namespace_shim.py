@@ -124,6 +124,57 @@ class AliasLoader(importlib.abc.Loader):
         sys.modules[spec.name] = module
         return module
 
+    def _target_loader(self, fullname):
+        """
+        The real loader behind an aliased name, or None.
+
+        `runpy` (and anything else using the InspectLoader/ExecutionLoader
+        protocols) asks the *loader* for code and source rather than going
+        through the module object, so those calls have to be forwarded to
+        whoever actually loaded the real module.
+        """
+        target_name = _target_for(fullname)
+        module = sys.modules.get(target_name)
+        loader = getattr(getattr(module, '__spec__', None), 'loader', None)
+        if loader is None:
+            try:
+                spec = importlib.util.find_spec(target_name)
+            except (ImportError, AttributeError, ValueError):
+                return None, target_name
+            loader = getattr(spec, 'loader', None) if spec is not None else None
+        return loader, target_name
+
+    def _delegate(self, method, fullname):
+        loader, target_name = self._target_loader(fullname)
+        if loader is None or not hasattr(loader, method):
+            raise ImportError(
+                "alias loader cannot {} for {!r}".format(method, fullname), name=fullname
+            )
+        return getattr(loader, method)(target_name)
+
+    def is_package(self, fullname):
+        # Without this, spec_from_loader() leaves submodule_search_locations
+        # unset and every aliased package looks like a plain module. That is
+        # what broke `python -m unmanic`: runpy saw a non-package and went
+        # straight for its code object instead of looking for __main__.
+        loader, target_name = self._target_loader(fullname)
+        if loader is not None and hasattr(loader, 'is_package'):
+            try:
+                return loader.is_package(target_name)
+            except ImportError:
+                pass
+        module = sys.modules.get(target_name)
+        return hasattr(module, '__path__')
+
+    def get_code(self, fullname):
+        return self._delegate('get_code', fullname)
+
+    def get_source(self, fullname):
+        return self._delegate('get_source', fullname)
+
+    def get_filename(self, fullname):
+        return self._delegate('get_filename', fullname)
+
     def exec_module(self, module):
         # The real module was executed when it was first imported. All
         # that is left to do is undo the dunder rewrite the machinery
