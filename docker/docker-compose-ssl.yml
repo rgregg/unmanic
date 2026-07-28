@@ -3,6 +3,14 @@
 #
 # This compose file runs Unmanic with HTTPS enabled using local test certificates.
 #
+# NOT A DEPLOYMENT TEMPLATE. This is a TLS test fixture: a self-signed
+# certificate, the dev_environment/ tree, and no authentication of any
+# kind. Trawlarr's own TLS encrypts the connection but does not identify
+# or restrict the caller, so this instance is fully controllable by
+# anyone who can reach it. The port is bound to loopback for that reason.
+# To reach Trawlarr from outside your network, use
+# docker-compose-caddy.yml and read ../docs/SECURITY_MODEL.md.
+#
 # Usage from project root:
 #   docker-compose -f docker/docker-compose-ssl.yml up
 #
@@ -14,7 +22,8 @@ services:
     container_name: unmanic-ssl-test
     image: unmanic-ssl:test
     ports:
-      - 8888:8888
+      # Loopback only — unauthenticated test instance, see the header.
+      - 127.0.0.1:8888:8888
     environment:
       - PUID=1000
       - PGID=1000

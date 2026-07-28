@@ -100,6 +100,39 @@ change in your compose file.
 
 The web UI is at `http://<host>:8888/`, same as upstream.
 
+### Security: this is trusted-network software
+
+> **Trawlarr does not authenticate inbound requests.** There is no
+> login, no password, no API key, and no session check anywhere in the
+> web server. Anyone who can reach port 8888 has full control of the
+> installation — including uploading a plugin, which runs arbitrary
+> code as the container user. **Never expose that port directly to the
+> internet.**
+
+Two things people reasonably but wrongly assume:
+
+- **Removing upstream's account system did not remove access
+  control.** That account established a supporter tier and talked to a
+  central service; it never authenticated requests to your web UI.
+  Upstream Unmanic is unauthenticated on the local port too. The
+  leftover "sign out" menu item protects nothing.
+- **Enabling Trawlarr's HTTPS support is not authentication.** It
+  encrypts the connection. It does not restrict who may use it.
+
+The supported deployment is a trusted local network — or a VPN /
+overlay network such as WireGuard or Tailscale, which is the
+lowest-effort way to get safe remote access. If you need it on the
+public internet, put a reverse proxy in front that terminates TLS and
+authenticates *every* route, and keep 8888 off the host entirely. A
+working Caddy example ships in
+[`docker/docker-compose-caddy.yml`](docker/docker-compose-caddy.yml).
+
+The full picture — what an unauthenticated caller can actually do, the
+supported patterns, and what only looks like protection — is in
+[`docs/SECURITY_MODEL.md`](docs/SECURITY_MODEL.md). Optional
+first-party local authentication is separate future work, tracked in
+[#55](https://github.com/rgregg/trawlarr/issues/55).
+
 ### Choosing a tag
 
 Trawlarr releases follow semver, and the image tags let you decide how

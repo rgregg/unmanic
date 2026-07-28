@@ -1,0 +1,78 @@
+################
+# Internet-facing Docker Compose file — Caddy reverse proxy, TLS, auth
+#
+# Trawlarr does not authenticate inbound requests. Anyone who can reach
+# port 8888 has full control of the installation, including plugin upload
+# (which is remote code execution). Never publish 8888 to the internet.
+#
+# This stack is the supported way to reach Trawlarr from outside your
+# network without a VPN:
+#   - Trawlarr publishes NO host ports and sits on an internal network.
+#   - Caddy publishes 80/443, gets a Let's Encrypt certificate, and
+#     authenticates every request before proxying to trawlarr:8888.
+#
+# See ../docs/SECURITY_MODEL.md for the full picture.
+#
+# Setup:
+#   1. cp Caddyfile.example Caddyfile
+#   2. Replace trawlarr.example.com with your hostname, and point its DNS
+#      A/AAAA record at this host.
+#   3. Generate a password hash and put it in the Caddyfile:
+#        docker run --rm caddy caddy hash-password --plaintext 'your-password'
+#   4. Forward ONLY ports 80 and 443 to this host. Not 8888.
+#   5. docker compose -f docker/docker-compose-caddy.yml up -d
+#
+# Variables that will need to be changed:
+#     <PUID>                   -  User id for folder/file permissions
+#     <PGID>                   -  Group id for folder/file permissions
+#     <TZ>                     -  Timezone, e.g. America/Los_Angeles
+#     <PATH_TO_CONFIG>         -  Path where Trawlarr will store config files
+#     <PATH_TO_LIBRARY>        -  Path to the media library
+#     <PATH_TO_ENCODE_CACHE>   -  Cache path for in-progress encoding tasks
+#
+
+version: '3'
+
+services:
+  caddy:
+    container_name: trawlarr-caddy
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+      - 443:443/udp
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - trawlarr_internal
+    depends_on:
+      - trawlarr
+
+  trawlarr:
+    container_name: trawlarr
+    image: ghcr.io/rgregg/trawlarr:1
+    restart: unless-stopped
+    # Deliberately no `ports:` block. Port 8888 is reachable only from the
+    # caddy container over trawlarr_internal. Publishing it here — even on
+    # 127.0.0.1 — is a second door that is not behind the proxy's auth.
+    environment:
+      - PUID=<PUID>
+      - PGID=<PGID>
+      - TZ=<TZ>
+    volumes:
+      - <PATH_TO_CONFIG>:/config
+      - <PATH_TO_LIBRARY>:/library
+      - <PATH_TO_ENCODE_CACHE>:/tmp/unmanic
+    networks:
+      - trawlarr_internal
+
+networks:
+  trawlarr_internal:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
