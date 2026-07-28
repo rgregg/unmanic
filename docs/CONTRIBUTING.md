@@ -48,13 +48,45 @@ Code contributions are very welcome.
 
 - **PRs target `main`.** This is a single-branch repo — there is no `staging`
   or `master` branch.
-- **The test suite must pass.** `.github/workflows/test.yml` runs
-  `pytest tests/unit/` on every PR and enforces a coverage floor. Coverage must
-  not regress below it. Run the suite locally first:
+- **Both test suites must pass.** `.github/workflows/test.yml` runs the Python
+  suite and the frontend suite on every PR, and each enforces a coverage floor.
+  Run them locally first:
 
   ```bash
   pytest tests/unit/ --cov=trawlarr --cov-report=term-missing
+
+  cd trawlarr/webserver/frontend
+  npm run lint && npm run test:coverage && npm run build
   ```
+
+  The frontend `build` is not optional politeness — Quasar's webpack build is
+  the only step that resolves every import in every `.vue` file, so it is what
+  catches a broken import before the Docker image does.
+
+### The coverage ratchet
+
+Coverage floors here are a **ratchet, not a target**. The rule:
+
+- The floor sits just below the number currently measured on `main`.
+- When a PR pushes coverage meaningfully above the floor, **raise the floor in
+  the same PR**. Leaving a floor far below actual coverage means the number can
+  halve without anyone noticing, which is the whole failure mode we are trying
+  to avoid.
+- **Never lower a floor to make a red build green.** If a change genuinely makes
+  a floor unreachable, say so in the PR and get agreement — a lowered floor is a
+  decision, not a fix.
+
+Where the floors live:
+
+| Suite    | Floor                                                    | Measured on `main`         |
+| -------- | -------------------------------------------------------- | -------------------------- |
+| Python   | `--cov-fail-under` in `.github/workflows/test.yml`        | 31.78% lines (311 tests)   |
+| Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js` | 20.5% functions (25 tests) |
+
+For the frontend, read **functions** as the honest number. v8 marks a module's
+top-level statements covered merely for having been imported, and the router
+spec imports every page in the app — so the statement and line percentages are
+flattered by roughly 60 points of "covered but never asserted on".
 
 - **Write new code against the `trawlarr` package.** The application lives
   in `trawlarr/`; the `unmanic/` directory is a compatibility shim that

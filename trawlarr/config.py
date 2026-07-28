@@ -84,6 +84,19 @@ DERIVED_PATH_CONFIG_KEYS = frozenset({
 #: rejected with a 400; see `ApiSettingsHandler.write_settings()`.
 API_PROTECTED_CONFIG_KEYS = DERIVED_PATH_CONFIG_KEYS
 
+#: Seconds a worker subprocess may show no sign of life before the worker
+#: stall detector terminates it. See `trawlarr.libs.workers` for what counts
+#: as a sign of life - it is deliberately much broader than "reported a
+#: progress percentage", because plenty of healthy commands go a long time
+#: between progress updates.
+DEFAULT_WORKER_STALL_TIMEOUT = 300
+
+#: Lower bound applied to `worker_stall_timeout`. A misconfigured two-second
+#: threshold would kill healthy transcodes, which is a far worse failure than
+#: not having a stall detector at all, so the value is clamped rather than
+#: trusted.
+MINIMUM_WORKER_STALL_TIMEOUT = 60
+
 
 class Config(object, metaclass=SingletonType):
     app_version = ''
@@ -151,6 +164,8 @@ class Config(object, metaclass=SingletonType):
 
         # Worker settings
         self.cache_path = common.get_default_cache_path()
+        self.worker_stall_detection_enabled = True
+        self.worker_stall_timeout = DEFAULT_WORKER_STALL_TIMEOUT
 
         # Installation identity (used to label forwarded logs)
         self.installation_name = ''
@@ -576,6 +591,51 @@ class Config(object, metaclass=SingletonType):
         :return:
         """
         return self.log_path
+
+    def get_worker_stall_detection_enabled(self):
+        """
+        Get setting - worker_stall_detection_enabled
+
+        :return:
+        """
+        return bool(self.worker_stall_detection_enabled)
+
+    def set_worker_stall_detection_enabled(self, value):
+        """
+        Set setting - worker_stall_detection_enabled
+
+        Accepts the string forms that arrive from environment variables as
+        well as real booleans.
+
+        :return:
+        """
+        if isinstance(value, str):
+            value = value.strip().lower() in ('true', 'yes', 'on', '1')
+        self.worker_stall_detection_enabled = bool(value)
+
+    def get_worker_stall_timeout(self):
+        """
+        Get setting - worker_stall_timeout
+
+        Always returns a usable number of seconds. A value that is missing,
+        non-numeric or dangerously small falls back to a safe one rather than
+        arming a hair-trigger that kills healthy work.
+
+        :return:
+        """
+        try:
+            timeout = int(self.worker_stall_timeout)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Configured worker_stall_timeout %r is not a number. Using %s seconds.",
+                self.worker_stall_timeout, DEFAULT_WORKER_STALL_TIMEOUT)
+            return DEFAULT_WORKER_STALL_TIMEOUT
+        if timeout < MINIMUM_WORKER_STALL_TIMEOUT:
+            logger.warning(
+                "Configured worker_stall_timeout of %s seconds is below the minimum of %s seconds. "
+                "Using the minimum.", timeout, MINIMUM_WORKER_STALL_TIMEOUT)
+            return MINIMUM_WORKER_STALL_TIMEOUT
+        return timeout
 
     def get_number_of_workers(self):
         """

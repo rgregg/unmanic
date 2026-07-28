@@ -41,10 +41,24 @@ import time
 
 import psutil
 
+from trawlarr import config
 from trawlarr.libs import common
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
+from trawlarr.libs.task import TaskDataStore
+
+#: CPU seconds the tracked process tree must accumulate between two monitor
+#: samples for the sample to count as a sign of life. Small but non-zero so
+#: that measurement noise cannot masquerade as work.
+STALL_CPU_TIME_EPSILON = 0.05
+
+#: Key under which a stalled task's failure record is stashed in the task data
+#: store. This is the seam for #25 (durable task failure state): today the
+#: record only lives for the lifetime of the task in memory, plus the banner
+#: written into the task's command log. #25 should persist this same structure
+#: rather than introduce a second, competing notion of "why did this fail".
+TASK_FAILURE_STATE_KEY = 'task_failure'
 
 
 class WorkerCommandError(Exception):
@@ -82,6 +96,51 @@ class WorkerSubprocessMonitor(threading.Thread):
         self.subprocess_rss_bytes = 0
         self.subprocess_vms_bytes = 0
 
+        # Stall detection state.
+        # 'last_activity_at' is the last time this subprocess showed ANY sign
+        # of life (see __check_for_stall). It is deliberately not the same as
+        # "last reported a progress percentage".
+        self.last_activity_at = None
+        self.stall_detection_enabled = False
+        self.stall_timeout = None
+        self._last_cpu_seconds = None
+        self._last_io_bytes = None
+        self._stall_warning_logged = False
+
+    def __reset_stall_detection(self):
+        """
+        Re-arm the stall detector for a newly tracked subprocess.
+
+        Settings are read once per subprocess rather than once per loop so
+        that a long-running command is judged by the rules that were in force
+        when it started. If the settings cannot be read at all, the detector
+        stays disabled: killing a healthy transcode because the config file
+        was unreadable would be a far worse failure than not detecting a stall.
+        """
+        self.last_activity_at = time.time()
+        self._last_cpu_seconds = None
+        self._last_io_bytes = None
+        self._stall_warning_logged = False
+        try:
+            settings = config.Config()
+            self.stall_detection_enabled = settings.get_worker_stall_detection_enabled()
+            self.stall_timeout = settings.get_worker_stall_timeout()
+        except Exception:
+            self.logger.exception(
+                "Unable to read worker stall detection settings. Stall detection is disabled for this subprocess.")
+            self.stall_detection_enabled = False
+            self.stall_timeout = None
+
+    def note_activity(self):
+        """
+        Record a sign of life for the currently tracked subprocess.
+
+        Called whenever the worker reads a line of output from the command or
+        a plugin reports progress. Cheap by design - it is on the per-line hot
+        path of every running command.
+        """
+        self.last_activity_at = time.time()
+
     def set_proc(self, pid):
         try:
             if pid != self.subprocess_pid:
@@ -94,6 +153,8 @@ class WorkerSubprocessMonitor(threading.Thread):
                 # Reset subprocess progress
                 self.subprocess_percent = 0
                 self.subprocess_elapsed = 0
+                # Re-arm the stall detector for this new subprocess
+                self.__reset_stall_detection()
             if self.redundant_flag.is_set():
                 # If the redundant flag is set then we should terminate any set procs straight away as the worker needs to stop
                 self.logger.debug(
@@ -113,6 +174,10 @@ class WorkerSubprocessMonitor(threading.Thread):
             # Reset subprocess progress
             self.subprocess_percent = 0
             self.subprocess_elapsed = 0
+            # Disarm the stall detector. There is nothing to watch until the
+            # next subprocess is set.
+            self.stall_detection_enabled = False
+            self.last_activity_at = None
             # Reset resource values
             self.set_proc_resources_in_parent_worker(0, 0, 0, 0)
         except Exception:
@@ -293,6 +358,153 @@ class WorkerSubprocessMonitor(threading.Thread):
 
         return all_procs
 
+    def _sample_tree_activity(self, tracked_procs):
+        """
+        Sample the cumulative CPU time and disk I/O of the tracked process
+        tree.
+
+        Both counters are monotonic for a given process, so any advance means
+        the tree actually did something since the previous sample. Either
+        counter may be unavailable (permissions, platform), in which case None
+        is returned for it and the caller treats it as "no opinion".
+
+        :param tracked_procs:
+        :return: tuple of (cpu_seconds or None, io_bytes or None)
+        """
+        cpu_seconds = 0.0
+        io_bytes = 0
+        cpu_sampled = False
+        io_sampled = False
+        for proc in tracked_procs:
+            try:
+                cpu_times = proc.cpu_times()
+                cpu_seconds += float(cpu_times.user) + float(cpu_times.system)
+                cpu_sampled = True
+            except Exception:
+                pass
+            try:
+                io_counters = proc.io_counters()
+                io_bytes += int(io_counters.read_bytes) + int(io_counters.write_bytes)
+                io_sampled = True
+            except Exception:
+                pass
+        return (cpu_seconds if cpu_sampled else None, io_bytes if io_sampled else None)
+
+    def __counters_show_activity(self, cpu_seconds, io_bytes):
+        """
+        Compare this sample of the process tree's counters against the
+        previous one.
+
+        Returns True whenever the tree looks alive. That includes the case
+        where neither counter could be read: without evidence, the detector
+        must not conclude that a running process is dead.
+
+        :param cpu_seconds:
+        :param io_bytes:
+        :return:
+        """
+        if cpu_seconds is None and io_bytes is None:
+            # We have no way to judge this process tree. Never kill on a guess.
+            return True
+
+        active = False
+
+        if cpu_seconds is not None:
+            if self._last_cpu_seconds is None:
+                # First sample only establishes a baseline
+                pass
+            elif abs(cpu_seconds - self._last_cpu_seconds) > STALL_CPU_TIME_EPSILON:
+                # An advance is work being done. A decrease means a child of
+                # the tree exited, which is also the tree making progress.
+                active = True
+            self._last_cpu_seconds = cpu_seconds
+
+        if io_bytes is not None:
+            if self._last_io_bytes is None:
+                pass
+            elif io_bytes != self._last_io_bytes:
+                active = True
+            self._last_io_bytes = io_bytes
+
+        return active
+
+    def __check_for_stall(self, tracked_procs):
+        """
+        Terminate the tracked subprocess if it has stopped showing any sign of
+        life for longer than the configured stall timeout.
+
+        What counts as a sign of life, deliberately broadly:
+
+          * a line of output read from the command, or a progress report from
+            a plugin (see note_activity)
+          * CPU time accumulating anywhere in the process tree
+          * bytes read from or written to disk anywhere in the process tree
+
+        A 4K HEVC encode that goes twenty minutes between progress lines is
+        still burning CPU and writing to the cache file, so it is never a
+        candidate. The failures this catches - an NFS write wedged in
+        uninterruptible sleep, a deadlocked muxer, a hung GPU ioctl - produce
+        no output, no CPU time and no I/O at all. Requiring the absence of all
+        three is what makes it safe to act automatically.
+
+        The clock is frozen while the worker is paused, since a suspended
+        process is supposed to look dead.
+
+        :param tracked_procs:
+        :return: True if the subprocess was killed as stalled
+        """
+        if not self.stall_detection_enabled or not self.stall_timeout or not tracked_procs:
+            return False
+        if self.redundant_flag.is_set():
+            return False
+        if self.paused or self.paused_flag.is_set():
+            # A paused worker's subprocesses are SIGSTOPped. Of course they
+            # are not making progress.
+            self.last_activity_at = time.time()
+            return False
+
+        cpu_seconds, io_bytes = self._sample_tree_activity(tracked_procs)
+        now = time.time()
+        if self.__counters_show_activity(cpu_seconds, io_bytes):
+            self.last_activity_at = now
+            self._stall_warning_logged = False
+            return False
+
+        if self.last_activity_at is None:
+            self.last_activity_at = now
+            return False
+
+        idle_for = now - self.last_activity_at
+        if idle_for < self.stall_timeout:
+            # Say something before doing something. Half the threshold gives
+            # an operator a chance to see the problem in the logs before the
+            # detector acts on it.
+            if idle_for >= (self.stall_timeout / 2) and not self._stall_warning_logged:
+                self._stall_warning_logged = True
+                self.logger.warning(
+                    "Subprocess PID %s has shown no output, CPU time or disk I/O for %s seconds. "
+                    "It will be terminated as stalled at %s seconds.",
+                    self.subprocess_pid, int(idle_for), self.stall_timeout)
+            return False
+
+        reason = (
+            "Worker stall detector: subprocess PID {} produced no output, consumed no CPU time and "
+            "performed no disk I/O for {} seconds (stall timeout is {} seconds). The command was "
+            "terminated.".format(self.subprocess_pid, int(idle_for), self.stall_timeout)
+        )
+        self.logger.error("%s", reason)
+        # Disarm before acting. One subprocess gets one stall report; the next
+        # set_proc() re-arms the detector.
+        self.stall_detection_enabled = False
+        # Tell the parent worker first, so that the failure is recorded even
+        # if terminating the process tree goes badly.
+        try:
+            self.parent_worker.report_subprocess_stalled(reason)
+        except Exception:
+            self.logger.exception("Exception while reporting a stalled subprocess to the parent worker")
+        self.terminate_proc()
+        return True
+
     def get_subprocess_elapsed(self):
         try:
             subprocess_elapsed = 0
@@ -359,6 +571,9 @@ class WorkerSubprocessMonitor(threading.Thread):
                 self.set_proc(pid)
             if proc_start_time is not None:
                 self.set_subprocess_start_time(proc_start_time)
+            # A plugin bothering to report progress is a sign of life,
+            # regardless of whether the line parses into a percentage.
+            self.note_activity()
             try:
                 stripped_text = str(line_text).strip()
                 text_float = float(stripped_text)
@@ -431,6 +646,11 @@ class WorkerSubprocessMonitor(threading.Thread):
 
                 # Set values in parent worker thread
                 self.set_proc_resources_in_parent_worker(normalised_cpu_percent, total_rss, total_vms, mem_percent)
+
+                # Kill the subprocess if it has stopped showing any sign of life
+                if self.__check_for_stall(tracked_procs):
+                    self.event.wait(1)
+                    continue
 
                 # Pause/resume subprocesses while keeping the monitor loop alive
                 if self.paused_flag.is_set():
@@ -608,6 +828,63 @@ class Worker(threading.Thread):
             except Exception as e:
                 self.logger.exception("Exception in runners info of worker %s: %s", self.name, e)
         return status
+
+    def report_subprocess_stalled(self, reason):
+        """
+        Record that the worker's subprocess was killed by the stall detector.
+
+        Called from the WorkerSubprocessMonitor thread, so it must not raise
+        and must not block. The kill itself makes the current command exit
+        non-zero, which fails the runner and the task through the ordinary
+        failure path - this method exists so the reason is not lost.
+
+        :param reason:
+        :return:
+        """
+        try:
+            self.logger.error("Worker '%s' subprocess was terminated as stalled: %s", self.name, reason)
+        except Exception:
+            pass
+        self.record_task_failure('stalled', reason)
+
+    def record_task_failure(self, category, message):
+        """
+        Attach a failure category and message to the task being processed.
+
+        NOTE (seam for #25 - persist task failure state): today this writes a
+        banner into the worker log, which is saved to the task's command log
+        and is therefore durable and visible in the completed task history,
+        and stores a structured record in the task data store for the lifetime
+        of the task. There is no failure column on the tasks table yet; when
+        #25 adds durable failure state it should persist THIS record rather
+        than introduce a second, competing notion of why a task failed. The
+        structure is intentionally the shape #25 needs: category, message,
+        timestamp.
+
+        :param category: Short machine-readable failure category, e.g. 'stalled'
+        :param message: Human-readable explanation
+        :return:
+        """
+        record = {
+            'category':  category,
+            'message':   message,
+            'timestamp': time.time(),
+        }
+        # Loud in the log the user actually reads. A task that failed for a
+        # reason nobody can see is the failure mode this is meant to end.
+        try:
+            if self.worker_log is not None:
+                self.worker_log.append(
+                    "\n\nTASK FAILED [{}]\n{}\n".format(category.upper(), message))
+        except Exception:
+            self.logger.exception("Failed to append the task failure banner to the worker log")
+        try:
+            if self.current_task is not None:
+                TaskDataStore.set_task_state(TASK_FAILURE_STATE_KEY, record,
+                                             task_id=self.current_task.get_task_id())
+        except Exception:
+            self.logger.exception("Failed to record the task failure state for the current task")
+        return record
 
     def __unset_current_task(self):
         self.current_task = None
@@ -1146,6 +1423,13 @@ class Worker(threading.Thread):
                 if line_text == "" and sub_proc.poll() is not None:
                     self.logger.debug("Subprocess task completed!")
                     break
+
+                # Any output at all is a sign of life for the stall detector.
+                # Recorded here rather than inside the progress parser so that
+                # a plugin parser which throws, or which never produces a
+                # percentage, does not look like a hung command.
+                if line_text:
+                    self.worker_subprocess_monitor.note_activity()
 
                 # Parse the progress
                 try:

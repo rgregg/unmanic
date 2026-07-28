@@ -284,6 +284,12 @@ For Trawlarr-specific operational topics (CI, build pipeline, the
 `trawlarr-test` instance, production cutover) see
 [`FORK.md`](FORK.md).
 
+If you run external maintenance jobs against the same library —
+backfills, rescans, backups — see
+[`docs/AUTOMATION.md`](docs/AUTOMATION.md) for the supported way to ask
+whether Trawlarr is currently busy, instead of inferring it from its
+running processes.
+
 ## Contributing
 
 PRs into `main` welcome. The test suite must pass and coverage must
