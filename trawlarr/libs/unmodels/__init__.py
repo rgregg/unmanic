@@ -37,6 +37,7 @@ from .completedtasks import CompletedTasks
 from .enabledplugins import EnabledPlugins
 from .filemetadata import FileMetadata
 from .filemetadatapaths import FileMetadataPaths
+from .filesanitystate import FileSanityState
 from .installation import Installation
 from .pluginrepos import PluginRepos
 from .plugins import Plugins

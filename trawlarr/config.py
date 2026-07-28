@@ -132,6 +132,23 @@ class Config(object, metaclass=SingletonType):
         self.max_age_of_completed_tasks = 91
         self.always_keep_failed_tasks = True
 
+        # Output sanity checks (see trawlarr/libs/sanity.py and issue #35).
+        # Structural assertions on a task's output vs its input, run before the
+        # output is allowed into the library. Thresholds are exposed because
+        # "materially larger" and "how many repeats" genuinely depend on what a
+        # library's plugin flow is for.
+        self.sanity_checks_enabled = True
+        # Consecutive tasks on the same file that may grow it before the file is
+        # flagged and halted. 1 would fail the first legitimate stereo downmix;
+        # 2 catches a runaway on its second pass.
+        self.sanity_check_growth_repeats = 2
+        # Output/input size ratio above which a task counts as having grown the
+        # file. A few percent of container overhead is not growth.
+        self.sanity_check_size_growth_ratio = 1.05
+        # Flag a task that leaves more copies of an identical audio stream than
+        # the input had. Needs no repeat count - once is already wrong.
+        self.sanity_check_duplicate_audio = True
+
         # Worker settings
         self.cache_path = common.get_default_cache_path()
 
@@ -519,6 +536,38 @@ class Config(object, metaclass=SingletonType):
         :return:
         """
         return self.always_keep_failed_tasks
+
+    def get_sanity_checks_enabled(self):
+        """
+        Get setting - sanity_checks_enabled
+
+        :return:
+        """
+        return self.sanity_checks_enabled
+
+    def get_sanity_check_growth_repeats(self):
+        """
+        Get setting - sanity_check_growth_repeats
+
+        :return:
+        """
+        return self.sanity_check_growth_repeats
+
+    def get_sanity_check_size_growth_ratio(self):
+        """
+        Get setting - sanity_check_size_growth_ratio
+
+        :return:
+        """
+        return self.sanity_check_size_growth_ratio
+
+    def get_sanity_check_duplicate_audio(self):
+        """
+        Get setting - sanity_check_duplicate_audio
+
+        :return:
+        """
+        return self.sanity_check_duplicate_audio
 
     def get_log_path(self):
         """
