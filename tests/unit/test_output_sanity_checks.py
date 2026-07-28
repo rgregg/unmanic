@@ -172,6 +172,21 @@ class TestRunawayAudioDuplication:
 
 class TestDoesNotCryWolf:
 
+    def test_a_preexisting_duplicate_pair_survives_an_unrelated_addition(self):
+        """Pins the `output_count > source_count` term specifically.
+
+        The source already carries two matching English stereo tracks -- old
+        damage, not this task's doing. This task adds a surround track, so
+        the audio count grows and the count guard does not apply. The matching
+        pair is unchanged at two, so nothing was duplicated *here* and the
+        task must not be blamed. Without the strictly-greater comparison this
+        would flag on every future pass over an already-damaged file.
+        """
+        source = _probe([_video(), _audio('aac', 2, 'stereo'), _audio('aac', 2, 'stereo')])
+        output = _probe([_video(), _audio('aac', 2, 'stereo'), _audio('aac', 2, 'stereo'),
+                         _audio('eac3', 6, '5.1')])
+        assert sanity.evaluate(source, output, 2000, 1500, {}).failed is False
+
     def test_preexisting_duplicates_are_not_this_tasks_fault(self):
         """The input already had two identical stereo tracks and the output
         still has two. Flagging this would fail every future pass over a
