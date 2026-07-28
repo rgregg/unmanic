@@ -84,6 +84,16 @@ tornado_settings = {
     'static_js':       os.path.join(public_directory, "js"),
     'debug':           True,
     'autoreload':      False,
+    # Tornado's `debug` flag setdefault()s serve_traceback=True, so leaving
+    # this implicit would return a full Python traceback for every unhandled
+    # request. That was harmless while the catch-all redirect meant nothing
+    # could ever 404; now that NotFoundHandler exists, any unknown URL would
+    # hand a stack trace to any caller -- and per docs/SECURITY_MODEL.md this
+    # application performs no authentication, so "any caller" is anyone who
+    # can reach the port. Set explicitly: setdefault() means this wins over
+    # `debug`, while update_tornado_settings() can still turn it back on for
+    # a developer run.
+    'serve_traceback': False,
     'default_handler_class': NotFoundHandler,
 }
 
