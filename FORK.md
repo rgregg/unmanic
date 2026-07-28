@@ -440,7 +440,9 @@ python -m venv .venv
 ```
 
 `--cov=trawlarr` measures the real package. Pointing it at the `unmanic`
-alias would report on the shim's two files and nothing else.
+alias would report on the one-file bootstrap and nothing else —
+`namespace_shim.py` lives inside `trawlarr/`, so `--cov=unmanic` never
+sees it.
 
 CI runs the same command on every push to `main` and on PRs targeting
 `main`. Failing tests fail the build. The coverage floor (currently 13%)
@@ -456,11 +458,6 @@ singleton bare via `__new__`, mock collaborators, assert.
 
 Tracked in [the issue tracker](https://github.com/rgregg/trawlarr/issues):
 
-- **[#1 mDNS-based node discovery](https://github.com/rgregg/trawlarr/issues/1)**
-  — replace the unmanic.app `installation_data/list` mechanism (already
-  stubbed) with mDNS/zeroconf advertisement so workers discover each
-  other on the LAN. The service type is part of that design, not
-  inherited from upstream.
 - **[#5 Multi-stage Dockerfile](https://github.com/rgregg/trawlarr/issues/5)**
   — split build-time from runtime to shrink image size and speed cold
   builds. Needs careful runtime-soname iteration.
