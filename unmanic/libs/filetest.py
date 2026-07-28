@@ -42,6 +42,52 @@ from unmanic.libs import history, common
 from unmanic.libs.logs import UnmanicLogging
 from unmanic.libs.plugins import PluginsHandler
 
+# Trawlarr fork addition (see issue #32).
+#
+# The 'library_management.file_test' API gives a plugin only one way to say
+# "no": returning add_file_to_pending_tasks = False. But two very different
+# kinds of plugin use it:
+#
+#   guard   - "this file is out of scope / must not be touched"
+#             (limit_library_search_by_file_extension, ignore_completed_tasks)
+#   filter  - "I looked at the content and I have no work for this file"
+#             (skip_files_matching_ffprobe_data)
+#
+# A guard's "no" must not be overridable by another plugin asking for work,
+# or a file that never converges gets re-queued on every library scan. A
+# filter's "no" must be overridable, or a filter locks out requester plugins
+# that do have legitimate follow-up work.
+#
+# Until the plugin API can carry the role explicitly (issue #16), a False vote
+# is treated as a guard veto by default and is only demoted to an advisory
+# filter vote if the plugin says so. That default is the fail-safe direction:
+# wrongly vetoing means work is not queued, which is visible in /pending/test
+# and recoverable; wrongly overriding a veto means a silent re-queue loop.
+#
+# A plugin can declare itself a filter at runtime by setting
+# data['file_test_role'] = 'filter' (forward-compatible with issue #16).
+# Plugins that predate that key are listed here by plugin ID.
+FILE_TEST_ROLE_KEY = 'file_test_role'
+FILE_TEST_ROLE_FILTER = 'filter'
+ADVISORY_SKIP_PLUGIN_IDS = frozenset([
+    'skip_files_matching_ffprobe_data',
+])
+
+
+def file_test_skip_vote_is_advisory(plugin_module, data):
+    """
+    Determine whether a plugin's False vote is an advisory "no work for me"
+    (overridable by a plugin requesting the file) or a hard veto.
+
+    :param plugin_module:
+    :param data:
+    :return:
+    """
+    declared_role = data.get(FILE_TEST_ROLE_KEY)
+    if declared_role is not None:
+        return str(declared_role).lower() == FILE_TEST_ROLE_FILTER
+    return plugin_module.get('plugin_id') in ADVISORY_SKIP_PLUGIN_IDS
+
 
 class FileTest(object):
     """
@@ -140,24 +186,31 @@ class FileTest(object):
                 'priority_score': 0,
                 'shared_info':    {},
             }
-            # Run every file-test plugin and collect votes. Precedence:
-            #   - any plugin voting True ("queue this file") wins over any
-            #     plugin voting False ("skip this file"), so requester-style
-            #     plugins can legitimately override filter-style plugins
-            #     that have looked at the same file and decided it was fine.
-            #   - within a tier, the first plugin to cast that vote is
-            #     recorded as the decision plugin (used by /pending/test).
+            # Run the file-test plugins and collect their votes. Precedence,
+            # highest first (see issue #32 and the notes at the top of this
+            # module):
+            #   1. a guard voting False vetoes the file outright. Nothing can
+            #      override it, and the loop stops there so the expensive
+            #      requester plugins are not run against a file that has
+            #      already been ruled out.
+            #   2. any plugin voting True ("queue this file") wins over a
+            #      filter voting False, so requester-style plugins are not
+            #      locked out by a filter that found nothing to do.
+            #   3. otherwise a filter voting False skips the file.
+            # Within a tier, the first plugin to cast the winning vote is
+            # recorded as the decision plugin (used by /pending/test).
             # A future API revision should let plugins declare their role
-            # explicitly (filter vs requester); see issue #16. This change
-            # is the minimal fix.
+            # explicitly; see issue #16.
             queue_decision_plugin = None
-            skip_decision_plugin = None
+            veto_decision_plugin = None
+            advisory_skip_plugin = None
 
             for plugin_module in self.plugin_modules:
                 data['library_id'] = self.library_id
                 data['path'] = path
                 data['issues'] = deepcopy(file_issues)
                 data['add_file_to_pending_tasks'] = None
+                data[FILE_TEST_ROLE_KEY] = None
 
                 # Run plugin to update data
                 if not self.plugin_handler.exec_plugin_runner(data, plugin_module.get('plugin_id'),
@@ -168,23 +221,38 @@ class FileTest(object):
                 file_issues = data.get('issues')
 
                 vote = data.get('add_file_to_pending_tasks')
-                if vote is True and queue_decision_plugin is None:
-                    queue_decision_plugin = {
-                        'plugin_id':   plugin_module.get('plugin_id'),
-                        'plugin_name': plugin_module.get('name'),
-                    }
-                elif vote is False and skip_decision_plugin is None:
-                    skip_decision_plugin = {
-                        'plugin_id':   plugin_module.get('plugin_id'),
-                        'plugin_name': plugin_module.get('name'),
-                    }
+                if vote is True:
+                    if queue_decision_plugin is None:
+                        queue_decision_plugin = {
+                            'plugin_id':   plugin_module.get('plugin_id'),
+                            'plugin_name': plugin_module.get('name'),
+                        }
+                elif vote is False:
+                    if file_test_skip_vote_is_advisory(plugin_module, data):
+                        if advisory_skip_plugin is None:
+                            advisory_skip_plugin = {
+                                'plugin_id':   plugin_module.get('plugin_id'),
+                                'plugin_name': plugin_module.get('name'),
+                            }
+                    else:
+                        veto_decision_plugin = {
+                            'plugin_id':   plugin_module.get('plugin_id'),
+                            'plugin_name': plugin_module.get('name'),
+                        }
+                        # A veto is final. Stop here rather than running the
+                        # remaining plugins (probes, etc.) against a file that
+                        # will not be queued regardless of what they say.
+                        break
 
-            if queue_decision_plugin is not None:
+            if veto_decision_plugin is not None:
+                return_value = False
+                decision_plugin = veto_decision_plugin
+            elif queue_decision_plugin is not None:
                 return_value = True
                 decision_plugin = queue_decision_plugin
-            elif skip_decision_plugin is not None:
+            elif advisory_skip_plugin is not None:
                 return_value = False
-                decision_plugin = skip_decision_plugin
+                decision_plugin = advisory_skip_plugin
             # Set the priority score modification
             priority_score_modification = data.get('priority_score', 0)
 
