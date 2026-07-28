@@ -1,6 +1,7 @@
 # Standalone test instance of Trawlarr.
 #
-# Runs ghcr.io/rgregg/trawlarr:latest on a separate port (8889) with
+# Runs ghcr.io/rgregg/trawlarr:dev — the newest unreleased main build —
+# on a separate port (8889) with
 # isolated bind mounts that DO NOT touch the real media library. Use it
 # to validate fork changes (frontend strips, plugin behaviour, scheduler
 # fixes, etc) before cutting Komodo's production stack over.
@@ -25,7 +26,7 @@
 #   docker compose -f docker/docker-compose-test-instance.yml up -d
 services:
   trawlarr-test:
-    image: ghcr.io/rgregg/trawlarr:latest
+    image: ghcr.io/rgregg/trawlarr:dev
     container_name: trawlarr-test
     restart: unless-stopped
     ports:

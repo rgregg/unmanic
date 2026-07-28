@@ -1,6 +1,7 @@
 name: Smoke test
 
-# Boots ghcr.io/<owner>/trawlarr:latest in a throwaway container and verifies:
+# Boots the image the build workflow just pushed, in a throwaway
+# container, and verifies:
 #  - Webserver responds on /version/read (HEALTHCHECK probe target)
 #  - /session/state reports level == LOCAL_SESSION_LEVEL (default 7)
 #  - No outbound calls to api.unmanic.app appear in the container logs
@@ -8,13 +9,21 @@ name: Smoke test
 # Runs after the build workflow completes so we catch fork-introduced
 # regressions before cutting Komodo over to a new image. Failure flags
 # the freshly-pushed image as suspect.
+#
+# Which tag gets tested depends on what triggered the build: continuous
+# main builds are tested at :dev, release builds at their exact version
+# tag. Testing :latest would be wrong for prereleases, which never move it.
 
 on:
   workflow_run:
     workflows: ["Build image"]
     types: ["completed"]
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to smoke test"
+        required: false
+        default: "dev"
 
 permissions:
   contents: read
@@ -22,7 +31,7 @@ permissions:
 
 jobs:
   smoke:
-    name: Smoke test ghcr.io/<owner>/trawlarr:latest
+    name: Smoke test the freshly built image
     runs-on: ubuntu-latest
     # Only run if the upstream build succeeded.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
@@ -32,9 +41,24 @@ jobs:
         id: image
         env:
           OWNER: ${{ github.repository_owner }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          TRIGGERING_EVENT: ${{ github.event.workflow_run.event }}
+          # For a release-triggered build, workflow_run.head_branch carries
+          # the release tag rather than a branch name.
+          TRIGGERING_REF: ${{ github.event.workflow_run.head_branch }}
         run: |
+          set -euo pipefail
           ORG=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
-          echo "name=ghcr.io/${ORG}/trawlarr:latest" >> "$GITHUB_OUTPUT"
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${DISPATCH_TAG:-dev}"
+          elif [[ "${TRIGGERING_EVENT}" == "release" ]]; then
+            TAG="${TRIGGERING_REF}"
+          else
+            TAG="dev"
+          fi
+          echo "Smoke testing tag: ${TAG}"
+          echo "name=ghcr.io/${ORG}/trawlarr:${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Log into GHCR
         uses: docker/login-action@v3
