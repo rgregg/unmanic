@@ -3391,7 +3391,19 @@ paths:
                 $ref: '#/components/schemas/InternalError'
   /settings/write:
     post:
-      description: Save a given dictionary of settings.
+      description: 'Save a given dictionary of settings.
+
+        Keys that do not name a configuration field are deliberately ignored rather
+        than refused. The UI posts library-scoped keys alongside application ones,
+        and older clients may post fields that no longer exist.
+
+        Keys naming a protected, read-only field (config_path, log_path, plugins_path,
+        userdata_path) are refused with a 400 and *nothing* from the request is saved.
+        These are resolved at startup from the command line and environment; changing
+        them over the API would only desynchronise the running process from its own
+        files.
+
+        '
       requestBody:
         description: Requested a dictionary of settings to save.
         required: true

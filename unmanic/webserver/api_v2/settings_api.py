@@ -178,11 +178,45 @@ class ApiSettingsHandler(BaseApiHandler):
             self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
             self.write_error()
 
+    @staticmethod
+    def partition_requested_settings(requested_settings):
+        """
+        Split a requested settings dictionary into the items that may be persisted
+        and the names of any protected items that must not be.
+
+        Key comparison is case-insensitive because `Config.set_config_item()`
+        lowercases the key before matching it against the config fields — so
+        "CONFIG_PATH" would otherwise slip past the check and still be written.
+
+        :param requested_settings:
+        :return: tuple of (writable settings dict, sorted list of protected keys)
+        """
+        protected_keys = []
+        writable_settings = {}
+        for key, value in requested_settings.items():
+            if key.lower() in config.API_PROTECTED_CONFIG_KEYS:
+                protected_keys.append(key)
+                continue
+            writable_settings[key] = value
+        return writable_settings, sorted(protected_keys)
+
     async def write_settings(self):
         """
         Settings - save a dictionary of settings
         ---
-        description: Save a given dictionary of settings.
+        description: >
+            Save a given dictionary of settings.
+
+            Keys that do not name a configuration field are deliberately ignored
+            rather than refused. The UI posts library-scoped keys alongside
+            application ones, and older clients may post fields that no longer
+            exist.
+
+            Keys naming a protected, read-only field (config_path, log_path,
+            plugins_path, userdata_path) are refused with a 400 and *nothing*
+            from the request is saved. These are resolved at startup from the
+            command line and environment; changing them over the API would only
+            desynchronise the running process from its own files.
         requestBody:
             description: Requested a dictionary of settings to save.
             required: True
@@ -225,9 +259,22 @@ class ApiSettingsHandler(BaseApiHandler):
         try:
             json_request = self.read_json_request(SettingsReadAndWriteSchema())
 
+            writable_settings, protected_keys = self.partition_requested_settings(json_request.get('settings', {}))
+            if protected_keys:
+                # Refuse the request outright rather than saving the remainder. A partial
+                # save would leave the caller unable to tell what was actually applied.
+                self.error_messages = {
+                    'settings': ["Refused to write read-only settings: {}".format(', '.join(protected_keys))],
+                }
+                self.set_status(self.STATUS_ERROR_EXTERNAL, reason="Request contained read-only settings")
+                self.write_error()
+                return
+
             # Save settings - writing to file.
-            # Throws exception if settings fail to save
-            self.config.set_bulk_config_items(json_request.get('settings', {}))
+            # Throws exception if settings fail to save.
+            # NOTE: Persist the filtered dictionary. Filtering a copy and then persisting the
+            # original request payload is how this protection was silently defeated before (#18).
+            self.config.set_bulk_config_items(writable_settings)
 
             self.write_success()
             return

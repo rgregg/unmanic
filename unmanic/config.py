@@ -45,6 +45,26 @@ except ImportError:
 
 logger = UnmanicLogging.get_logger(name="Config")
 
+#: Configuration keys that the HTTP API is never permitted to write.
+#:
+#: These four paths are resolved once during startup from command-line
+#: arguments and environment variables, and every subsystem (logging, the
+#: plugin loader, the userdata store) caches its location from them. Writing
+#: one over the API does not move anything on disk; it only desynchronises the
+#: running process from its own files, and because the whole config dict is
+#: dumped to settings.json the bogus value survives a restart.
+#:
+#: They remain freely writable by internal callers via `set_config_item()` /
+#: `set_bulk_config_items()` — the restriction is a property of the API
+#: boundary, not of the config object. Requests naming any of these keys are
+#: rejected with a 400; see `ApiSettingsHandler.write_settings()`.
+API_PROTECTED_CONFIG_KEYS = frozenset({
+    'config_path',
+    'log_path',
+    'plugins_path',
+    'userdata_path',
+})
+
 
 class Config(object, metaclass=SingletonType):
     app_version = ''
