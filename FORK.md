@@ -218,21 +218,34 @@ tell them apart:
   subtree and its file names were not part of this rename.
 - **`trawlarr/migrations_v1/`.** The migration history is upstream's and
   is described as such.
-- **The per-directory marker file `.unmanic`.** `libs/directoryinfo.py`
-  writes this into every processed directory and reads it back to decide
-  what has already been handled. It exists in users' libraries *today*.
-  Renaming it does not lose files, it loses the knowledge — every
-  previously processed directory looks untouched and the whole library
-  is reprocessed. This is the most dangerous name on this list, and the
-  one most likely to look like a leftover.
+This section is enforced rather than merely written down:
+`tests/unit/test_runtime_path_defaults.py` fails if a runtime path
+default hardcodes the legacy app directory instead of taking it from
+`runtimepaths.APP_DIR_NAME`. That shipped as a real bug three times — the
+plugin executor and the plugin CLI both defaulted to `~/.unmanic/plugins`
+while the application installed to `~/.trawlarr/plugins`, and the CLI did
+the same for its dev directories.
 
-This section is now enforced rather than merely written down:
-`tests/unit/test_legacy_names_that_must_not_change.py` fails if the
-marker file is renamed, and also fails if a runtime path default
-hardcodes the legacy app directory instead of taking it from
-`runtimepaths.APP_DIR_NAME`. Both directions shipped as real bugs — the
-plugin executor and the plugin CLI each defaulted to `~/.unmanic/plugins`
-while the application installed to `~/.trawlarr/plugins`.
+### Coexisting with an Unmanic install
+
+Trawlarr and Unmanic can be pointed at the same library. The per-directory
+marker file is what makes that safe. Both applications record what they
+have already done to each file in a marker inside the directory, and
+`DirectoryInfo.save()` serialises the **whole** document — so if the two
+shared one file, whichever saved last would silently drop every entry the
+other had written. Nothing would error; the damage would surface later as
+work being redone or skipped for no visible reason.
+
+So Trawlarr writes `.trawlarr` and never writes `.unmanic`. A directory
+holding only an `.unmanic` marker is still **read** from it, once, so an
+installation migrating away from Unmanic keeps its processing history
+instead of reprocessing the whole library. That inheritance is read-only:
+the first save writes `.trawlarr`, after which the legacy file is ignored
+and left untouched for whoever else is using it. Where both markers
+exist, ours wins outright — there is no merging, so the two cannot drift
+into each other.
+
+Pinned by `tests/unit/test_directory_marker_coexistence.py`.
 
 Renaming any of these is a separate change with its own migration
 question, and none of them is user-visible in the way the config
