@@ -154,7 +154,7 @@ and pushes the versioned image tags. For a release candidate, add
 | `ghcr.io/rgregg/trawlarr:1.2` | moving | Conservative. Patch fixes only within 1.2 — no new features. |
 | `ghcr.io/rgregg/trawlarr:1.2.3` | immutable | Exact pin. Reproducible, never moves, updates are entirely manual. |
 | `ghcr.io/rgregg/trawlarr:latest` | moving | Newest stable release, across major versions. Convenient, but it *will* carry you across a breaking change. |
-| `ghcr.io/rgregg/trawlarr:dev` | rolling | Newest `main` build. Untagged, unreleased — the test instance, not production. |
+| `ghcr.io/rgregg/trawlarr:dev` | rolling | Newest `main` build — test-passing but unreleased. Normally the test instance; also production until 1.0.0 exists (see [Production deployment](#production-deployment)). |
 | `ghcr.io/rgregg/trawlarr:main-<sha7>` | immutable | Pin an exact development build when bisecting. |
 
 Prereleases publish **only** their exact tag. A `1.3.0-rc.1` never moves
@@ -171,6 +171,23 @@ put a release candidate into production.
 The production container runs on the media-server VM (10.0.0.203) in
 the homelab. See `home-docs/home-lab/apps/unmanic.md` for that side of
 the runbook.
+
+> **Until 1.0.0 is cut, production tracks `:dev`.**
+>
+> The first release is deliberately gated behind the `unmanic` → `trawlarr`
+> rename ([#49](https://github.com/rgregg/trawlarr/issues/49)) so that 1.0.0
+> ships with the internal namespace already correct. Until that lands there
+> are no releases, so `:1` and `:latest` either do not exist or sit frozen at
+> the last build made under the old tagging scheme.
+>
+> Pointing production at `:dev` in the meantime is the difference between
+> continuing to receive fixes and silently receiving nothing. Move it to `:1`
+> once 1.0.0 exists — the steps below describe that end state.
+>
+> `:dev` is the same artifact `:1` will be built from; it is "unreleased",
+> not "untested". Every `:dev` build has passed the test and smoke workflows.
+> The real cost is that it can change under you without a version bump, so
+> read the commit log before pulling if a transcode is mid-flight.
 
 ### Cutover from `josh5/unmanic:latest`
 
