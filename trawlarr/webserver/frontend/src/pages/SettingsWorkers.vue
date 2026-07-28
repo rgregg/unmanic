@@ -133,6 +133,47 @@
 
               <q-separator class="q-my-lg"/>
 
+              <!--START STALL DETECTION-->
+              <h5 class="q-mb-none">{{ $t('components.settings.workers.stallDetection') }}</h5>
+              <div class="q-gutter-sm">
+                <p class="text-caption q-mb-none">
+                  {{ $t('components.settings.workers.stallDetectionHint') }}
+                </p>
+                <q-skeleton
+                  v-if="stallDetectionEnabled === null"
+                  type="QToggle"/>
+                <q-toggle
+                  v-else
+                  v-model="stallDetectionEnabled"
+                  :label="$t('components.settings.workers.stallDetectionEnabled')"
+                />
+                <div
+                  v-if="stallDetectionEnabled"
+                  class="sub-setting">
+                  <div class="q-gutter-sm">
+                    <q-skeleton
+                      v-if="stallTimeout === null"
+                      type="QInput"/>
+                    <q-input
+                      v-else
+                      outlined
+                      type="number"
+                      v-model="stallTimeout"
+                      :label="$t('components.settings.workers.stallTimeout')"
+                      :hint="$t('components.settings.workers.stallTimeoutHint')"
+                      lazy-rules
+                      :rules="[
+                        val => val !== null && val !== '' || $t('components.settings.pleaseEnterAValidNumber'),
+                        val => val >= 60 || $t('components.settings.workers.stallTimeoutTooSmall')
+                      ]"
+                    />
+                  </div>
+                </div>
+              </div>
+              <!--END STALL DETECTION-->
+
+              <q-separator class="q-my-lg"/>
+
               <div>
                 <UnmanicSettingsSubmitButton/>
               </div>
@@ -219,6 +260,8 @@ export default {
     return {
       workerGroups: ref(null),
       cachePath: ref(null),
+      stallDetectionEnabled: ref(null),
+      stallTimeout: ref(null),
       activeWorkerGroupId: ref(0),
       selectDirectoryInitialPath: ref(''),
       selectDirectoryListType: ref('directories'),
@@ -247,6 +290,9 @@ export default {
       }).then((response) => {
         // Set the cache path value
         this.cachePath = response.data.settings.cache_path
+        // Set the worker stall detection values
+        this.stallDetectionEnabled = response.data.settings.worker_stall_detection_enabled
+        this.stallTimeout = response.data.settings.worker_stall_timeout
       }).catch(() => {
         this.$q.notify({
           color: 'negative',
@@ -336,6 +382,8 @@ export default {
       let data = {
         settings: {
           cache_path: this.cachePath,
+          worker_stall_detection_enabled: this.stallDetectionEnabled,
+          worker_stall_timeout: Number(this.stallTimeout),
         }
       }
       axios({
