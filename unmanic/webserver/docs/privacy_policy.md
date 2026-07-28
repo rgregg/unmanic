@@ -1,60 +1,101 @@
-Your privacy is important. I, Josh Sunnex, am committed to being transparent and open. This Privacy Policy
-explains generally how I receive information about you, and what I do with that information once I have it.
+Trawlarr is self-hosted software. It runs on hardware you control, and the project
+operates no servers, no accounts, and no analytics. Nobody involved in Trawlarr
+receives information about you or your installation.
 
-## Definition of “personal information”?
+This document describes what the software does with your data and which network
+connections it makes, so you can verify the claim rather than take it on trust.
 
-For me, “personal information” means information which identifies you, like your name or email address.
+## What Trawlarr collects about you
 
-Any information that falls outside of this is “non-personal information”.
+Nothing. There is no registration, no telemetry, no usage reporting, no crash
+reporting, and no unique installation identifier sent anywhere.
 
-If I store your personal information with information that is non-personal, I will consider the combination
-as personal information. If I remove all personal information from a set of data then the remaining is
-non-personal information.
+Trawlarr is a fork of [Unmanic](https://github.com/Unmanic/unmanic) with the
+phone-home functionality removed. Upstream Unmanic registers each installation
+with `api.unmanic.app`, reports plugin installs, and periodically refreshes a
+supporter session. Trawlarr does none of these — those calls are stubbed out, and
+the internal site URL resolves to an intentionally invalid hostname so that any
+missed call fails immediately rather than reaching a third party.
 
-## How do I learn information about you?
+## What is stored, and where
 
-I learn information about you when:
+Everything Trawlarr stores stays on the machine you run it on, under your
+configuration directory (`/config/.unmanic/` in the Docker image):
 
- - You give it to me directly (e.g., when you choose to send me logs in the forums)
- - I collect it automatically through my software and services (e.g., when your Unmanic installation registers with the Unmanic  site, or when your Unmanic installation connects with my servers to download plugins)
- - You visit the Unmanic website
+ - **Configuration and library settings** — in a local SQLite database.
+ - **Installed plugins and their settings** — including any credentials you
+   enter into a plugin's configuration.
+ - **Task history** — the files processed, their sizes, and the outcome.
+ - **Logs** — these record file paths and file names from your library, and are
+   more verbose when debugging is enabled.
 
-## What do I do with your information once I have it?
+None of this is transmitted anywhere. It is yours to inspect, back up, or
+delete. Removing the configuration directory removes all of it.
 
-Generally, I use your information to help me provide and improve my software and services for you (e.g., I
-use a log you send me to figure out why Unmanic isn’t working correctly, or I determine how many active
-users are using Unmanic and on what platforms it is being used in order to determine how to allocate
-resources per platform).
+## Network connections Trawlarr makes
 
-## When do I share your information with others?
+The software reaches out to the network in only these situations:
 
-The information that you provide me is intended for me alone. The only time I will share this information
-with a third party is when I have asked and received your permission to share it.
+ - **Plugin catalogs and downloads.** When you browse, install, or update
+   plugins, Trawlarr fetches the catalog and the plugin archives directly from
+   GitHub (`raw.githubusercontent.com`). GitHub will see your IP address for
+   these requests, as it would for any download. The catalog URL can be pointed
+   elsewhere with the `UNMANIC_DEFAULT_PLUGIN_REPO_URL` environment variable.
+ - **Plugin icons in the web interface.** Plugin listings reference icon images
+   hosted on GitHub, which your browser loads directly when you view the plugin
+   pages.
+ - **Linked installations.** If you configure links to other Trawlarr or Unmanic
+   installations, this instance communicates with the addresses you supplied.
+   These are your machines, typically on your own network.
+ - **Remote log forwarding — off unless you turn it on.** Trawlarr can forward
+   its logs to a log sink you operate. This is disabled by default and only
+   activates when you set the `UNMANIC_REMOTE_LOGGING_ENDPOINT` environment
+   variable to your own endpoint. Logs are sent only to the address you specify.
 
-## How do I store and protect your personal information?
+There are no other outbound connections. In particular, there is no contact with
+`api.unmanic.app` or any Trawlarr-operated service, because no such service
+exists.
 
-I am committed to protecting your personal information once I have it. All information will be securely
-stored using best practices. Despite these efforts, if I learn of a security breach, I’ll notify you so
-that you can take appropriate protective steps.
+## Plugins are third-party code
 
-## What if I change this privacy policy?
+This is the most important caveat on this page.
 
-I may need to change this policy. Updates to the policy will be amended here with a changelog at the
-bottom.
-If the changes are substantive, I will announce the update through social media channels. Your continued
-use of my products or services after the effective date of such changes constitutes your acceptance of such
-changes. To make your review more convenient, I will post an effective date at the top of the page.
+Plugins run as part of Trawlarr, with the same access to your files and network
+that Trawlarr has. A plugin can make its own network connections, and this
+privacy policy cannot make promises on its behalf. The default catalog is
+maintained by the Unmanic project, not by Trawlarr.
+
+Treat installing a plugin the way you would treat installing any other software:
+review what it does if it matters to you.
+
+## Sharing logs when reporting a problem
+
+If you report a bug and choose to attach logs, be aware they contain the file
+paths and file names of media in your library. Review them before posting, and
+redact anything you would rather not publish. Logs are never uploaded
+automatically.
+
+## Changes to this policy
+
+Changes will be recorded in the changelog below, and the effective date updated.
+Because Trawlarr is self-hosted, this policy is only ever the one shipped in the
+version you are running — you can read it in the source at
+`unmanic/webserver/docs/privacy_policy.md`, and check what changed in the
+project's git history.
 
 ---
 
 <div style="text-align: right">
 <b>Effective Date:</b>
-21 March, 2021
+27 July, 2026
 </div>
 
 ---
 
 ## Changelog
 
-**21 March, 2021**
- - Initial policy
+**27 July, 2026**
+ - Rewritten for Trawlarr. The previous version was inherited from upstream
+   Unmanic and described data collection — installation registration, plugin
+   install reporting, and contact through the Unmanic website — that this fork
+   does not perform.
