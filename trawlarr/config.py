@@ -166,6 +166,12 @@ class Config(object, metaclass=SingletonType):
         # not mistaken for duplication.
         self.sanity_check_duplicate_audio = True
 
+        # Durable task failure state (see trawlarr/libs/taskfailure.py and
+        # issue #25). How many times the same file may fail in a row before a
+        # retry is refused unless it is explicitly forced. A success on the
+        # file resets the count.
+        self.max_consecutive_task_failures = 3
+
         # Worker settings
         self.cache_path = common.get_default_cache_path()
         self.worker_stall_detection_enabled = True
@@ -587,6 +593,14 @@ class Config(object, metaclass=SingletonType):
         :return:
         """
         return self.sanity_check_duplicate_audio
+
+    def get_max_consecutive_task_failures(self):
+        """
+        Get setting - max_consecutive_task_failures
+
+        :return:
+        """
+        return self.max_consecutive_task_failures
 
     def get_log_path(self):
         """

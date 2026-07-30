@@ -431,6 +431,35 @@ class CompletedTasksTableResultsSchema(BaseSchema):
         description="Item has linked file metadata",
         example=False,
     )
+    failure_category = fields.Str(
+        required=False,
+        allow_none=True,
+        description="Why the task failed, as a category. Null for successful tasks.",
+        example="stalled",
+    )
+    failure_message = fields.Str(
+        required=False,
+        allow_none=True,
+        description="Human-readable failure reason. Null for successful tasks.",
+        example="No output, CPU time or disk I/O for 300s",
+    )
+    failure_time = fields.Number(
+        required=False,
+        allow_none=True,
+        description="When the failure was recorded",
+        example=1627392616.6400812,
+    )
+    failure_attempt = fields.Int(
+        required=False,
+        allow_none=True,
+        description="Which consecutive failure of this file this was (1 for the first)",
+        example=2,
+    )
+    failure_dismissed = fields.Boolean(
+        required=False,
+        description="The failure has been acknowledged by a user",
+        example=False,
+    )
 
 
 class CompletedTasksSchema(TableRecordsSuccessSchema):
@@ -445,6 +474,11 @@ class CompletedTasksSchema(TableRecordsSuccessSchema):
         required=True,
         description="Total count of times with a failed status in the results list",
         example=2,
+    )
+    outstandingFailureCount = fields.Int(
+        required=False,
+        description="Count of failed tasks that have not been dismissed and have not since processed successfully",
+        example=1,
     )
     results = fields.Nested(
         CompletedTasksTableResultsSchema,
@@ -676,6 +710,64 @@ class RequestAddCompletedToPendingTasksSchema(RequestCompletedTasksBulkActionSch
         required=False,
         load_default=0,
         example=1,
+    )
+    force = fields.Boolean(
+        required=False,
+        load_default=False,
+        description="Re-queue even when the file has reached the consecutive failure limit",
+        example=False,
+    )
+
+
+class RequestDismissTaskFailuresSchema(BaseSchema):
+    """Schema for acknowledging failed completed tasks"""
+
+    id_list = fields.List(
+        cls_or_instance=fields.Int,
+        required=True,
+        description="List of completed task IDs",
+        example=[1],
+        validate=validate.Length(min=1),
+    )
+    dismissed = fields.Boolean(
+        required=False,
+        load_default=True,
+        description="True to acknowledge the failures, False to restore them to the health view",
+        example=True,
+    )
+
+
+class TaskFailureSummarySchema(BaseSuccessSchema):
+    """Schema for the local task failure health view"""
+
+    total = fields.Int(
+        required=True,
+        description="Count of failed tasks that have not been dismissed and have not since processed successfully",
+        example=3,
+    )
+    categories = fields.Dict(
+        required=True,
+        keys=fields.Str(),
+        values=fields.Int(),
+        description="Outstanding failure counts grouped by category",
+        example={"stalled": 1, "plugin_error": 2},
+    )
+    oldest = fields.Number(
+        required=False,
+        allow_none=True,
+        description="Finish time of the oldest outstanding failure",
+        example=1627392616.6400812,
+    )
+    newest = fields.Number(
+        required=False,
+        allow_none=True,
+        description="Finish time of the most recent outstanding failure",
+        example=1627392616.6400812,
+    )
+    max_consecutive_failures = fields.Int(
+        required=True,
+        description="Consecutive failures of one file before a retry must be forced",
+        example=3,
     )
 
 

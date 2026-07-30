@@ -10,6 +10,24 @@
           </div>
         </div>
 
+        <!-- Failed work that nobody has acknowledged is the thing this card
+             most needs to say. Shown as a clickable banner that opens the
+             list already filtered to failures, so the reason is one click
+             away rather than buried under a scroll. -->
+        <div v-if="outstandingFailures > 0" class="col-auto q-mr-sm">
+          <q-btn
+            @click="openFailures"
+            color="negative"
+            dense
+            no-caps
+            unelevated
+            icon="report_problem"
+            :label="outstandingFailures === 1
+              ? $t('components.completedTasks.outstandingFailure')
+              : $t('components.completedTasks.outstandingFailures', { count: outstandingFailures })"
+          />
+        </div>
+
         <div class="col-auto">
           <q-btn
             @click="openDetails"
@@ -104,7 +122,9 @@
 
 <script>
 import { defineComponent, ref } from "vue";
+import axios from "axios";
 import CompletedTasksListDialog from "components/dashboard/completed/CompletedTasksListDialog.vue";
+import { getTrawlarrApiUrl } from "src/js/unmanicGlobals";
 
 export default defineComponent({
   name: 'CompletedTasks',
@@ -125,10 +145,18 @@ export default defineComponent({
         this.openDetails()
       }
     )
+    this.$global.$on(
+      'completedTaskFailureAcknowledged',
+      () => {
+        this.fetchOutstandingFailures()
+      }
+    )
+    this.fetchOutstandingFailures()
   },
   data() {
     return {
       completedTasksPopupInitStatusFilter: 'all',
+      outstandingFailures: 0,
     }
   },
   props: {
@@ -137,9 +165,31 @@ export default defineComponent({
       required: true
     }
   },
+  watch: {
+    // The completed task list is pushed over the websocket. A new entry in it
+    // is the cheapest signal that the failure count may have moved.
+    taskList() {
+      this.fetchOutstandingFailures()
+    }
+  },
   methods: {
     openDetails() {
       this.completedTasksDetailsDialogRef.show();
+    },
+    openFailures() {
+      this.completedTasksPopupInitStatusFilter = 'failed'
+      this.openDetails()
+    },
+    fetchOutstandingFailures() {
+      axios({
+        method: 'get',
+        url: getTrawlarrApiUrl('v2', 'history/failures/summary'),
+      }).then((response) => {
+        this.outstandingFailures = response.data.total || 0
+      }).catch(() => {
+        // A missing count must not blank out the card. Leave the last known
+        // value in place rather than claiming there is nothing wrong.
+      })
     }
   }
 });
