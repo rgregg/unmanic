@@ -1,10 +1,25 @@
 name: Smoke test
 
-# Boots the image the build workflow just pushed, in a throwaway
-# container, and verifies:
-#  - Webserver responds on /version/read (HEALTHCHECK probe target)
-#  - /session/state reports level == LOCAL_SESSION_LEVEL (default 7)
-#  - No outbound calls to api.unmanic.app appear in the container logs
+# Boots the image the build workflow just pushed, in throwaway
+# containers, and verifies three lifecycle paths an operator actually hits:
+#
+#  1. FIRST BOOT, against an empty /config:
+#     - Webserver responds on /version/read (HEALTHCHECK probe target)
+#     - /session/state reports level == LOCAL_SESSION_LEVEL (default 7)
+#     - The runtime paths moved (.trawlarr) and the old ones did not
+#     - No outbound calls to api.unmanic.app appear in the container logs
+#
+#  2. SECOND BOOT, against the /config the first boot just created:
+#     - Comes up again, on the same database file, keeping settings written
+#       over the API. Every upgrade and every container restart takes this
+#       path, and until now nothing exercised it: a change that only broke
+#       existing installs would have shipped with this workflow green.
+#
+#  3. LEGACY CONFIG, against a /config holding an Unmanic `.unmanic` dir:
+#     - Refuses to start, exits non-zero, prints the migration, and touches
+#       nothing. This is the single most operator-visible behaviour the
+#       rename added, and the one with the worst failure mode if it
+#       regresses: a silent "brand new installation" on top of live data.
 #
 # Runs after the build workflow completes so we catch fork-introduced
 # regressions before cutting Komodo over to a new image. Failure flags
@@ -187,7 +202,13 @@ jobs:
           # reaches out (a plugin schedule, a missed call site, a frontend
           # request reverse-proxied via an api endpoint), we want it loud.
           LOGS="$RUNNER_TEMP/container.log"
-          docker logs trawlarr-smoke 2>&1 > "$LOGS"
+          # Redirection order matters and was wrong here: `2>&1 > file`
+          # points stderr at the *old* stdout (the step log) and only then
+          # sends stdout to the file, so nothing the container wrote to
+          # stderr ever reached the greps below. Tracebacks -- including the
+          # ScheduledTasksManager crash this step exists to catch -- go to
+          # stderr. `> file 2>&1` is the order that captures both.
+          docker logs trawlarr-smoke > "$LOGS" 2>&1
           echo "--- container log tail ---"
           tail -80 "$LOGS"
           echo "--- end container log ---"
@@ -230,16 +251,242 @@ jobs:
             echo "::warning::Healthcheck status is '$STATUS' (expected 'healthy'). Probe may need more time on cold start."
           fi
 
+      # ---------------------------------------------------------------
+      # 2. Second boot: the same /config, an install that already exists.
+      # ---------------------------------------------------------------
+
+      - name: Record state the restart must preserve
+        id: preserve
+        run: |
+          # Two independent signals that the second boot adopted this
+          # install rather than quietly starting a new one beside it:
+          #
+          #  - the database inode. A fresh install creates a new file; a
+          #    restart opens the same one. Comparing inodes catches a
+          #    rename/relocate that a "does the file exist" check would not.
+          #  - a setting written over the API. The inode says the file was
+          #    reused; this says its *contents* were read back. A boot that
+          #    reset settings to defaults would keep the inode and still be
+          #    a data-loss bug.
+          set -euo pipefail
+          DB="$RUNNER_TEMP/unmanic-config/.trawlarr/config/trawlarr.db"
+          stat -c %i "$DB" > "$RUNNER_TEMP/db-inode-first"
+          echo "database inode before restart: $(cat "$RUNNER_TEMP/db-inode-first")"
+
+          MARKER="smoke-restart-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "marker=${MARKER}" >> "$GITHUB_OUTPUT"
+          curl -fsS -X POST \
+            -H 'Content-Type: application/json' \
+            -d "{\"settings\": {\"installation_name\": \"${MARKER}\"}}" \
+            http://127.0.0.1:8888/trawlarr/api/v2/settings/write
+          echo
+
+          # Confirm it took effect in the running process before we rely on
+          # it surviving anything. If this fails, the restart assertion
+          # below would fail for a reason that has nothing to do with restarts.
+          READBACK=$(curl -fsS http://127.0.0.1:8888/trawlarr/api/v2/settings/read \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["settings"].get("installation_name",""))')
+          if [[ "$READBACK" != "$MARKER" ]]; then
+            echo "::error::settings/write did not take effect in the running process (read back '$READBACK')"
+            exit 1
+          fi
+          echo "Marker '${MARKER}' set and read back."
+
+      - name: Stop the first container and start a second on the same config
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          # Deliberately a new container rather than `docker restart`: an
+          # upgrade replaces the container, and that is the path worth
+          # testing. Same volumes, same env, different container.
+          set -euo pipefail
+          docker logs trawlarr-smoke > "$RUNNER_TEMP/first-boot.log" 2>&1 || true
+          docker rm -f trawlarr-smoke >/dev/null
+
+          docker run -d --name trawlarr-restart \
+            -p 127.0.0.1:8888:8888 \
+            -e PUID=1000 -e PGID=1000 -e TZ=UTC \
+            -v "$RUNNER_TEMP/unmanic-config:/config" \
+            -v "$RUNNER_TEMP/unmanic-library:/library" \
+            -v "$RUNNER_TEMP/unmanic-cache:/tmp/unmanic" \
+            "$IMAGE"
+
+      - name: Wait for the existing install to come up
+        run: |
+          # Shorter budget than first boot on purpose: an existing install
+          # has already run its migrations and its first plugin refresh, so
+          # if it is taking first-boot time something is being redone.
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8888/trawlarr/api/v2/version/read >/dev/null 2>&1; then
+              echo "Existing install up after ~$((i * 3))s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "::error::Existing install did not come up within 120s"
+          docker logs trawlarr-restart | tail -200
+          exit 1
+
+      - name: Verify the second boot adopted the existing install
+        env:
+          MARKER: ${{ steps.preserve.outputs.marker }}
+        run: |
+          fail=0
+          DB="$RUNNER_TEMP/unmanic-config/.trawlarr/config/trawlarr.db"
+
+          INODE_BEFORE=$(cat "$RUNNER_TEMP/db-inode-first")
+          INODE_AFTER=$(stat -c %i "$DB")
+          echo "database inode: before=${INODE_BEFORE} after=${INODE_AFTER}"
+          if [[ "$INODE_BEFORE" != "$INODE_AFTER" ]]; then
+            echo "::error::Database was replaced across the restart — the second boot did not reuse the existing install"
+            fail=1
+          fi
+
+          READBACK=$(curl -fsS http://127.0.0.1:8888/trawlarr/api/v2/settings/read \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["settings"].get("installation_name",""))')
+          echo "installation_name after restart: '${READBACK}'"
+          if [[ "$READBACK" != "$MARKER" ]]; then
+            echo "::error::Setting did not survive the restart (expected '${MARKER}', got '${READBACK}')"
+            fail=1
+          fi
+
+          # An existing install must never trip the legacy guard, and must
+          # never grow a legacy directory of its own.
+          if [[ -d "$RUNNER_TEMP/unmanic-config/.unmanic" ]]; then
+            echo "::error::Legacy config directory /config/.unmanic appeared on the second boot"
+            fail=1
+          fi
+          if docker logs trawlarr-restart 2>&1 | grep -q "refused to start"; then
+            echo "::error::Existing install hit the legacy-config guard"
+            docker logs trawlarr-restart 2>&1 | tail -60
+            fail=1
+          fi
+
+          if [[ "$fail" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Existing install came back intact."
+
+      - name: Tear down the restart container
+        if: always()
+        run: |
+          if docker inspect trawlarr-restart >/dev/null 2>&1; then
+            docker logs trawlarr-restart > "$RUNNER_TEMP/second-boot.log" 2>&1 || true
+            docker rm -f trawlarr-restart || true
+          fi
+
+      # ---------------------------------------------------------------
+      # 3. Legacy config directory: must refuse to start.
+      # ---------------------------------------------------------------
+
+      - name: Refuse to start on a legacy .unmanic config directory
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          # A separate, untouched /config holding what an Unmanic install
+          # leaves behind. The guard fires on "the legacy directory holds
+          # data and the new one does not", so a single file is enough --
+          # and using a file rather than a copy of the real database keeps
+          # this independent of whatever schema the image ships.
+          set -uo pipefail
+          LEGACY="$RUNNER_TEMP/legacy-config"
+          mkdir -p "$LEGACY/.unmanic/config"
+          echo "not a real database, and it does not need to be" \
+            > "$LEGACY/.unmanic/config/unmanic.db"
+
+          # Foreground, no published port, with a wall clock on it. The
+          # expected outcome is a container that exits by itself; `timeout`
+          # is here to turn "never exits" into a distinguishable failure
+          # rather than a hung job.
+          set +e
+          timeout 300 docker run --rm --name trawlarr-legacy \
+            -e PUID=1000 -e PGID=1000 -e TZ=UTC \
+            -v "$LEGACY:/config" \
+            "$IMAGE" > "$RUNNER_TEMP/legacy-boot.log" 2>&1
+          RC=$?
+          # `set -e` stays off from here: every check below accumulates into
+          # `fail` so that one failing assertion still prints the others,
+          # and the step exits deliberately at the end.
+
+          echo "--- legacy-config boot log ---"
+          cat "$RUNNER_TEMP/legacy-boot.log"
+          echo "--- end legacy-config boot log ---"
+          echo "container exit code: ${RC}"
+
+          fail=0
+
+          # 124 is `timeout` killing it. That means the container was still
+          # running -- i.e. it started anyway, which is the exact regression
+          # this step exists to catch. It must not be read as "non-zero, good".
+          if [[ "$RC" -eq 124 ]]; then
+            echo "::error::Container was still running after 300s on a legacy .unmanic config; it must refuse to start"
+            fail=1
+          elif [[ "$RC" -eq 0 ]]; then
+            echo "::error::Container exited 0 on a legacy .unmanic config; it must exit non-zero"
+            fail=1
+          else
+            echo "Exited ${RC} as expected."
+          fi
+
+          # The exit code alone is not enough: any crash is non-zero. The
+          # operator-facing message is the actual deliverable here, so
+          # assert on the parts of it they need -- both directory paths and
+          # the migration command.
+          for needle in \
+            "refused to start" \
+            "/config/.unmanic" \
+            "/config/.trawlarr" \
+            "mv /config/.unmanic /config/.trawlarr" \
+            "TRAWLARR_IGNORE_LEGACY_CONFIG"
+          do
+            if ! grep -qF -- "$needle" "$RUNNER_TEMP/legacy-boot.log"; then
+              echo "::error::Refusal message is missing: ${needle}"
+              fail=1
+            fi
+          done
+
+          # "We never touch your data" is a promise the message makes in
+          # writing. Check it: the legacy directory must be exactly as we
+          # left it, and no install may have been created next to it.
+          if [[ ! -f "$LEGACY/.unmanic/config/unmanic.db" ]]; then
+            echo "::error::The legacy database was moved or removed; the guard must not touch operator data"
+            fail=1
+          fi
+          if [[ -f "$LEGACY/.trawlarr/config/trawlarr.db" ]]; then
+            echo "::error::A new install was created despite the refusal"
+            fail=1
+          fi
+
+          if [[ "$fail" -ne 0 ]]; then
+            exit 1
+          fi
+          echo "Legacy config directory refusal verified."
+
       - name: Tear down
         if: always()
         run: |
-          docker logs trawlarr-smoke > "$RUNNER_TEMP/full-container.log" 2>&1 || true
-          docker rm -f trawlarr-smoke || true
+          # Capture whatever has not been captured yet. A failure part-way
+          # through leaves one of these containers alive and its log is the
+          # only evidence of why, so grab it before removing anything.
+          if [[ ! -s "$RUNNER_TEMP/first-boot.log" ]]; then
+            docker logs trawlarr-smoke > "$RUNNER_TEMP/first-boot.log" 2>&1 || true
+          fi
+          if [[ ! -s "$RUNNER_TEMP/second-boot.log" ]]; then
+            docker logs trawlarr-restart > "$RUNNER_TEMP/second-boot.log" 2>&1 || true
+          fi
+          docker rm -f trawlarr-smoke trawlarr-restart trawlarr-legacy || true
 
-      - name: Upload container log
+      - name: Upload container logs
         if: always()
         uses: actions/upload-artifact@v5
         with:
-          name: smoke-container-log
-          path: ${{ runner.temp }}/full-container.log
+          name: smoke-container-logs
+          # One artifact, one file per boot, so a failure can be read
+          # against the phase it happened in. if-no-files-found is left at
+          # the default warn: an early failure legitimately produces only
+          # the first of these.
+          path: |
+            ${{ runner.temp }}/first-boot.log
+            ${{ runner.temp }}/second-boot.log
+            ${{ runner.temp }}/legacy-boot.log
           retention-days: 14
