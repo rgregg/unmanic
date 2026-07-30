@@ -47,12 +47,37 @@ class TrawlarrDirectoryInfoException(Exception):
     __str__ = __repr__
 
 
+#: The marker file Trawlarr writes into each processed directory.
+MARKER_FILE_NAME = '.trawlarr'
+
+#: Upstream Unmanic's marker. Read as a fallback so an installation migrating
+#: from Unmanic keeps its processing history; never written, so an Unmanic
+#: install sharing this library is never corrupted.
+LEGACY_MARKER_FILE_NAME = '.unmanic'
+
+
 class TrawlarrDirectoryInfo:
     """
     TrawlarrDirectoryInfo
 
-    Manages the reading and writing of the '.unmanic' files located in the directories
-    parsed by Unmanic's library scanner or any plugins.
+    Manages the reading and writing of the per-directory marker files that
+    Trawlarr's library scanner and its plugins use to record what has already
+    been done to each file.
+
+    Marker file name:
+        Trawlarr writes ``.trawlarr``. Upstream Unmanic writes ``.unmanic``,
+        and the two must never share one file: ``save()`` rewrites the whole
+        document, so an installation of each running over the same library
+        would silently drop the other's entries every time either one saved.
+        Trawlarr therefore never writes ``.unmanic``.
+
+    Legacy marker support:
+        A directory that has only an ``.unmanic`` marker is read from it, so
+        an installation migrating from Unmanic keeps its processing history
+        instead of reprocessing the whole library. That inheritance is
+        read-only and happens once: the first ``save()`` writes ``.trawlarr``,
+        and from then on the legacy file is ignored and left untouched for
+        whoever else may be using it.
 
     Legacy support:
         On read, if the config is an INI file, uses ConfigParser.get to fetch information
@@ -63,16 +88,27 @@ class TrawlarrDirectoryInfo:
     """
 
     def __init__(self, directory):
-        self.path = os.path.join(directory, '.unmanic')
+        self.directory = directory
+        # Always WRITE our own marker. Never write the legacy one -- an
+        # Unmanic install may be using it on this same library.
+        self.path = os.path.join(directory, MARKER_FILE_NAME)
+        self.legacy_path = os.path.join(directory, LEGACY_MARKER_FILE_NAME)
+        # READ ours if present, otherwise inherit from a legacy marker once.
+        # Ours winning outright (rather than merging) is deliberate: after the
+        # first save the two files are independent and cannot drift into each
+        # other.
+        self.source_path = self.path
+        if not os.path.exists(self.path) and os.path.exists(self.legacy_path):
+            self.source_path = self.legacy_path
         self.json_data = None
         self.config_parser = None
         # If the path does not exist, do not try to read it
-        if not os.path.exists(self.path):
+        if not os.path.exists(self.source_path):
             self.json_data = {}
             return
         # First read JSON data
         try:
-            with open(self.path) as infile:
+            with open(self.source_path) as infile:
                 self.json_data = json.load(infile)
             # Migrate JSON to latest formatting
             self.__migrate_json_formatting()
@@ -82,7 +118,7 @@ class TrawlarrDirectoryInfo:
         if self.json_data is None:
             try:
                 self.config_parser = configparser.ConfigParser(allow_no_value=True)
-                self.config_parser.read(self.path)
+                self.config_parser.read(self.source_path)
                 # Migrate file to JSON
                 self.__migrate_to_json()
             except configparser.MissingSectionHeaderError:
@@ -93,7 +129,7 @@ class TrawlarrDirectoryInfo:
                 pass
         # If we still do not have JSON data at this point, something has gone wrong
         if self.json_data is None:
-            raise TrawlarrDirectoryInfoException("Failed to read directory info", self.path)
+            raise TrawlarrDirectoryInfoException("Failed to read directory info", self.source_path)
 
     def __migrate_to_json(self):
         """
