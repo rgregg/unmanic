@@ -218,6 +218,21 @@ tell them apart:
   subtree and its file names were not part of this rename.
 - **`trawlarr/migrations_v1/`.** The migration history is upstream's and
   is described as such.
+- **The per-directory marker file `.unmanic`.** `libs/directoryinfo.py`
+  writes this into every processed directory and reads it back to decide
+  what has already been handled. It exists in users' libraries *today*.
+  Renaming it does not lose files, it loses the knowledge — every
+  previously processed directory looks untouched and the whole library
+  is reprocessed. This is the most dangerous name on this list, and the
+  one most likely to look like a leftover.
+
+This section is now enforced rather than merely written down:
+`tests/unit/test_legacy_names_that_must_not_change.py` fails if the
+marker file is renamed, and also fails if a runtime path default
+hardcodes the legacy app directory instead of taking it from
+`runtimepaths.APP_DIR_NAME`. Both directions shipped as real bugs — the
+plugin executor and the plugin CLI each defaulted to `~/.unmanic/plugins`
+while the application installed to `~/.trawlarr/plugins`.
 
 Renaming any of these is a separate change with its own migration
 question, and none of them is user-visible in the way the config
