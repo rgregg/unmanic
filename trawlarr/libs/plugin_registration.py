@@ -468,7 +468,7 @@ def validate_plugin_registration(plugins_directory=None):
     return report
 
 
-def report_plugin_registration(plugins_directory=None, raise_notification=True):
+def report_plugin_registration(plugins_directory=None, raise_notification=True, extra_findings=None):
     """
     Run the validation and make the result impossible to miss: every finding
     to the log at its own severity, and one notification in the UI.
@@ -479,6 +479,10 @@ def report_plugin_registration(plugins_directory=None, raise_notification=True):
 
     :param plugins_directory:
     :param raise_notification: set False to log only
+    :param extra_findings: findings from another startup validator to merge in
+                           before reporting - the seam described in the module
+                           docstring, used by the required-settings check
+                           (#40). One notification, not two.
     :return: RegistrationReport, or None if the check itself could not run
     """
     try:
@@ -486,6 +490,12 @@ def report_plugin_registration(plugins_directory=None, raise_notification=True):
     except Exception:
         logger.exception("Plugin registration consistency check failed to run")
         return None
+
+    if extra_findings:
+        try:
+            report.extend(extra_findings)
+        except Exception:
+            logger.exception("Failed to merge additional findings into the plugin registration report")
 
     try:
         if report.ok:

@@ -495,4 +495,6 @@ def test_startup_runs_the_check(monkeypatch):
     from trawlarr import service
 
     source = inspect.getsource(service.RootService.start_threads)
-    assert 'plugin_registration.report_plugin_registration()' in source
+    # Called with keyword arguments since #40 merged its required-settings
+    # findings into this same report; the wiring that matters is the call.
+    assert 'plugin_registration.report_plugin_registration(' in source
