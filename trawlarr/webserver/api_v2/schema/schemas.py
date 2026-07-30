@@ -477,7 +477,7 @@ class CompletedTasksSchema(TableRecordsSuccessSchema):
     )
     outstandingFailureCount = fields.Int(
         required=False,
-        description="Count of failed tasks that have not been dismissed",
+        description="Count of failed tasks that have not been dismissed and have not since processed successfully",
         example=1,
     )
     results = fields.Nested(
@@ -742,7 +742,7 @@ class TaskFailureSummarySchema(BaseSuccessSchema):
 
     total = fields.Int(
         required=True,
-        description="Count of failed tasks that have not been dismissed",
+        description="Count of failed tasks that have not been dismissed and have not since processed successfully",
         example=3,
     )
     categories = fields.Dict(

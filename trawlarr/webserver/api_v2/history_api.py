@@ -427,7 +427,7 @@ class ApiHistoryHandler(BaseApiHandler):
         """
         History - failure summary
         ---
-        description: Returns a summary of task failures that have not been dismissed.
+        description: Returns a summary of task failures that have not been dismissed and have not since processed successfully.
         responses:
             200:
                 description: 'Successful request; Returns the outstanding failure summary'

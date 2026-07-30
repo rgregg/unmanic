@@ -134,8 +134,9 @@ def prepare_filtered_completed_tasks(params):
         return_data["results"].append(item)
 
     # Add the outstanding failure count so the caller can surface it without
-    # a second request. This is 'failed and not yet acknowledged', which is
-    # not the same thing as failedCount (every failure ever recorded).
+    # a second request. This is 'still broken and not yet acknowledged' - a
+    # file that has processed cleanly since its failure is not counted - which
+    # is not the same thing as failedCount (every failure ever recorded).
     return_data["outstandingFailureCount"] = taskfailure.outstanding_failure_summary().get('total', 0)
 
     # Return results

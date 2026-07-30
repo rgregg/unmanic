@@ -88,6 +88,11 @@ DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
 # with more history than this is already well past any threshold.
 _HISTORY_SCAN_LIMIT = 100
 
+# How many paths to put in a single `IN (...)` clause when the health view
+# asks which of them have processed successfully since. SQLite's default
+# variable limit is 999.
+_PATH_QUERY_BATCH = 400
+
 logger = TrawlarrLogging.get_logger(name='TaskFailure')
 
 
@@ -380,13 +385,78 @@ def last_failure_for_path(abspath):
     return None
 
 
+def _row_order_key(finish_time, row_id):
+    """
+    The ordering used everywhere in this module: newest finish_time first,
+    with the row id as the tie-break for rows written in the same second.
+
+    :param finish_time:
+    :param row_id:
+    :return: (float, int)
+    """
+    stamp = 0.0
+    if finish_time is not None:
+        if hasattr(finish_time, 'timestamp'):
+            try:
+                stamp = finish_time.timestamp()
+            except (ValueError, OSError, OverflowError):
+                stamp = 0.0
+        else:
+            try:
+                stamp = float(finish_time)
+            except (TypeError, ValueError):
+                stamp = 0.0
+    try:
+        row_id = int(row_id)
+    except (TypeError, ValueError):
+        row_id = 0
+    return stamp, row_id
+
+
+def _latest_success_keys(abspaths):
+    """
+    For each of the given paths, the order key of its most recent success.
+
+    Paths that have never processed successfully are absent from the result.
+
+    :param abspaths: iterable of paths
+    :return: dict of path -> order key
+    """
+    latest = {}
+    paths = sorted({p for p in abspaths if p})
+    for offset in range(0, len(paths), _PATH_QUERY_BATCH):
+        batch = paths[offset:offset + _PATH_QUERY_BATCH]
+        query = (CompletedTasks
+                 .select(CompletedTasks.id, CompletedTasks.abspath, CompletedTasks.finish_time)
+                 .where((CompletedTasks.task_success == True) &  # noqa: E712
+                        (CompletedTasks.abspath.in_(batch))))
+        for row in query:
+            key = _row_order_key(row.finish_time, row.id)
+            if latest.get(row.abspath) is None or key > latest[row.abspath]:
+                latest[row.abspath] = key
+    return latest
+
+
 def outstanding_failure_summary():
     """
-    The health view: what has failed and has not been acknowledged.
+    The health view: what is *currently* wrong and has not been acknowledged.
 
-    "Outstanding" means failed and not dismissed. Dismissal is the only thing
-    that takes a failure out of this count without deleting the record, so
-    the number going up is always a real, new problem.
+    "Outstanding" means failed, not dismissed, and not since superseded by a
+    successful run of the same file. That last clause is the whole point of
+    the view. Counting every failed row ever recorded would mean the number
+    only ever goes up, that the first launch after an upgrade reports every
+    historic failure as a live problem, and - directly against the principle
+    `consecutive_failure_count()` already implements - that "a file that
+    failed twice last month and has processed cleanly since" would still be
+    reported as a problem file. It is not one; it is fixed.
+
+    So a later success clears every earlier failure of that path from the
+    health view, exactly as it resets the consecutive-failure count, and the
+    two answers cannot disagree. The rows themselves are untouched: the
+    history table still shows what happened, and the retry guard still reads
+    it. This is a question about now, not about the past.
+
+    Dismissal remains the way to silence a failure that has *not* been fixed.
 
     :return: dict
     """
@@ -403,13 +473,21 @@ def outstanding_failure_summary():
                         ((CompletedTasks.failure_dismissed == False) |  # noqa: E712
                          CompletedTasks.failure_dismissed.is_null(True)))
                  .order_by(CompletedTasks.finish_time.desc()))
-        for row in query:
+        rows = list(query)
+        # Only failures whose path has no more recent success survive. A row
+        # with no path at all cannot be correlated with anything, so it is
+        # kept - a failure we cannot prove is fixed is still a failure.
+        latest_success = _latest_success_keys(row.abspath for row in rows)
+        for row in rows:
+            success_key = latest_success.get(row.abspath) if row.abspath else None
+            failure_key = _row_order_key(row.finish_time, row.id)
+            if success_key is not None and success_key > failure_key:
+                continue
             summary['total'] += 1
             category = normalise_category(row.failure_category)
             summary['categories'][category] = summary['categories'].get(category, 0) + 1
-            finish_time = row.finish_time
-            if finish_time is not None:
-                stamp = finish_time.timestamp() if hasattr(finish_time, 'timestamp') else finish_time
+            stamp = failure_key[0] if row.finish_time is not None else None
+            if stamp is not None:
                 if summary['newest'] is None or stamp > summary['newest']:
                     summary['newest'] = stamp
                 if summary['oldest'] is None or stamp < summary['oldest']:

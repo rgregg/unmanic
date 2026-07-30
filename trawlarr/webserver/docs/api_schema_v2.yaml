@@ -350,7 +350,7 @@ components:
           example: 2
         outstandingFailureCount:
           type: integer
-          description: Count of failed tasks that have not been dismissed
+          description: Count of failed tasks that have not been dismissed and have not since processed successfully
           example: 1
       required:
       - failedCount
@@ -481,7 +481,7 @@ components:
           example: true
         total:
           type: integer
-          description: Count of failed tasks that have not been dismissed
+          description: Count of failed tasks that have not been dismissed and have not since processed successfully
           example: 3
         categories:
           type: object
@@ -2291,7 +2291,7 @@ paths:
                 $ref: '#/components/schemas/InternalError'
   /history/failures/summary:
     get:
-      description: Returns a summary of task failures that have not been dismissed.
+      description: Returns a summary of task failures that have not been dismissed and have not since processed successfully.
       responses:
         '200':
           description: Successful request; Returns the outstanding failure summary

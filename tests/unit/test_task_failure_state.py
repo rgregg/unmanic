@@ -550,6 +550,64 @@ class TestDismissalAndHealthView:
         assert summary['total'] == 3
         assert summary['categories'] == {'stalled': 1, 'plugin_error': 2}
 
+    def test_a_later_success_clears_the_earlier_failures_of_that_file(self, temp_db):
+        """The health view answers 'what is wrong now'. A file that failed
+        twice and has processed cleanly since is not a problem file - that is
+        the same principle consecutive_failure_count() implements, and the
+        two answers must not disagree."""
+        path = '/library/a.mkv'
+        _completed(path, False, _at(1), failure_category='plugin_error')
+        _completed(path, False, _at(2), failure_category='plugin_error')
+        _completed(path, True, _at(3))
+
+        assert taskfailure.consecutive_failure_count(path) == 0
+        summary = taskfailure.outstanding_failure_summary()
+        assert summary['total'] == 0, "A fixed file is still being reported as broken"
+        assert summary['categories'] == {}
+
+    def test_a_failure_after_the_success_is_still_outstanding(self, temp_db):
+        """Clearing on success must not become clearing forever: the file
+        broke again, and that is exactly what the view is for."""
+        path = '/library/a.mkv'
+        _completed(path, False, _at(1), failure_category='plugin_error')
+        _completed(path, True, _at(2))
+        _completed(path, False, _at(3), failure_category='stalled')
+
+        summary = taskfailure.outstanding_failure_summary()
+        assert summary['total'] == 1
+        assert summary['categories'] == {'stalled': 1}
+
+    def test_one_files_success_does_not_clear_another_files_failure(self, temp_db):
+        _completed('/library/a.mkv', False, _at(1), failure_category='stalled')
+        _completed('/library/b.mkv', True, _at(2))
+
+        assert taskfailure.outstanding_failure_summary()['total'] == 1
+
+    def test_a_success_at_the_same_second_still_clears_the_failure(self, temp_db):
+        """finish_time has one-second resolution, so a fast re-run can land on
+        the same stamp. The row id breaks the tie, the same way the
+        consecutive-failure scan breaks it."""
+        path = '/library/a.mkv'
+        _completed(path, False, _at(1), failure_category='plugin_error')
+        _completed(path, True, _at(1))
+
+        assert taskfailure.consecutive_failure_count(path) == 0
+        assert taskfailure.outstanding_failure_summary()['total'] == 0
+
+    def test_the_view_survives_an_upgraded_database_full_of_old_failures(self, temp_db):
+        """The upgrade case that made this matter: history full of failures
+        that were all subsequently reprocessed. Only the genuinely still
+        broken file may be counted."""
+        for index in range(20):
+            path = '/library/old-{}.mkv'.format(index)
+            _completed(path, False, _at(1))
+            _completed(path, True, _at(2))
+        _completed('/library/still-broken.mkv', False, _at(3), failure_category='stalled')
+
+        summary = taskfailure.outstanding_failure_summary()
+        assert summary['total'] == 1
+        assert summary['categories'] == {'stalled': 1}
+
     def test_dismissing_removes_a_failure_from_the_health_view(self, temp_db):
         row = _completed('/library/a.mkv', False, _at(1), failure_category='stalled')
         assert taskfailure.set_dismissed([row.id]) == 1
