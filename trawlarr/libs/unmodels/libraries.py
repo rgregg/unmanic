@@ -58,7 +58,16 @@ class Libraries(BaseModel):
     # trawlarr/libs/extensions.py for why. An existing installation upgrading
     # onto this column gets '' for every library and so keeps its current
     # behaviour exactly.
-    file_extension_allowlist = TextField(null=False, default='')
+    #
+    # The SQL-level DEFAULT is load-bearing, not decoration. peewee's `default`
+    # is applied in Python, so without the constraint the column lands as
+    # "TEXT NOT NULL" with no default and any INSERT that omits it fails. That
+    # is exactly what an operator rolling back to a pre-allowlist image does:
+    # the old code has never heard of this column, so every library it writes
+    # trips a NOT NULL constraint. With DEFAULT '' the old image keeps working
+    # and rolling forward again is a no-op.
+    file_extension_allowlist = TextField(null=False, default='',
+                                         constraints=[SQL("DEFAULT ''")])
     # ManyToMany Linking field. Does not create a column in the DB. See linking table below
     tags = ManyToManyField(Tags, backref='tags')
 
