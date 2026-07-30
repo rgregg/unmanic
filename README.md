@@ -290,6 +290,12 @@ backfills, rescans, backups — see
 whether Trawlarr is currently busy, instead of inferring it from its
 running processes.
 
+Plugins can declare the Python packages they need, and Trawlarr can
+install them per-plugin. That is off by default because it lets plugin
+metadata drive `pip` — see
+[`docs/PLUGIN-DEPENDENCIES.md`](docs/PLUGIN-DEPENDENCIES.md) for what it
+does and what it asks you to trust.
+
 ## Contributing
 
 PRs into `main` welcome. The test suite must pass and coverage must

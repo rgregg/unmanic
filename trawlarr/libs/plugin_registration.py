@@ -110,6 +110,17 @@
     automatically once the operator fixes the problem. Dismissing it is a
     click; re-running it mid-flight would mean false alarms.
 
+    MERGED IN: DECLARED PYTHON DEPENDENCIES (#39)
+    ---------------------------------------------
+    `trawlarr.libs.plugin_dependencies.validate_installed_dependencies` uses
+    the seam below: it returns `RegistrationFinding`s of its own for a plugin
+    whose `info.json` declares Python dependencies that are not installed,
+    are out of date, or were installed for a different Python version. It is
+    handed only the plugins referenced by `enabledplugins`/
+    `librarypluginflow`, so it stays as quiet as the rest of this module on a
+    healthy install - and a plugin that declares no dependencies, which is
+    every plugin today, can never produce a finding from it.
+
     SEAM FOR #40
     ------------
     Issue #40 (required plugin settings failing loudly) is a different question
@@ -464,6 +475,16 @@ def validate_plugin_registration(plugins_directory=None):
                 reason,
             ),
         ))
+
+    # --- declared Python dependencies --------------------------------------
+    # Issue #39's validator, merged in through the seam described above. It
+    # owns its own finding codes and its own explanations; all this end needs
+    # to know is which plugins something asked to run.
+    try:
+        from trawlarr.libs import plugin_dependencies
+        report.extend(plugin_dependencies.validate_installed_dependencies(plugins_directory, referenced.keys()))
+    except Exception:
+        logger.exception("Plugin dependency check failed to run")
 
     return report
 
