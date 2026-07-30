@@ -54,10 +54,15 @@ Code contributions are very welcome.
 
   ```bash
   pytest tests/unit/ --cov=trawlarr --cov-report=term-missing
+  pytest tests/integration/
 
   cd trawlarr/webserver/frontend
   npm run lint && npm run test:coverage && npm run build
   ```
+
+  Both pytest suites run in CI. `tests/integration/` needs no services and no
+  network — it is a second suite rather than a slower one, and it is under the
+  same "must stay green" rule as the unit tests.
 
   The frontend `build` is not optional politeness — Quasar's webpack build is
   the only step that resolves every import in every `.vue` file, so it is what
@@ -78,10 +83,21 @@ Coverage floors here are a **ratchet, not a target**. The rule:
 
 Where the floors live:
 
-| Suite    | Floor                                                    | Measured on `main`         |
-| -------- | -------------------------------------------------------- | -------------------------- |
-| Python   | `--cov-fail-under` in `.github/workflows/test.yml`        | 31.78% lines (311 tests)   |
-| Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js` | 20.5% functions (25 tests) |
+| Suite    | Floor                                                     | Value               | Measured on `main`         |
+| -------- | --------------------------------------------------------- | ------------------- | -------------------------- |
+| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          | 41.72% lines (487 tests)   |
+| Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js`  | 20 (functions)      | 20.5% functions (25 tests) |
+
+The Python job does the nagging for you. When measured coverage runs more than
+three points ahead of the floor, the run emits a notice and a job-summary line
+naming the value to set `PYTHON_COVERAGE_FLOOR` to. It never fails the build for
+this — failing the PR that *raised* coverage would be a strange way to encourage
+raising coverage — so it is on the author to act on it.
+
+The suggested value is `floor(measured - 0.5)`. Half a point of slack is
+deliberate: a floor set a hundredth of a point under the measurement is a
+tripwire that ordinary work sets off, and a tripwire people disarm is worse than
+no floor at all.
 
 For the frontend, read **functions** as the honest number. v8 marks a module's
 top-level statements covered merely for having been imported, and the router

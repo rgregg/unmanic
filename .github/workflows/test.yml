@@ -1,11 +1,16 @@
 name: Test
 
-# Runs the unit test suites on every push to main and on PRs targeting it.
+# Runs the test suites on every push to main and on PRs targeting it.
 #
 # Two independent jobs: the Python package, and the Quasar/Vue frontend.
 # Until now nothing checked the frontend before the Docker image build, so a
 # broken import in a .vue file reached image-build time undetected. The
 # frontend job exists to make that failure loud and early.
+#
+# The Python job runs both suites named in pytest.ini's `testpaths`:
+# `tests/unit/` under the coverage gate, then `tests/integration/`. For a
+# long time only the first ran here, so anything that broke the integration
+# suite reached main with CI green.
 #
 # Coverage is reported in the job summary and uploaded as an artifact so
 # we can track the trend over time.
@@ -24,6 +29,28 @@ jobs:
   unit-tests:
     name: Unit tests + coverage
     runs-on: ubuntu-latest
+
+    env:
+      # THE COVERAGE RATCHET. One number, declared once, used by the gate
+      # below and by the drift check that nags when it falls behind.
+      #
+      # It is a floor, not a target: it sits just under what `main` actually
+      # measures, so deleting or disabling a chunk of the suite turns the
+      # build red instead of passing quietly. It is NOT the coverage we
+      # aspire to.
+      #
+      # Rules (also in docs/CONTRIBUTING.md, "The coverage ratchet"):
+      #   - Raise it in the same PR that raises coverage.
+      #   - Never lower it to make a red build green. A lowered floor is a
+      #     decision to argue for in the PR, not a fix.
+      #
+      # Current value: 41. `main` measures 41.72% lines across 487 unit
+      # tests, so the margin is deliberately under a point — enough that
+      # ordinary refactoring noise does not trip it, small enough that a
+      # real regression does. The drift check prints a reminder once actual
+      # coverage runs more than PYTHON_COVERAGE_DRIFT points ahead.
+      PYTHON_COVERAGE_FLOOR: "41"
+      PYTHON_COVERAGE_DRIFT: "3"
 
     steps:
       - name: Checkout
@@ -67,19 +94,39 @@ jobs:
           # --cov-report=term-missing shows uncovered lines in the run log
           # --cov-report=xml uploads a machine-readable artifact
           # --cov-report=html for browsable local viewing of the same data
-          # --cov-fail-under enforces a floor. It is a ratchet, not a target:
-          # keep it just under the number main actually measures, raise it in
-          # the PR that raises coverage, and never lower it to turn a build
-          # green. main measures 31.78% at 311 tests; the floor was 13, which
-          # meant coverage could have halved unnoticed. Policy lives in
-          # docs/CONTRIBUTING.md ("The coverage ratchet").
+          # --cov-fail-under enforces the ratchet. The number itself and the
+          # rules for changing it are at the top of this job, on
+          # PYTHON_COVERAGE_FLOOR — one declaration, so nobody has to guess
+          # which of several literals is the real gate.
           pytest tests/unit/ -v \
             --cov=trawlarr \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
-            --cov-fail-under=30 \
+            --cov-fail-under="${PYTHON_COVERAGE_FLOOR}" \
             --junitxml=pytest-results.xml
+
+      - name: Run integration tests
+        run: |
+          # pytest.ini lists tests/integration/ in `testpaths`, but for a long
+          # time CI ran tests/unit/ only — so this suite was collected by
+          # anyone running `pytest` bare, and by nothing that could fail a PR.
+          #
+          # It needs no services and no network: the TaskHandler tests run
+          # against an in-memory SQLite DB and a temp config dir, and finish
+          # in about four seconds. Two of the four tests carry upstream
+          # `@pytest.mark.skip` markers (they predate the TaskHandler's DB
+          # integration and were never rewritten); they stay skipped rather
+          # than being deleted, so the reason travels with them.
+          #
+          # Deliberately no coverage flags: the ratchet above is a statement
+          # about the unit suite, and folding a second suite into the same
+          # number would move it for reasons that have nothing to do with
+          # anyone's test-writing.
+          #
+          # --durations=10 so that if these ever get slow enough to be worth
+          # moving out of the PR path, the run log says so.
+          pytest tests/integration/ -v --durations=10
 
       - name: Coverage summary
         if: always()
@@ -98,6 +145,50 @@ jobs:
               echo "_coverage.xml not produced — pytest may have failed before coverage was written_"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage ratchet check
+        if: always()
+        run: |
+          # The nag that keeps the floor moving. A ratchet nobody turns is
+          # just a low number with a comment attached, so once measured
+          # coverage runs more than PYTHON_COVERAGE_DRIFT points ahead of the
+          # floor, say so — in the job summary and as a GitHub notice on the
+          # run. Deliberately never fails the build: this is a prompt to the
+          # next person, not a gate, and a gate here would punish the very
+          # PRs that raise coverage.
+          # `coverage report --format=total` prints just the percentage, read
+          # from the .coverage data file pytest-cov leaves behind. If the test
+          # step failed before writing it, there is nothing to check and this
+          # step says so rather than guessing.
+          ACTUAL=$(coverage report --format=total --precision=2 2>/dev/null || true)
+          case "$ACTUAL" in
+            ''|*[!0-9.]*)
+              echo "_Coverage total unavailable; ratchet check skipped._" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+              ;;
+          esac
+          echo "Measured line coverage: ${ACTUAL}%  (floor ${PYTHON_COVERAGE_FLOOR}%)"
+          # floor(actual - 0.5), not floor(actual): a floor a hundredth of a
+          # point under the measurement is a tripwire, not a ratchet. Half a
+          # point of slack absorbs the normal jitter of adding a few lines of
+          # code without tests. It is the same arithmetic that produced the
+          # current value from 41.72.
+          SUGGESTED=$(python3 -c 'import sys,math; print(math.floor(float(sys.argv[1]) - 0.5))' "$ACTUAL")
+          BEHIND=$(python3 -c 'import sys; print("yes" if float(sys.argv[1]) - float(sys.argv[2]) > float(sys.argv[3]) else "no")' \
+            "$ACTUAL" "$PYTHON_COVERAGE_FLOOR" "$PYTHON_COVERAGE_DRIFT")
+          {
+            echo ""
+            echo "**Coverage ratchet:** floor \`${PYTHON_COVERAGE_FLOOR}\`, measured \`${ACTUAL}\`."
+            if [ "$BEHIND" = "yes" ]; then
+              echo ""
+              echo "> The floor is more than ${PYTHON_COVERAGE_DRIFT} points behind what this run measured."
+              echo "> Raise \`PYTHON_COVERAGE_FLOOR\` in \`.github/workflows/test.yml\` to \`${SUGGESTED}\`,"
+              echo "> in this PR, so the coverage you just added cannot be removed unnoticed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$BEHIND" = "yes" ]; then
+            echo "::notice title=Raise the coverage floor::Measured ${ACTUAL}% vs floor ${PYTHON_COVERAGE_FLOOR}%. Set PYTHON_COVERAGE_FLOOR=${SUGGESTED} in .github/workflows/test.yml."
+          fi
 
       - name: Upload coverage HTML
         if: always()
