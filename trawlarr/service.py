@@ -40,7 +40,8 @@ import threading
 import psutil
 
 from trawlarr import config, metadata
-from trawlarr.libs import libraryscanner, common, envvars, eventmonitor, plugin_registration, runtimepaths
+from trawlarr.libs import (libraryscanner, common, envvars, eventmonitor, plugin_registration, plugin_settings,
+                           runtimepaths)
 from trawlarr.libs.db_migrate import Migrations
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
@@ -227,7 +228,15 @@ class RootService:
         # worker exists to run a plugin. A plugin registered inconsistently
         # never fires and says nothing about it (see issue #38). This only
         # reports - it repairs nothing - and it never raises.
-        plugin_registration.report_plugin_registration()
+        #
+        # The required-settings check (issue #40) is a different question about
+        # the same startup moment - a plugin that IS registered correctly but
+        # has an empty required setting also does nothing and also reports
+        # success. Its findings are merged into the same report so the operator
+        # gets one notification about "your plugins will not do what you think",
+        # not two competing ones.
+        plugin_registration.report_plugin_registration(
+            extra_findings=plugin_settings.validate_required_plugin_settings())
 
         self.logger.info("Starting all threads")
 

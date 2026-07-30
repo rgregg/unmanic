@@ -429,7 +429,27 @@
       "errorAddSelected": "An error was encountered while requesting the selected tasks be added to the pending tasks list.",
       "errorFetchingList": "An error was encountered while requesting the completed tasks list.",
       "since": "Since",
-      "before": "Before"
+      "before": "Before",
+      "failureReason": "Reason",
+      "failureAttempt": "Failure {count} in a row for this file",
+      "failureDismissed": "Acknowledged",
+      "dismissFailure": "Acknowledge this failure",
+      "restoreFailure": "Return this failure to the health view",
+      "errorDismissFailure": "An error was encountered while acknowledging the selected failure.",
+      "retryForce": "Retry even if the file keeps failing",
+      "retryRefused": "Retry refused",
+      "outstandingFailures": "{count} failed tasks need attention",
+      "outstandingFailure": "1 failed task needs attention",
+      "categories": {
+        "stalled": "Stalled",
+        "plugin_error": "Plugin error",
+        "command_failed": "Command failed",
+        "sanity_check": "Output rejected",
+        "worker_terminated": "Worker stopped",
+        "output_missing": "Output missing",
+        "postprocessor_error": "Post-processing error",
+        "unknown": "Reason not recorded"
+      }
     },
     "plugins": {
       "pathConfiguration": "Plugins",

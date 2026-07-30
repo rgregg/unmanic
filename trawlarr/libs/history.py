@@ -298,10 +298,18 @@ class History(object):
             self.logger.debug('Task data param empty: %s', json.dumps(task_data))
             raise Exception('Task data param empty. This should not happen - Something has gone really wrong.')
 
+        # Durable failure state (issue #25). Optional so that any other caller
+        # of this method keeps working; a missing key stores NULL, which reads
+        # back as "failed, reason not recorded" rather than as a wrong reason.
         new_historic_task = CompletedTasks.create(task_label=task_data['task_label'],
                                                   abspath=task_data['abspath'],
                                                   task_success=task_data['task_success'],
                                                   start_time=task_data['start_time'],
                                                   finish_time=task_data['finish_time'],
-                                                  processed_by_worker=task_data['processed_by_worker'])
+                                                  processed_by_worker=task_data['processed_by_worker'],
+                                                  failure_category=task_data.get('failure_category'),
+                                                  failure_message=task_data.get('failure_message'),
+                                                  failure_time=task_data.get('failure_time'),
+                                                  failure_attempt=task_data.get('failure_attempt'),
+                                                  failure_dismissed=task_data.get('failure_dismissed', False))
         return new_historic_task

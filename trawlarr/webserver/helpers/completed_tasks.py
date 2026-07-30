@@ -33,7 +33,8 @@ import os
 import time
 from datetime import date, datetime
 
-from trawlarr.libs import common, history, task
+from trawlarr import config
+from trawlarr.libs import common, history, task, taskfailure
 from trawlarr.libs.unmodels import FileMetadataPaths
 
 
@@ -127,10 +128,77 @@ def prepare_filtered_completed_tasks(params):
             'finish_time':  task['finish_time'],
             'has_metadata': task.get('abspath') in matched_paths,
         }
+        # Durable failure state (issue #25). Sent for every row; a successful
+        # row simply carries nulls.
+        item.update(_failure_fields_for_result(task))
         return_data["results"].append(item)
+
+    # Add the outstanding failure count so the caller can surface it without
+    # a second request. This is 'still broken and not yet acknowledged' - a
+    # file that has processed cleanly since its failure is not counted - which
+    # is not the same thing as failedCount (every failure ever recorded).
+    return_data["outstandingFailureCount"] = taskfailure.outstanding_failure_summary().get('total', 0)
 
     # Return results
     return return_data
+
+
+def _failure_fields_for_result(task_row):
+    """
+    Shape the durable failure columns of a completed task for the API.
+
+    :param task_row:
+    :return:
+    """
+    if task_row.get('task_success'):
+        return {
+            'failure_category':  None,
+            'failure_message':   None,
+            'failure_time':      None,
+            'failure_attempt':   None,
+            'failure_dismissed': False,
+        }
+    failure_time = task_row.get('failure_time')
+    if isinstance(failure_time, datetime):
+        failure_time = failure_time.timestamp()
+    category = task_row.get('failure_category')
+    message = task_row.get('failure_message')
+    if not category:
+        # A row written before this feature existed, or by a path that did not
+        # report a reason. Say that, rather than leaving the UI to guess.
+        category = taskfailure.CATEGORY_UNKNOWN
+    if not message:
+        message = ("No reason was recorded for this failure. "
+                   "The task log is the only remaining diagnostic.")
+    return {
+        'failure_category':  category,
+        'failure_message':   message,
+        'failure_time':      failure_time,
+        'failure_attempt':   task_row.get('failure_attempt'),
+        'failure_dismissed': bool(task_row.get('failure_dismissed')),
+    }
+
+
+def dismiss_completed_task_failures(completed_task_ids, dismissed=True):
+    """
+    Acknowledge failed tasks without deleting them.
+
+    :param completed_task_ids:
+    :param dismissed:
+    :return: number of records updated
+    """
+    return taskfailure.set_dismissed(completed_task_ids, dismissed=dismissed)
+
+
+def get_task_failure_summary():
+    """
+    The local health view: outstanding failures, grouped by category.
+
+    :return:
+    """
+    summary = taskfailure.outstanding_failure_summary()
+    summary['max_consecutive_failures'] = taskfailure.max_consecutive_failures(config.Config())
+    return summary
 
 
 def get_filtered_completed_task_ids(params, exclude_ids=None):
@@ -190,27 +258,41 @@ def remove_completed_tasks(completed_task_ids):
     return task_handler.delete_historic_tasks_recursively(id_list=completed_task_ids)
 
 
-def add_historic_tasks_to_pending_tasks_list(historic_task_ids, library_id=None):
+def add_historic_tasks_to_pending_tasks_list(historic_task_ids, library_id=None, force=False):
     """
     Adds a list of historical tasks to the pending tasks list.
 
+    Retries are always user-initiated - nothing in the daemon re-queues a
+    failed task on its own - but a user clicking retry on a file that has
+    already failed the same way three times in a row is the hot loop this
+    issue warns about. So a path that has reached the consecutive-failure
+    limit is refused, with the count and the last recorded reason in the
+    refusal, unless `force` is set. See `taskfailure.evaluate_retry()`.
+
     :param historic_task_ids:
     :param library_id:
-    :return:
+    :param force:
+    :return: dict of {completed_task_id: error message}
     """
     errors = {}
+    settings = config.Config()
     # Fetch historical tasks
     history_logging = history.History()
     # Get total count
     records_by_id = history_logging.get_current_path_of_historic_tasks_by_id(id_list=historic_task_ids)
     for record in records_by_id:
-        record_errors = []
         # Fetch the abspath name
         abspath = os.path.abspath(record.get("abspath"))
 
         # Ensure path exists
         if not os.path.exists(abspath):
             errors[record.get("id")] = "Path does not exist - '{}'".format(abspath)
+            continue
+
+        # Refuse to re-run a file that keeps failing the same way
+        allowed, reason = taskfailure.evaluate_retry(abspath, settings=settings, force=force)
+        if not allowed:
+            errors[record.get("id")] = reason
             continue
 
         # Create a new task

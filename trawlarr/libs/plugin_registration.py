@@ -110,6 +110,17 @@
     automatically once the operator fixes the problem. Dismissing it is a
     click; re-running it mid-flight would mean false alarms.
 
+    MERGED IN: DECLARED PYTHON DEPENDENCIES (#39)
+    ---------------------------------------------
+    `trawlarr.libs.plugin_dependencies.validate_installed_dependencies` uses
+    the seam below: it returns `RegistrationFinding`s of its own for a plugin
+    whose `info.json` declares Python dependencies that are not installed,
+    are out of date, or were installed for a different Python version. It is
+    handed only the plugins referenced by `enabledplugins`/
+    `librarypluginflow`, so it stays as quiet as the rest of this module on a
+    healthy install - and a plugin that declares no dependencies, which is
+    every plugin today, can never produce a finding from it.
+
     SEAM FOR #40
     ------------
     Issue #40 (required plugin settings failing loudly) is a different question
@@ -465,10 +476,20 @@ def validate_plugin_registration(plugins_directory=None):
             ),
         ))
 
+    # --- declared Python dependencies --------------------------------------
+    # Issue #39's validator, merged in through the seam described above. It
+    # owns its own finding codes and its own explanations; all this end needs
+    # to know is which plugins something asked to run.
+    try:
+        from trawlarr.libs import plugin_dependencies
+        report.extend(plugin_dependencies.validate_installed_dependencies(plugins_directory, referenced.keys()))
+    except Exception:
+        logger.exception("Plugin dependency check failed to run")
+
     return report
 
 
-def report_plugin_registration(plugins_directory=None, raise_notification=True):
+def report_plugin_registration(plugins_directory=None, raise_notification=True, extra_findings=None):
     """
     Run the validation and make the result impossible to miss: every finding
     to the log at its own severity, and one notification in the UI.
@@ -479,6 +500,10 @@ def report_plugin_registration(plugins_directory=None, raise_notification=True):
 
     :param plugins_directory:
     :param raise_notification: set False to log only
+    :param extra_findings: findings from another startup validator to merge in
+                           before reporting - the seam described in the module
+                           docstring, used by the required-settings check
+                           (#40). One notification, not two.
     :return: RegistrationReport, or None if the check itself could not run
     """
     try:
@@ -486,6 +511,12 @@ def report_plugin_registration(plugins_directory=None, raise_notification=True):
     except Exception:
         logger.exception("Plugin registration consistency check failed to run")
         return None
+
+    if extra_findings:
+        try:
+            report.extend(extra_findings)
+        except Exception:
+            logger.exception("Failed to merge additional findings into the plugin registration report")
 
     try:
         if report.ok:
