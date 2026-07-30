@@ -105,6 +105,15 @@ class PostProcessor(threading.Thread):
                 self.event.wait(.2)
                 self.current_task = self.task_queue.get_next_processed_tasks()
                 if self.current_task:
+                    # Reset per-task state before anything can read it.
+                    # post_process_file() is the only writer, and run() calls it
+                    # inside a try/except that logs and carries on -- so if it
+                    # raises before assigning, whatever the PREVIOUS task
+                    # delivered is still here, and record_completed_file() will
+                    # happily record those files as done under THIS task's id.
+                    # A file would be marked complete without having been
+                    # processed, and never queued again.
+                    self._last_destination_files = []
 
                     # Execute event plugin runners
                     plugin_handler = PluginsHandler()

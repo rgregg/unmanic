@@ -47,11 +47,12 @@ from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.task import TaskDataStore
 from trawlarr.libs.unplugins import PluginExecutor
 from trawlarr.libs.unplugins.child_process import kill_all_plugin_processes, set_shared_manager
+from trawlarr.libs import runtimepaths
 from ..logs import TrawlarrLogging
 
 home_directory = common.get_home_dir()
-dev_cache_directory = os.path.join(home_directory, '.unmanic', 'dev', 'cache')
-dev_library_directory = os.path.join(home_directory, '.unmanic', 'dev', 'library')
+dev_cache_directory = os.path.join(home_directory, runtimepaths.APP_DIR_NAME, 'dev', 'cache')
+dev_library_directory = os.path.join(home_directory, runtimepaths.APP_DIR_NAME, 'dev', 'library')
 
 menus = {
     "main":          [
@@ -134,7 +135,7 @@ class PluginsCLI(object):
         # Set plugins directory
         if not plugins_directory:
             home_directory = common.get_home_dir()
-            plugins_directory = os.path.join(home_directory, '.unmanic', 'plugins')
+            plugins_directory = os.path.join(home_directory, runtimepaths.APP_DIR_NAME, 'plugins')
         self.plugins_directory = plugins_directory
         # Only log to stdout
         TrawlarrLogging.update_stream_formatter(
