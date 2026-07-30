@@ -85,7 +85,7 @@ Where the floors live:
 
 | Suite    | Floor                                                     | Value               | Measured on `main`         |
 | -------- | --------------------------------------------------------- | ------------------- | -------------------------- |
-| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          | 41.72% lines (487 tests)   |
+| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          | 41.76% lines (487 tests)   |
 | Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js`  | 20 (functions)      | 20.5% functions (25 tests) |
 
 The Python job does the nagging for you. When measured coverage runs more than
@@ -97,7 +97,9 @@ raising coverage — so it is on the author to act on it.
 The suggested value is `floor(measured - 0.5)`. Half a point of slack is
 deliberate: a floor set a hundredth of a point under the measurement is a
 tripwire that ordinary work sets off, and a tripwire people disarm is worse than
-no floor at all.
+no floor at all. The measurement also drifts a few hundredths of a point with the
+interpreter version (41.76% on CI's Python 3.10, 41.72% on a 3.12 checkout), so
+quote the CI number when you raise the floor.
 
 For the frontend, read **functions** as the honest number. v8 marks a module's
 top-level statements covered merely for having been imported, and the router

@@ -44,10 +44,13 @@ jobs:
       #   - Never lower it to make a red build green. A lowered floor is a
       #     decision to argue for in the PR, not a fix.
       #
-      # Current value: 41. `main` measures 41.72% lines across 487 unit
-      # tests, so the margin is deliberately under a point — enough that
-      # ordinary refactoring noise does not trip it, small enough that a
-      # real regression does. The drift check prints a reminder once actual
+      # Current value: 41. Across 487 unit tests `main` measures 41.76%
+      # here on Python 3.10 and 41.72% on a 3.12 checkout — the measurement
+      # moves slightly with the interpreter, which is one more reason the
+      # floor is a whole number under it rather than flush against it. The
+      # margin is deliberately under a point: enough that ordinary
+      # refactoring noise does not trip it, small enough that a real
+      # regression does. The drift check prints a reminder once actual
       # coverage runs more than PYTHON_COVERAGE_DRIFT points ahead.
       PYTHON_COVERAGE_FLOOR: "41"
       PYTHON_COVERAGE_DRIFT: "3"
