@@ -41,7 +41,7 @@ import psutil
 
 from trawlarr import config, metadata
 from trawlarr.libs import (libraryscanner, common, envvars, eventmonitor, plugin_registration, plugin_settings,
-                           runtimepaths)
+                           runtimepaths, taskrecovery)
 from trawlarr.libs.db_migrate import Migrations
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
@@ -223,6 +223,19 @@ class RootService:
         # Clear cache directory
         self.logger.info("Clearing previous cache")
         common.clean_files_in_cache_dir(settings.get_cache_path())
+
+        # Recover any task left claimed by a previous run (see issue #83).
+        #
+        # This has to happen HERE: after the database is open, and before the
+        # Foreman - the only thing that ever claims a task - exists. At this
+        # point in startup no worker of this process can be holding a task, so
+        # every 'in_progress' row is by construction stranded and can be dealt
+        # with without any risk of yanking a file out from under a live worker.
+        # That ordering is the whole correctness argument; see the module
+        # docstring. It also inherits, rather than adds, the assumption that
+        # this is the only instance using this config directory - the cache
+        # wipe immediately above already required that.
+        taskrecovery.reconcile_interrupted_tasks(settings)
 
         # Check that the three plugin tables agree with each other before any
         # worker exists to run a plugin. A plugin registered inconsistently

@@ -152,6 +152,44 @@ def fetch_next_task_filtered(status, sort_by='id', sort_order='asc', local_only=
     return next_task
 
 
+# How many rows a single claim will try before giving up. Each miss means
+# something else claimed the row we had picked, so trying again is right - but
+# not forever, or a busy queue could hold the Foreman loop here indefinitely.
+CLAIM_ATTEMPTS = 5
+
+
+def claim_task(task_id, from_status='pending', to_status='in_progress'):
+    """
+    Move one task between statuses, but only if it is still in `from_status`.
+
+    This is the compare-and-swap at the heart of issue #83. The claim used to
+    be a SELECT followed by an unconditional UPDATE, which is only safe while
+    exactly one thing in the world claims tasks; anything else that read the
+    same row in between would be handed the same task and both would process
+    it. Duplicate processing of one file by two workers is materially worse
+    than a task sitting in the queue for another second.
+
+    A conditional single-statement UPDATE is used rather than a transaction
+    around the select-and-claim. SQLite takes a write lock for the duration of
+    a write transaction, so wrapping the selection query - which joins
+    libraries and tags, and runs on every Foreman pass - would serialise the
+    whole thing behind that lock and make `database is locked` a routine
+    outcome under concurrency. The UPDATE's own atomicity is guaranteed by
+    that same lock without anyone having to hold it; the loser simply sees
+    zero rows changed and picks another task.
+
+    :param task_id:
+    :param from_status:
+    :param to_status:
+    :return: True if this caller is the one that changed the row
+    """
+    updated = (Tasks
+               .update({Tasks.status: to_status})
+               .where((Tasks.id == task_id) & (Tasks.status == from_status))
+               .execute())
+    return bool(updated)
+
+
 class TaskQueue(object):
     """
     TaskQueue
@@ -226,20 +264,39 @@ class TaskQueue(object):
 
     def get_next_pending_tasks(self, local_only=False, library_names=None, library_tags=None):
         """
-        Fetch the next pending task.
-        Set that task status as 'in_progress' and then return it.
+        Claim the next pending task and return it as an 'in_progress' task.
+
+        The claim is atomic: the row is only handed back if this call is the
+        one that moved it out of 'pending'. If something else got there first
+        we take the next candidate instead of returning a task somebody else
+        is already working on. See claim_task() for why it is done this way.
 
         :param local_only:
         :param library_names:
         :param library_tags:
-        :return:
+        :return: a Task, or False when nothing could be claimed
         """
-        # Fetch Task item matching the filters specified
-        task_item = fetch_next_task_filtered('pending', sort_by=self.sort_by, sort_order=self.sort_order,
-                                             local_only=local_only, library_names=library_names, library_tags=library_tags)
-        if task_item:
-            self.mark_item_in_progress(task_item)
-        return task_item
+        for _ in range(CLAIM_ATTEMPTS):
+            # Fetch Task item matching the filters specified
+            candidate = build_tasks_query('pending', sort_by=self.sort_by, sort_order=self.sort_order,
+                                          local_only=local_only, library_names=library_names,
+                                          library_tags=library_tags)
+            if not candidate:
+                return False
+            if not claim_task(candidate.id):
+                # Lost the race for this row. It is no longer 'pending', so the
+                # next pass of the same query will offer a different one.
+                self._log("Task {} was claimed by something else before this claim completed. "
+                          "Trying the next pending task.".format(candidate.id), level='debug')
+                continue
+            # Re-read the row now that it is ours, so the returned task carries
+            # the claimed status rather than the state we selected on.
+            task_item = task.Task()
+            task_item.read_and_set_task_by_absolute_path(candidate.abspath)
+            return task_item
+        self._log("Gave up claiming a pending task after {} attempts. Something else is claiming "
+                  "tasks from this queue.".format(CLAIM_ATTEMPTS), level='warning')
+        return False
 
     def get_next_processed_tasks(self):
         # Fetch Task item matching the filters specified
@@ -286,6 +343,10 @@ class TaskQueue(object):
     def mark_item_in_progress(task_item):
         """
         Set the given task status as 'in_progress' and then return it.
+
+        NOTE: this is NOT how a task is claimed off the pending queue - see
+        get_next_pending_tasks() and claim_task() for that. This sets the
+        status unconditionally on a task the caller already holds.
 
         :param task_item:
         :return:
