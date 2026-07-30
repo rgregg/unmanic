@@ -32,9 +32,14 @@ except ImportError:
 SQL = pw.SQL
 
 """NOTES:
-The migrator function 'rename_field' has a bug: https://github.com/klen/peewee_migrate/issues/99
-The simple work-around to this was to skip this method and just directly append a migration to the migrator's ops list.
-Eg. `migrator.ops.append(migrator.migrator.rename_column('tasks', 'ffmpeg_log', 'log'))`
+The migrator function 'rename_field' needs the model to already be in the migrator's ORM snapshot,
+which it is not here - nothing in this migration set creates the 'tasks' model. Upstream worked
+around that by reaching into `migrator.ops` / `migrator.migrator`, which are not the attribute names
+peewee_migrate has used since 1.5 (they are `__ops__` / `__migrator__`), so that call raised
+AttributeError on exactly the legacy databases this migration exists to repair. The rename is issued
+as SQL through the public `migrator.sql()` instead: it is queued on the migrator like any other
+operation and runs inside the migration transaction. SQLite has supported
+ALTER TABLE ... RENAME COLUMN since 3.25.
 """
 
 
@@ -43,15 +48,28 @@ This migration is required for legacy installations.
 The old Unmanic had a ffmpeg_log column which had a NOT NULL contraint on it.
 If this column is left as is, no items will be able to be added to the task queue.
 """
+
+
 def migrate(migrator, database, fake=False, **kwargs):
     """Write your migrations here."""
+    if fake:
+        # Fake replay. peewee_migrate re-runs every already-applied migration with
+        # peewee.Database.execute_sql mocked out, purely to rebuild the migrator's ORM
+        # snapshot before a NEW migration runs (Router.migrator). Introspection returns a
+        # Mock under that patch, so touching the database here breaks every future migration
+        # for every existing installation. This migration adds nothing to the ORM snapshot -
+        # it issues raw SQL against a table no migration declares - so there is nothing to
+        # replay and skipping is exact.
+        return
     # Rename 'ffmpeg_log' field to 'log'' in Tasks model
     if any(cm for cm in database.get_columns('tasks') if cm.name == 'ffmpeg_log'):
-        migrator.ops.append(migrator.migrator.rename_column('tasks', 'ffmpeg_log', 'log'))
+        migrator.sql('ALTER TABLE "tasks" RENAME COLUMN "ffmpeg_log" TO "log"')
 
 
 def rollback(migrator, database, fake=False, **kwargs):
     """Write your rollback migrations here."""
+    if fake:
+        return
     # Reverse rename 'ffmpeg_log' field to 'log'' in Tasks model
     if any(cm for cm in database.get_columns('tasks') if cm.name == 'log'):
-        migrator.ops.append(migrator.migrator.rename_column('tasks', 'log', 'ffmpeg_log'))
+        migrator.sql('ALTER TABLE "tasks" RENAME COLUMN "log" TO "ffmpeg_log"')
