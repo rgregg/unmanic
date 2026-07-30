@@ -120,10 +120,47 @@ What that trust is bounded by:
   configure, and cannot point pip at a file inside the container.
   Requirements are also passed after `--`, so one can never be read as
   an option.
-- The opt-in itself. Leave it off and no plugin can cause a package
-  install at all.
+- The opt-in, for *declared* dependencies. Leave it off and no
+  `python_dependencies` list installs anything; the plugin is refused
+  instead. See the section below for what the opt-in does **not**
+  cover.
 - Failures are terminal, not partial. If pip is missing, fails or times
   out, the plugin install fails and no plugin record is written.
+
+## What the opt-in does not cover
+
+Be clear about this, because it is easy to read the flag as a promise
+it does not make: **leaving the flag off does not mean pip never runs.**
+
+Long before this feature existed, installing a plugin that ships a
+`requirements.txt` (with `defer_dependency_install` set) or a
+`requirements.post-install.txt` ran `pip install -r` against that file.
+That path is unchanged and is **not** gated by
+`TRAWLARR_ALLOW_PLUGIN_DEPENDENCY_INSTALL`. Gating it would break every
+existing plugin that ships one, for a risk those plugins have always
+carried — and the operator already accepted running that plugin's code
+when they installed it.
+
+What the flag off *does* guarantee is narrower and true:
+
+- No plugin's `info.json` can drive a pip install.
+- **No plugin, by either route, can choose where pip fetches from.**
+  Plugin-shipped requirements files are held to the same grammar as
+  declared dependencies: a line that is a pip option (`--index-url`,
+  `--extra-index-url`, `--find-links`, `-e`, `-r`, …), a URL, a VCS
+  reference or a local path is refused, and the refusal fails the whole
+  plugin install. Plain `name`/`name==version` lines — what real
+  plugins actually ship — install exactly as before.
+
+So the boundary is not "pip runs or it does not". It is: **pip only ever
+installs package names, from the index this installation is configured
+with.** The flag decides whether a plugin's *metadata* may add to those
+names.
+
+If you want the stronger guarantee that no plugin install may reach the
+network for packages at all, that is not something this flag gives you;
+run Trawlarr without outbound access to your package index, or install
+only plugins you have vetted.
 
 What it is **not** bounded by, and you should know it: there is no
 lockfile, no hash pinning, and no allowlist of packages. If you enable

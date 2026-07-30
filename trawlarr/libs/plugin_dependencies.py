@@ -98,6 +98,31 @@
     names packages on the configured index, and that is the trust the
     operator opts into.
 
+    THE OTHER ROUTE INTO PIP, AND WHAT THE OPT-IN REALLY BOUNDS
+    -----------------------------------------------------------
+    A plugin shipping `requirements.txt` (with `defer_dependency_install`)
+    or `requirements.post-install.txt` has caused `pip install -r` to run at
+    install time since long before this module existed. That path is NOT
+    behind `ALLOW_INSTALL_ENV_VAR`, and putting it there would break every
+    existing plugin that ships one, for a risk those plugins have always
+    carried and which the operator already took when they chose to run that
+    plugin's code.
+
+    So the opt-in must not be described as "no plugin can cause a package
+    install" - that would be false, and a false security guarantee is worse
+    than none, because someone will leave the gate off believing it protects
+    them. What IS true, and what `scan_requirements_file` exists to keep
+    true, is narrower: pip is only ever handed package names, from the index
+    this installation is configured with. A requirements file is plugin
+    metadata like any other, so it gets the same treatment as a declared
+    requirement - a pip option (`--index-url` above all), a URL, a VCS
+    reference or a local path in that file refuses the whole plugin install.
+    Plain `name==version` lines, which is what real plugins ship, are
+    untouched.
+
+    The opt-in therefore bounds *whose names* may be installed, not *whether
+    pip runs*. docs/PLUGIN-DEPENDENCIES.md says exactly that.
+
     WHAT THIS DOES NOT DO
     ---------------------
     No lockfile, no hash pinning, no dependency resolution across plugins,
@@ -241,6 +266,87 @@ def read_declared_dependencies(plugin_info):
             "Plugin '{}' must be a list of requirement strings, got {}".format(
                 INFO_JSON_KEY, type(declared).__name__))
     return [validate_requirement(item) for item in declared]
+
+
+def scan_requirements_file(requirements_file):
+    """
+    The lines of a plugin-shipped requirements file that must not reach pip.
+
+    A plugin shipping `requirements.txt` or `requirements.post-install.txt`
+    has caused `pip install -r` to run at install time since long before this
+    module existed, and that path is not gated by
+    `ALLOW_INSTALL_ENV_VAR` - gating it would break every existing plugin
+    that ships one, for a risk they have always carried. See the boundary
+    described in docs/PLUGIN-DEPENDENCIES.md.
+
+    What is NOT acceptable, opt-in or not, is that a requirements FILE
+    carries the full pip grammar: `--index-url` redirects pip at an index the
+    operator never configured, a URL or `-e` line makes pip fetch and execute
+    code from an arbitrary host, and `-r /etc/...` reads a path inside the
+    container. Those are precisely the powers `validate_requirement` refuses
+    to take from plugin metadata, and a requirements file is plugin metadata
+    by another name. Refusing them here closes the hole without touching the
+    plain `name==version` lines that every real plugin actually ships.
+
+    Physical lines are scanned independently, including continuations, so an
+    option hidden after a trailing backslash is still seen.
+
+    :param requirements_file:
+    :return: list of (line number, line, reason) for every refused line
+    """
+    refused = []
+    try:
+        with open(requirements_file, 'r', errors='replace') as handle:
+            lines = handle.readlines()
+    except OSError:
+        logger.warning("Unable to read plugin requirements file '%s'", requirements_file, exc_info=True)
+        return refused
+
+    for number, raw in enumerate(lines, start=1):
+        line = raw.split('#', 1)[0].strip()
+        # A trailing backslash is a line continuation; the content still has
+        # to stand on its own here.
+        line = line.rstrip('\\').strip()
+        if not line:
+            continue
+        reason = None
+        if line.startswith('-'):
+            reason = ("pip options are not accepted from a plugin: they can redirect pip at an index or a "
+                      "host the operator did not configure, or read a file inside the container")
+        elif '://' in line or line.lower().startswith(('git+', 'hg+', 'svn+', 'bzr+')):
+            reason = "a URL requirement makes pip fetch and execute code from a host the operator did not choose"
+        elif line.startswith(('/', '.', '~')) or (len(line) > 1 and line[1] == ':'):
+            reason = "a path requirement makes pip install from a location inside the container"
+        if reason is not None:
+            refused.append((number, line, reason))
+    return refused
+
+
+def assert_requirements_file_is_safe(plugin_id, requirements_file):
+    """
+    Refuse a plugin whose requirements file would hand pip more than package
+    names.
+
+    Raises rather than filtering the file: silently dropping a line would
+    install a plugin whose dependencies are not what its author wrote, which
+    is a different way to be broken.
+
+    :param plugin_id:
+    :param requirements_file:
+    :raises PluginDependencyError:
+    """
+    refused = scan_requirements_file(requirements_file)
+    if not refused:
+        return
+    detail = '; '.join("line {}: '{}' ({})".format(number, line, reason) for number, line, reason in refused)
+    raise PluginDependencyError(
+        "Refusing to install plugin '{}': its '{}' contains {} that Trawlarr will not pass to pip. {}. "
+        "Trawlarr installs plain package requirements from the index this installation is configured with, "
+        "and nothing else.".format(
+            plugin_id or os.path.basename(os.path.dirname(str(requirements_file))),
+            os.path.basename(str(requirements_file)),
+            'a line' if len(refused) == 1 else '{} lines'.format(len(refused)),
+            detail))
 
 
 def site_packages_path(plugin_path):

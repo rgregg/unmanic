@@ -687,6 +687,14 @@ class PluginsHandler(object, metaclass=SingletonType):
         # Check if the requirements file exists
         if not os.path.exists(requirements_file):
             return
+        # A requirements file is plugin-authored metadata like any other, so it
+        # gets the same boundary as a declared dependency: package names from
+        # the configured index, never pip options, URLs or paths. Raising
+        # abandons the install (see install_plugin's callers), which is the
+        # point - a plugin that wanted to redirect pip must not end up
+        # installed. See trawlarr/libs/plugin_dependencies.py.
+        plugin_dependencies.assert_requirements_file_is_safe(
+            os.path.basename(str(plugin_path)), requirements_file)
         # First, remove the existing site-packages directory if it exists to ensure a clean installation
         if os.path.exists(install_target):
             shutil.rmtree(install_target)

