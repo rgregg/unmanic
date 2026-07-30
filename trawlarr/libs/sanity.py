@@ -201,12 +201,18 @@ class SanityResult(object):
     :ivar checked:    False when there was not enough information to judge
                       (no probe, missing file). Never a failure - an
                       unrunnable check must not block a good transcode.
+    :ivar output_probe: the ffprobe dict for the output file, when one was
+                      obtained. Carried on the result purely so the caller can
+                      hand it on rather than probing the same bytes twice -
+                      see the convergence check (issue #34). Nothing in this
+                      module reads it back.
     """
 
-    def __init__(self, failures=None, state=None, checked=True):
+    def __init__(self, failures=None, state=None, checked=True, output_probe=None):
         self.failures = failures or []
         self.state = state or {}
         self.checked = checked
+        self.output_probe = output_probe
 
     @property
     def failed(self):
@@ -625,4 +631,5 @@ def check_task_output(source_path, output_path, settings=None, task_id=None):
         previous_state=load_state(source_path),
         settings=settings,
     )
+    result.output_probe = output_probe
     return result
