@@ -44,12 +44,16 @@
         that blows up fails open rather than blocking the library.
 """
 import logging
+import os
+import sys
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 from peewee import SqliteDatabase
 
-from trawlarr.libs import plugin_registration, plugin_settings
+from trawlarr import config as config_module
+from trawlarr.libs import plugin_registration, plugin_settings, runtimepaths
 from trawlarr.libs.unmodels import EnabledPlugins, Libraries, LibraryPluginFlow, Plugins
 from trawlarr.libs.unmodels.lib import db as db_proxy
 from trawlarr.libs.task import TaskDataStore
@@ -441,3 +445,136 @@ def test_worker_gate_runs_before_any_runner():
     first_runner = source.index('events.worker_process_started')
     assert gate < first_runner, \
         "The required-settings gate must run before any plugin runner or event fires"
+
+
+# ---------------------------------------------------------------------------
+# 11. The checks against a real install layout, with no injected executor
+#
+# Everything above this line injects a FakeExecutor, which proves the logic
+# and proves nothing at all about whether either check can see a plugin on a
+# real machine. Both checks build their own PluginExecutor in production, and
+# an executor pointed at the wrong directory does not fail - it finds no
+# plugin, reports nothing, and passes. A gate that is inert on every real
+# install is worse than no gate, because the PR claims one exists.
+#
+# So these tests install an actual plugin package on disk, under an actual
+# ~/.trawlarr/plugins, and call the checks the way production calls them.
+# ---------------------------------------------------------------------------
+
+PLUGIN_SOURCE = '''
+from trawlarr.libs.unplugins.settings import PluginSettings
+
+
+class Settings(PluginSettings):
+    settings = {{
+        'stream_language': {value!r},
+    }}
+    form_settings = {{
+        'stream_language': {{
+            'label':    'Stream language to keep',
+            'required': True,
+        }},
+    }}
+
+
+def worker_process(data):
+    return data
+'''
+
+
+def _install_plugin(plugins_directory, plugin_id, value=''):
+    """Write a real, importable plugin package to disk."""
+    plugin_directory = os.path.join(plugins_directory, plugin_id)
+    os.makedirs(plugin_directory, exist_ok=True)
+    with open(os.path.join(plugin_directory, 'plugin.py'), 'w') as f:
+        f.write(PLUGIN_SOURCE.format(value=value))
+    return plugin_directory
+
+
+@pytest.fixture
+def real_install(tmp_path, monkeypatch, request):
+    """
+    A real install: HOME/.trawlarr/plugins, an installed plugin, and no
+    injected executor anywhere.
+
+    Config is a singleton, so it is dropped from the registry on the way in
+    and on the way out; otherwise this measures whatever HOME the first test
+    in the suite happened to run under.
+    """
+    monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.delenv('HOME_DIR', raising=False)
+    for key in config_module.DERIVED_PATH_CONFIG_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    registry = type(config_module.Config)._instances
+    registry.pop(config_module.Config, None)
+
+    # A unique id per test: the executor caches loaded modules in sys.modules
+    # by '<plugin_id>.plugin', so a shared id would let one test read another
+    # test's settings.
+    plugin_id = 'required_settings_probe_{}'.format(abs(hash(request.node.name)) % 100000)
+    plugins_directory = os.path.join(str(tmp_path), runtimepaths.APP_DIR_NAME, 'plugins')
+    os.makedirs(plugins_directory, exist_ok=True)
+    sys_path_before = list(sys.path)
+
+    yield SimpleNamespace(plugin_id=plugin_id, plugins_directory=plugins_directory, home=str(tmp_path))
+
+    sys.modules.pop('{}.plugin'.format(plugin_id), None)
+    sys.path[:] = sys_path_before
+    registry.pop(config_module.Config, None)
+
+
+def test_the_runtime_gate_fires_on_a_real_install(real_install):
+    """
+    The gate must produce its finding for a plugin installed where the
+    application actually installs plugins, with the executor it builds itself.
+    """
+    _install_plugin(real_install.plugins_directory, real_install.plugin_id, value='')
+
+    misconfigured = plugin_settings.check_plugins_before_run([real_install.plugin_id], library_id=None)
+
+    assert [item['plugin_id'] for item in misconfigured] == [real_install.plugin_id], \
+        "The runtime gate did not see a plugin installed in the real plugins directory"
+    assert [u['key'] for u in misconfigured[0]['unset']] == ['stream_language']
+    assert misconfigured[0]['unset'][0]['label'] == 'Stream language to keep'
+
+
+def test_the_runtime_gate_stays_quiet_when_that_same_plugin_is_configured(real_install):
+    """The other half: the gate must not fire on a configured install, or it
+    is not a gate, it is a wall."""
+    _install_plugin(real_install.plugins_directory, real_install.plugin_id, value='eng')
+
+    assert plugin_settings.check_plugins_before_run([real_install.plugin_id], library_id=None) == []
+
+
+def test_the_startup_validator_fires_on_a_real_install(db, real_install):
+    """The startup half of the same proof, through the library tables."""
+    library = make_library()
+    plugin = make_plugin(real_install.plugin_id)
+    enable(library, plugin)
+    _install_plugin(real_install.plugins_directory, real_install.plugin_id, value='')
+
+    findings = plugin_settings.validate_required_plugin_settings()
+
+    assert len(findings) == 1, "The startup validator did not see a plugin installed on the real path"
+    assert findings[0].code == plugin_settings.FINDING_REQUIRED_SETTING_UNSET
+    assert findings[0].plugin_id == real_install.plugin_id
+    assert 'stream_language' in findings[0].message
+
+
+def test_the_checks_follow_the_configured_plugins_path(real_install, tmp_path, monkeypatch):
+    """
+    `plugins_path` is configurable, so the home-directory default is only
+    right on a default install. A check that reads a different directory from
+    the one the runner loads from reports nothing and passes silently - which
+    is exactly the invisible no-op this feature exists to stop.
+    """
+    elsewhere = str(tmp_path / 'srv' / 'plugins')
+    monkeypatch.setenv('plugins_path', elsewhere)
+    type(config_module.Config)._instances.pop(config_module.Config, None)
+    _install_plugin(elsewhere, real_install.plugin_id, value='')
+    assert not os.path.exists(os.path.join(real_install.plugins_directory, real_install.plugin_id))
+
+    misconfigured = plugin_settings.check_plugins_before_run([real_install.plugin_id], library_id=None)
+
+    assert [item['plugin_id'] for item in misconfigured] == [real_install.plugin_id], \
+        "The check ignored the configured plugins_path and looked under the home directory instead"

@@ -114,6 +114,18 @@
     a failure with a reason attached, which is precisely the outcome the
     silent no-op denied us.
 
+    WHICH PLUGINS DIRECTORY IS READ
+    -------------------------------
+    `Config.get_plugins_path()`, passed explicitly to the `PluginExecutor`
+    both checks build (see `plugin_executor_for_checks`). Not the executor's
+    own default, which is derived from the home directory and therefore only
+    agrees with the configured path on a default install. This matters more
+    here than almost anywhere else: an executor pointed at a directory with no
+    plugins in it does not raise, it returns nothing, and both checks then
+    report a clean bill of health for an install they never looked at. A
+    silently inert check is the same class of bug as the silent no-op the
+    feature exists to prevent.
+
     WHAT THIS DOES NOT CATCH
     ------------------------
     - Runtime plugin types other than `worker.process` are checked at startup
@@ -144,6 +156,37 @@ REQUIRED_KEY = 'required'
 NOTIFICATION_UUID = 'pluginRequiredSettingsUnset'
 
 logger = TrawlarrLogging.get_logger(name='PluginSettings')
+
+
+def plugin_executor_for_checks():
+    """
+    A `PluginExecutor` pointed at the directory this install really uses.
+
+    `PluginExecutor()` does have a working default again since #77, but the
+    directory it defaults to is derived from the home directory, while the
+    directory the application installs plugins into is whatever
+    `Config.get_plugins_path()` says - and that is configurable, so the two
+    are only equal on a default install. A checker that reads a different
+    plugins directory from the one the runner loads from does not fail; it
+    finds no plugin, reports nothing, and passes silently. That is the exact
+    shape of the bug this whole module exists to stop, so the contract is
+    made explicit here rather than inherited from a default.
+
+    Never raises: if the configuration cannot be read we fall back to the
+    executor's own default rather than skipping the check entirely.
+
+    :return: PluginExecutor
+    """
+    from trawlarr.libs.unplugins import PluginExecutor
+    plugins_directory = None
+    try:
+        from trawlarr import config
+        plugins_directory = config.Config().get_plugins_path()
+    except Exception:
+        logger.debug("Unable to read the configured plugins path; using the executor default", exc_info=True)
+    if not plugins_directory:
+        return PluginExecutor()
+    return PluginExecutor(plugins_directory=plugins_directory)
 
 
 def setting_is_unset(value):
@@ -242,8 +285,7 @@ def unset_required_settings_for_plugin(plugin_id, library_id=None, plugin_execut
     """
     try:
         if plugin_executor is None:
-            from trawlarr.libs.unplugins import PluginExecutor
-            plugin_executor = PluginExecutor()
+            plugin_executor = plugin_executor_for_checks()
         settings, form_settings = plugin_executor.get_plugin_settings(plugin_id, library_id=library_id)
     except Exception:
         logger.debug("Unable to read settings for plugin '%s'", plugin_id, exc_info=True)
@@ -291,6 +333,12 @@ def validate_required_plugin_settings(plugin_executor=None):
     :return: list of RegistrationFinding
     """
     findings = []
+    if plugin_executor is None:
+        try:
+            plugin_executor = plugin_executor_for_checks()
+        except Exception:
+            logger.exception("Unable to build a plugin executor to check required plugin settings")
+            return findings
     try:
         from trawlarr.libs.unmodels import EnabledPlugins, Libraries, Plugins
 
@@ -344,6 +392,12 @@ def check_plugins_before_run(plugin_ids, library_id=None, plugin_executor=None):
     :return: list of {'plugin_id', 'unset'} dicts, empty when everything is configured
     """
     misconfigured = []
+    if plugin_executor is None and plugin_ids:
+        try:
+            plugin_executor = plugin_executor_for_checks()
+        except Exception:
+            logger.exception("Unable to build a plugin executor to check required plugin settings")
+            return misconfigured
     for plugin_id in plugin_ids or []:
         if not plugin_id:
             continue
