@@ -115,12 +115,24 @@ jobs:
           # time CI ran tests/unit/ only — so this suite was collected by
           # anyone running `pytest` bare, and by nothing that could fail a PR.
           #
-          # It needs no services and no network: the TaskHandler tests run
-          # against an in-memory SQLite DB and a temp config dir, and finish
-          # in about four seconds. Two of the four tests carry upstream
-          # `@pytest.mark.skip` markers (they predate the TaskHandler's DB
-          # integration and were never rewritten); they stay skipped rather
-          # than being deleted, so the reason travels with them.
+          # It needs no services and no network. Every test builds its own
+          # migrated SQLite database under a temp HOME, so nothing here can
+          # reach a developer's ~/.trawlarr or a runner's home directory.
+          #
+          # It contains the one test that starts the application and follows a
+          # file from the library to "done" (tests/integration/
+          # test_pipeline_end_to_end.py, issue #84). Those tests run threads
+          # and poll, so they are the slowest here — ~5s each on this runner,
+          # against a 120s bound. Every wait in them is bounded and fails
+          # naming the step that never happened rather than hanging, because
+          # a flaky end-to-end test gets deleted by whoever it wakes at 3am.
+          # The whole suite is ~25s.
+          #
+          # No test in this suite is skipped. Two used to be, carrying upstream
+          # markers that predated the TaskHandler's DB integration; they have
+          # been rewritten against the database. A permanently skipped test is
+          # a lie about coverage, so if you find yourself adding a skip here,
+          # delete the test and say why in the commit instead.
           #
           # Deliberately no coverage flags: the ratchet above is a statement
           # about the unit suite, and folding a second suite into the same
