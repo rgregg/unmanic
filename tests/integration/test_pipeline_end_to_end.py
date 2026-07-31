@@ -362,17 +362,24 @@ class TestTheWholePipeline:
         Verified red before being accepted, each mutation run against THIS
         file alone (`devops/mutation_check.py`, see the PR body for output):
 
-          * ``PluginExecutor.__init__`` resolving ``.unmanic`` instead of
-            ``.trawlarr`` - the stub plugin is never loaded, nothing votes to
-            queue the file, and this fails at "the file to be queued as a
-            task". One of the two bugs the issue leads with.
           * deleting ``self.record_completed_file()`` from
             ``PostProcessor.run()`` - fails at the done-state assertion below.
           * deleting ``self.start_handler(...)`` from
             ``RootService.start_threads()`` - nothing turns a discovered path
             into a task and it fails at "queued as a task".
 
-        The allow-list mutation is caught by the next test rather than this
+        Two of the mutations the issue leads with are caught by the OTHER
+        tests in this file, not by this one, and it is worth being exact
+        about which:
+
+          * the plugins-directory bug (``PluginExecutor`` resolving
+            ``.unmanic``) is caught by
+            ``test_the_running_application_loads_plugins_from_the_configured_directory``.
+            It is a call-site pin, not a pipeline assertion - the pipeline
+            resolves plugin modules from the path stored in the database, so
+            this path never crosses that seam. Measured: with the mutation
+            applied, this test alone passes.
+          * the allow-list mutation is caught by the next test rather than this
         one; the numbers are in its docstring.
         """
         from trawlarr.libs import donestate

@@ -204,9 +204,16 @@ Three rules for either kind:
 The end-to-end test in `tests/integration/test_pipeline_end_to_end.py` is the
 other half of this. It starts the service against a temp `$HOME` and a temp
 library and asserts a file is discovered, queued, processed and recorded as
-done. It is the only test that would have caught the per-library allow-list
-regression and the plugins-directory regression, both of which lived entirely
-between components. If your change touches the pipeline, run it.
+done.
+
+Its file is where the per-library allow-list regression and the
+plugins-directory regression would have been caught — both lived entirely
+between components, which is why every unit test passed while the features
+were disconnected. Note the two are caught by different tests in that file,
+and only the allow-list one by the pipeline path itself; the
+plugins-directory one is a call-site pin, because the running pipeline
+resolves plugin modules from the path stored in the database and so never
+crosses that seam. If your change touches the pipeline, run it.
 
 ### Checking that a test actually catches something
 
