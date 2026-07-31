@@ -193,9 +193,18 @@ def run_tests(root, tests, extra_args):
     return completed.returncode == 0, completed
 
 
+#: check_one() outcomes. NOT_APPLIED is kept distinct from SURVIVED on
+#: purpose: "the text to mutate has moved" is a broken mutation, and
+#: reporting it as a surviving one would send the reader hunting for a
+#: missing test that is probably there.
+KILLED = 'KILLED'
+SURVIVED = 'SURVIVED'
+NOT_APPLIED = 'NOT_APPLIED'
+
+
 def check_one(mutation, extra_args, verbose=False):
     """
-    Run one mutation. Returns True when the mutation was KILLED.
+    Run one mutation. Returns one of KILLED / SURVIVED / NOT_APPLIED.
 
     :param mutation:
     :param extra_args:
@@ -211,11 +220,11 @@ def check_one(mutation, extra_args, verbose=False):
         copy_working_tree(root)
         occurrences = apply_mutation(root, mutation['file'], mutation['old'], mutation['new'])
         if not occurrences:
-            print('    ERROR   the text to mutate was not found in {}.'.format(mutation['file']))
-            print('            The code has moved. Fix the mutation, not the test.')
-            return False
+            print('    NOT APPLIED  the text to mutate was not found in {}.'.format(mutation['file']))
+            print('                 The code has moved. Fix the mutation, not the test.')
+            return NOT_APPLIED
         if occurrences > 1:
-            print('    note    applied to {} occurrences'.format(occurrences))
+            print('    note      applied to {} occurrences'.format(occurrences))
 
         passed, completed = run_tests(root, mutation.get('tests') or DEFAULT_TESTS, extra_args)
         if verbose or passed:
@@ -223,9 +232,9 @@ def check_one(mutation, extra_args, verbose=False):
         if passed:
             print('    SURVIVED  nothing failed with this code broken.')
             print('              Whatever that line does, no test proves it happens.')
-            return False
+            return SURVIVED
         print('    KILLED    the suite noticed.')
-        return True
+        return KILLED
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
@@ -256,12 +265,18 @@ def main():
         if args.tests:
             mutations = [dict(m, tests=args.tests) for m in mutations]
 
-    survivors = [m for m in mutations if not check_one(m, args.pytest_args, verbose=args.verbose)]
+    results = [(m, check_one(m, args.pytest_args, verbose=args.verbose)) for m in mutations]
+    survivors = [m for m, outcome in results if outcome == SURVIVED]
+    not_applied = [m for m, outcome in results if outcome == NOT_APPLIED]
 
-    print('\n{} mutation(s) checked, {} survived.'.format(len(mutations), len(survivors)))
+    print('\n{} mutation(s) checked: {} killed, {} survived, {} not applied.'.format(
+        len(mutations), len(mutations) - len(survivors) - len(not_applied),
+        len(survivors), len(not_applied)))
     for mutation in survivors:
-        print('  SURVIVED: {}'.format(mutation.get('label') or mutation['file']))
-    return 1 if survivors else 0
+        print('  SURVIVED:    {}'.format(mutation.get('label') or mutation['file']))
+    for mutation in not_applied:
+        print('  NOT APPLIED: {}'.format(mutation.get('label') or mutation['file']))
+    return 1 if (survivors or not_applied) else 0
 
 
 if __name__ == '__main__':
