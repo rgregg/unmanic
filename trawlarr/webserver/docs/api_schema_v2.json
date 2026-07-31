@@ -690,6 +690,165 @@
                 ],
                 "additionalProperties": false
             },
+            "ConvergenceRecord": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "abspath": {
+                        "type": "string",
+                        "description": "Absolute path of the file that did not converge",
+                        "example": "/library/TV/Show/S01E01.mkv"
+                    },
+                    "library_id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "occurrences": {
+                        "type": "integer",
+                        "description": "Completed tasks in a row that have left this file still qualifying",
+                        "example": 2
+                    },
+                    "plugin_id": {
+                        "type": "string",
+                        "description": "The plugin that would queue this file again",
+                        "example": "video_transcoder",
+                        "nullable": true
+                    },
+                    "plugin_name": {
+                        "type": "string",
+                        "example": "Video Transcoder",
+                        "nullable": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "The task completed, but the file still matches this library's criteria for processing.",
+                        "nullable": true
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "first_seen": {
+                        "type": "number",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "last_seen": {
+                        "type": "number",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "dismissed": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "repeated": {
+                        "type": "boolean",
+                        "description": "True once occurrences has reached the repeat limit; a configuration or plugin bug",
+                        "example": false
+                    }
+                },
+                "required": [
+                    "abspath",
+                    "dismissed",
+                    "id",
+                    "library_id",
+                    "occurrences",
+                    "repeated"
+                ],
+                "additionalProperties": false
+            },
+            "ConvergenceSummary": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "This is always \"True\" when a request succeeds",
+                        "example": true
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Files that completed a task and still match their library's criteria",
+                        "example": 2
+                    },
+                    "repeated": {
+                        "type": "integer",
+                        "description": "Of those, how many have done so at least `repeat_limit` times",
+                        "example": 1
+                    },
+                    "plugins": {
+                        "type": "object",
+                        "description": "Non-converged file counts grouped by the plugin that still wants them",
+                        "example": {
+                            "video_transcoder": 2
+                        },
+                        "additionalProperties": {
+                            "type": "integer"
+                        }
+                    },
+                    "oldest": {
+                        "type": "number",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "newest": {
+                        "type": "number",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "repeat_limit": {
+                        "type": "integer",
+                        "description": "Occurrences after which a non-converged file is reported as a configuration bug",
+                        "example": 2
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "The non-converged files, worst first",
+                        "items": {
+                            "$ref": "#/components/schemas/ConvergenceRecord"
+                        }
+                    }
+                },
+                "required": [
+                    "files",
+                    "plugins",
+                    "repeat_limit",
+                    "repeated",
+                    "success",
+                    "total"
+                ],
+                "additionalProperties": false
+            },
+            "RequestDismissConvergence": {
+                "type": "object",
+                "properties": {
+                    "id_list": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "List of convergence record IDs",
+                        "example": [
+                            1
+                        ],
+                        "items": {
+                            "type": "integer"
+                        }
+                    },
+                    "dismissed": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "True to acknowledge, False to restore them to the health view",
+                        "example": true
+                    }
+                },
+                "required": [
+                    "id_list"
+                ],
+                "additionalProperties": false
+            },
             "NotificationData": {
                 "type": "object",
                 "properties": {
@@ -3144,6 +3303,121 @@
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/RequestDismissTaskFailures"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful request; Returns success status",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BaseSuccess"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request; Check `messages` for any validation errors",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadRequest"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Bad request; Requested endpoint not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadEndpoint"
+                                }
+                            }
+                        }
+                    },
+                    "405": {
+                        "description": "Bad request; Requested method is not allowed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadMethod"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error; Check `error` for exception",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InternalError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/history/convergence": {
+            "get": {
+                "description": "Returns the files that completed a task and STILL match their library's criteria\nfor processing (issue #34).\n\nThese are not failed tasks. Each of these tasks ran and reported success; what is\nwrong is that the work did not achieve what the library asked for. Such files are\ndeliberately NOT re-queued - silent re-queueing is the reprocess loop - so this\nendpoint, and the standing notification that accompanies it, are how the condition\nbecomes visible.\n\n`occurrences` counts consecutive completed tasks that left a file non-converged. A\nfile at or above `repeat_limit` is flagged as a configuration or plugin bug rather\nthan a one-off.\n",
+                "responses": {
+                    "200": {
+                        "description": "Successful request; Returns the non-convergence health view",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConvergenceSummary"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Bad request; Requested endpoint not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadEndpoint"
+                                }
+                            }
+                        }
+                    },
+                    "405": {
+                        "description": "Bad request; Requested method is not allowed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadMethod"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error; Check `error` for exception",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InternalError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/history/convergence/dismiss": {
+            "post": {
+                "description": "Acknowledge non-converged files without deleting the record.\n\nThe occurrence count keeps advancing underneath a dismissal, so a file that is\ndismissed and then completes again without converging returns to the health view\nwith a higher count.\n",
+                "requestBody": {
+                    "description": "Requested list of convergence records to acknowledge.",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RequestDismissConvergence"
                             }
                         }
                     }

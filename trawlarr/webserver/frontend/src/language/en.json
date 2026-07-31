@@ -87,6 +87,7 @@
       "failedTaskLabel": "Task Failure",
       "pausedWorkersLabel": "Workers Paused",
       "pluginRegistrationLabel": "Plugin Registration Problem",
+      "nonConvergedFilesLabel": "Files Did Not Converge",
       "forwardLogHandlerErrorLabel": "Error Forwarding Logs"
     }
   },

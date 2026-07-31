@@ -166,6 +166,16 @@ class Config(object, metaclass=SingletonType):
         # not mistaken for duplication.
         self.sanity_check_duplicate_audio = True
 
+        # Convergence detection (see trawlarr/libs/convergence.py and issue
+        # #34). After a task completes, re-run the library's file-test plugins
+        # against the delivered file. A file that still matches the library's
+        # criteria is recorded and surfaced, and is NOT re-queued. Costs one
+        # file test (usually one ffprobe) per completed task, which is why it
+        # can be switched off - but the default is on, because a task that
+        # achieved nothing while reporting success is the failure mode this
+        # whole milestone exists to make visible.
+        self.convergence_check_enabled = True
+
         # Durable task failure state (see trawlarr/libs/taskfailure.py and
         # issue #25). How many times the same file may fail in a row before a
         # retry is refused unless it is explicitly forced. A success on the
@@ -593,6 +603,14 @@ class Config(object, metaclass=SingletonType):
         :return:
         """
         return self.sanity_check_duplicate_audio
+
+    def get_convergence_check_enabled(self):
+        """
+        Get setting - convergence_check_enabled
+
+        :return:
+        """
+        return self.convergence_check_enabled
 
     def get_max_consecutive_task_failures(self):
         """

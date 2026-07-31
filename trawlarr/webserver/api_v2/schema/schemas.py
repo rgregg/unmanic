@@ -771,6 +771,129 @@ class TaskFailureSummarySchema(BaseSuccessSchema):
     )
 
 
+class ConvergenceRecordSchema(BaseSchema):
+    """Schema for one file that completed a task and still matches its library's criteria"""
+
+    id = fields.Int(
+        required=True,
+        example=1,
+    )
+    abspath = fields.Str(
+        required=True,
+        description="Absolute path of the file that did not converge",
+        example="/library/TV/Show/S01E01.mkv",
+    )
+    library_id = fields.Int(
+        required=True,
+        example=1,
+    )
+    occurrences = fields.Int(
+        required=True,
+        description="Completed tasks in a row that have left this file still qualifying",
+        example=2,
+    )
+    plugin_id = fields.Str(
+        required=False,
+        allow_none=True,
+        description="The plugin that would queue this file again",
+        example="video_transcoder",
+    )
+    plugin_name = fields.Str(
+        required=False,
+        allow_none=True,
+        example="Video Transcoder",
+    )
+    message = fields.Str(
+        required=False,
+        allow_none=True,
+        example="The task completed, but the file still matches this library's criteria for processing.",
+    )
+    task_id = fields.Int(
+        required=False,
+        allow_none=True,
+        example=1,
+    )
+    first_seen = fields.Number(
+        required=False,
+        allow_none=True,
+        example=1627392616.6400812,
+    )
+    last_seen = fields.Number(
+        required=False,
+        allow_none=True,
+        example=1627392616.6400812,
+    )
+    dismissed = fields.Boolean(
+        required=True,
+        example=False,
+    )
+    repeated = fields.Boolean(
+        required=True,
+        description="True once occurrences has reached the repeat limit; a configuration or plugin bug",
+        example=False,
+    )
+
+
+class ConvergenceSummarySchema(BaseSuccessSchema):
+    """Schema for the non-convergence health view"""
+
+    total = fields.Int(
+        required=True,
+        description="Files that completed a task and still match their library's criteria",
+        example=2,
+    )
+    repeated = fields.Int(
+        required=True,
+        description="Of those, how many have done so at least `repeat_limit` times",
+        example=1,
+    )
+    plugins = fields.Dict(
+        required=True,
+        keys=fields.Str(),
+        values=fields.Int(),
+        description="Non-converged file counts grouped by the plugin that still wants them",
+        example={"video_transcoder": 2},
+    )
+    oldest = fields.Number(
+        required=False,
+        allow_none=True,
+        example=1627392616.6400812,
+    )
+    newest = fields.Number(
+        required=False,
+        allow_none=True,
+        example=1627392616.6400812,
+    )
+    repeat_limit = fields.Int(
+        required=True,
+        description="Occurrences after which a non-converged file is reported as a configuration bug",
+        example=2,
+    )
+    files = fields.List(
+        cls_or_instance=fields.Nested(ConvergenceRecordSchema),
+        required=True,
+        description="The non-converged files, worst first",
+    )
+
+
+class RequestDismissConvergenceSchema(BaseSchema):
+    """Schema for acknowledging non-converged files"""
+
+    id_list = fields.List(
+        cls_or_instance=fields.Int,
+        required=True,
+        description="List of convergence record IDs",
+        example=[1],
+        validate=validate.Length(min=1),
+    )
+    dismissed = fields.Boolean(
+        required=False,
+        load_default=True,
+        description="True to acknowledge, False to restore them to the health view",
+        example=True,
+    )
+
+
 # NOTIFICATIONS
 # =============
 

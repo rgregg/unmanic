@@ -37,7 +37,7 @@ import threading
 import time
 
 from trawlarr import config
-from trawlarr.libs import common, donestate, history, sanity, taskfailure
+from trawlarr.libs import common, convergence, donestate, history, sanity, taskfailure
 from trawlarr.libs.frontend_push_messages import FrontendPushMessages
 from trawlarr.libs.library import Library
 from trawlarr.libs.logs import TrawlarrLogging
@@ -82,6 +82,11 @@ class PostProcessor(threading.Thread):
         self.current_task = None
         self._last_destination_files = []
         self._last_file_move_processes_success = False
+        # The output probe the sanity checks (issue #35) already paid for, kept
+        # so the convergence check (issue #34) does not probe the same bytes a
+        # second time. Reset per task alongside _last_destination_files.
+        self._last_output_probe = None
+        self._last_output_size = None
         self.ffmpeg = None
         self.abort_flag.clear()
 
@@ -114,11 +119,17 @@ class PostProcessor(threading.Thread):
                     # A file would be marked complete without having been
                     # processed, and never queued again.
                     self._last_destination_files = []
-                    # Same reasoning for the file-move verdict. It gates
-                    # record_completed_file(), so a stale True from the previous
-                    # task would let this task's untouched source be signed off.
-                    # False is the only safe starting point: nothing has moved.
+                    # Same reasoning for the file-move verdict (issue #86). It
+                    # gates record_completed_file(), so a stale True from the
+                    # previous task would let this task's untouched source be
+                    # signed off. False is the only safe starting point:
+                    # nothing has moved yet.
                     self._last_file_move_processes_success = False
+                    # And the output probe the convergence check reuses
+                    # (issue #34): a stale probe would have this task's
+                    # convergence evaluated against the previous task's bytes.
+                    self._last_output_probe = None
+                    self._last_output_size = None
 
                     # Execute event plugin runners
                     plugin_handler = PluginsHandler()
@@ -152,6 +163,15 @@ class PostProcessor(threading.Thread):
                             self.record_completed_file()
                         except Exception as e:
                             self._log("Exception in recording completed file state",
+                                      message2=str(e), level="exception")
+                        try:
+                            # Ask whether the task actually achieved anything: does the
+                            # delivered file still match the library's criteria? (issue #34)
+                            # Runs after the done-state is recorded, on purpose - a
+                            # non-converged file is reported, never re-queued.
+                            self.run_convergence_check()
+                        except Exception as e:
+                            self._log("Exception in running the convergence check",
                                       message2=str(e), level="exception")
                         try:
                             # Commit task metadata to database after all plugin runners
@@ -395,6 +415,14 @@ class PostProcessor(threading.Thread):
                       message2=str(e), level="exception")
             return True
 
+        # Keep the output probe for the convergence check. It was taken of the
+        # cache file, which the delivery below moves byte-for-byte into the
+        # library, so it describes the delivered file too - but only if nothing
+        # changed it on the way, which is what the recorded size is checked
+        # against later.
+        self._last_output_probe = getattr(result, 'output_probe', None)
+        self._last_output_size = (result.state or {}).get('last_size')
+
         if not result.checked:
             self._log("Output sanity checks could not be run for '{}' (no usable probe data)".format(cache_path),
                       level='debug')
@@ -449,6 +477,179 @@ class PostProcessor(threading.Thread):
             messages=[f.get('message') for f in result.failures],
         )
         return False
+
+    def _reusable_output_probe(self, destination_abspath):
+        """
+        The probe the sanity checks already took, if it still describes the
+        file now sitting at `destination_abspath`.
+
+        Re-probing costs a full ffprobe of a freshly written media file for
+        every completed task, and the sanity checks have just paid for exactly
+        that on the cache file that the delivery then moved into place. Reusing
+        it is the difference between one probe per task and two.
+
+        But handing a plugin the wrong file's probe is precisely how a check
+        turns into a rubber stamp - sanity.probe_from_task_data_store() has the
+        same trap and guards it the same way. A `postprocessor.file_move`
+        plugin is free to transform the file on its way into the library, so
+        the probe is only offered when the delivered file is still exactly the
+        size the probed cache file was. Where it is not, None is returned and
+        the file-test plugins probe the real file themselves; the check stays
+        correct and merely costs more.
+
+        :param destination_abspath:
+        :return: probe dict or None
+        """
+        probe = self._last_output_probe
+        if not probe or not destination_abspath or self._last_output_size is None:
+            return None
+        try:
+            if os.path.getsize(destination_abspath) != self._last_output_size:
+                return None
+        except OSError:
+            return None
+        # The cache path is gone; say so, or a plugin that reads
+        # format.filename is told about a file that no longer exists.
+        probe = dict(probe)
+        probe['format'] = dict(probe.get('format') or {})
+        probe['format']['filename'] = destination_abspath
+        return probe
+
+    def run_convergence_check(self):
+        """
+        Did the task actually achieve anything?
+
+        Re-runs the library's file-test PLUGINS against each file the task
+        delivered. If they still want the file, the task completed without
+        converging it, which is what issue #34 calls the single highest-value
+        missing capability: files "landed in completed-task history [...] with
+        no signal from the queue that anything was wrong".
+
+        Three things this deliberately does not do:
+
+          * it does not re-queue the file. record_completed_file() has just run
+            and the file remains recorded as done (issue #33). Silent re-queue
+            is the reprocess loop, which is the disease and not the cure.
+          * it does not mark the task failed. The task succeeded; a
+            non-converged file is a configuration or plugin problem, and
+            filing it under the #25 failure categories would blacklist a good
+            file and corrupt the failure health view. It gets its own state.
+          * it does not fire on a library that has no file-test plugins. There
+            are no criteria to converge against, so there is no finding to
+            report - see trawlarr/libs/convergence.py.
+
+        Runs after delivery, against the file's real library path, because
+        that is the file the next library scan will see. Never raises.
+
+        Fork addition; see issue #34.
+
+        :return: list of (path, ConvergenceResult) for every file evaluated
+        """
+        evaluated = []
+        try:
+            if not self.current_task.get_task_success():
+                return evaluated
+            if not getattr(self.settings, 'get_convergence_check_enabled', None) or \
+                    not self.settings.get_convergence_check_enabled():
+                return evaluated
+
+            library_id = self.current_task.get_task_library_id()
+            task_id = self.current_task.get_task_id()
+            destination_files = [p for p in (self._last_destination_files or []) if p]
+            if not destination_files:
+                # Nothing was delivered. record_completed_file() has already
+                # complained about that; there is no output to evaluate.
+                return evaluated
+
+            # One FileTest for the whole task: constructing it loads the
+            # library's plugin modules, and a task can deliver several files.
+            from trawlarr.libs.filetest import FileTest
+            file_test = FileTest(library_id)
+
+            non_converged = []
+            for destination_abspath in destination_files:
+                # Per file, so that one unreadable delivery cannot stop the
+                # others from being checked. A task can deliver several files
+                # and a partial answer is still an answer.
+                try:
+                    probe = self._reusable_output_probe(destination_abspath)
+                    result = convergence.evaluate_path(
+                        destination_abspath,
+                        library_id,
+                        shared_info={'ffprobe': probe} if probe else None,
+                        file_test=file_test,
+                    )
+                    evaluated.append((destination_abspath, result))
+
+                    if result.converged:
+                        convergence.clear(destination_abspath)
+                        continue
+                    if not result.evaluated:
+                        self._log("Convergence could not be evaluated for '{}': {}".format(
+                            destination_abspath, result.message), level='debug')
+                        continue
+
+                    occurrences = convergence.record(destination_abspath, library_id=library_id,
+                                                     task_id=task_id, result=result)
+                    non_converged.append((destination_abspath, result, occurrences))
+                    if occurrences >= convergence.REPEAT_LIMIT:
+                        self._log(
+                            "{} This file has now completed {} times without converging, which is a configuration "
+                            "or plugin bug rather than a one-off. It has NOT been re-queued.".format(
+                                result.message, occurrences), level='error')
+                    else:
+                        self._log("{} It has NOT been re-queued.".format(result.message), level='warning')
+
+                    # 'detail', not 'message': the latter is a reserved
+                    # LogRecord attribute and logging refuses to overwrite it.
+                    TrawlarrLogging.data(
+                        "file_did_not_converge",
+                        data_search_key=destination_abspath,
+                        task_id=task_id,
+                        library_id=library_id,
+                        file_path=destination_abspath,
+                        plugin_id=result.plugin_id,
+                        plugin_name=result.plugin_name,
+                        occurrences=occurrences,
+                        detail=result.message,
+                    )
+                except Exception as e:
+                    self._log("Exception while checking convergence of '{}'".format(destination_abspath),
+                              message2=str(e), level="exception")
+
+            if non_converged:
+                self._raise_non_convergence_notification()
+        except Exception as e:
+            # A convergence check that raises must not damage a task that has
+            # already been delivered successfully.
+            self._log("Exception while running the convergence check", message2=str(e), level="exception")
+        return evaluated
+
+    @staticmethod
+    def _raise_non_convergence_notification():
+        """
+        One aggregate notification, not one per file.
+
+        A badly configured library can produce a non-converged file on every
+        single task. Queueing a notification for each of them would bury every
+        other notification the user has, which is how a warning stops being
+        read. The notification queue de-duplicates on uuid, so this stays a
+        single standing item that points at the health view.
+
+        :return:
+        """
+        Notifications().add(
+            {
+                'uuid':       'filesDidNotConverge',
+                'type':       'warning',
+                'icon':       'sync_problem',
+                'label':      'nonConvergedFilesLabel',
+                'message':    ('One or more files still match their library\'s criteria after their task '
+                               'completed. They have not been re-queued.'),
+                'navigation': {
+                    'push': '/ui/dashboard',
+                },
+            })
 
     def post_process_remote_file(self):
         """
@@ -720,13 +921,12 @@ class PostProcessor(threading.Thread):
         by the time we get here, so its (untouched) source file is correctly
         never recorded as done.
 
-        Task success is necessary but not sufficient. The worker can succeed
-        and the post-processor file movement still fail - a full disk, a
-        read-only mount, a file_move plugin that raises. In that case the file
-        sitting at the destination path is the ORIGINAL, unprocessed one, and
-        recording it as done would sign off work that was never delivered and
-        remove the file from every future library scan. So the file movement
-        must have reported success too.
+        The worker succeeding is not enough on its own (issue #86). If the
+        post-processor's file movement failed, the file sitting at the
+        destination path is the ORIGINAL, unprocessed one, and recording it as
+        done would sign off work that was never delivered and remove the file
+        from every future library scan. So the file movement must have reported
+        success too.
 
         :return: list of paths recorded
         """

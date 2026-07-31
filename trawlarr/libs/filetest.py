@@ -297,82 +297,117 @@ class FileTest(object):
         # Only run checks with plugins if other tests were not conclusive
         priority_score_modification = 0
         if return_value is None:
-            # Set the initial data with just the priority score.
-            data = {
-                'priority_score': 0,
-                'shared_info':    {},
-            }
-            # Run the file-test plugins and collect their votes. Precedence,
-            # highest first (see issue #32 and the notes at the top of this
-            # module):
-            #   1. a guard voting False vetoes the file outright. Nothing can
-            #      override it, and the loop stops there so the expensive
-            #      requester plugins are not run against a file that has
-            #      already been ruled out.
-            #   2. any plugin voting True ("queue this file") wins over a
-            #      filter voting False, so requester-style plugins are not
-            #      locked out by a filter that found nothing to do.
-            #   3. otherwise a filter voting False skips the file.
-            # Within a tier, the first plugin to cast the winning vote is
-            # recorded as the decision plugin (used by /pending/test).
-            # A future API revision should let plugins declare their role
-            # explicitly; see issue #16.
-            queue_decision_plugin = None
-            veto_decision_plugin = None
-            advisory_skip_plugin = None
-
-            for plugin_module in self.plugin_modules:
-                data['library_id'] = self.library_id
-                data['path'] = path
-                data['issues'] = deepcopy(file_issues)
-                data['add_file_to_pending_tasks'] = None
-                data[FILE_TEST_ROLE_KEY] = None
-
-                # Run plugin to update data
-                if not self.plugin_handler.exec_plugin_runner(data, plugin_module.get('plugin_id'),
-                                                              'library_management.file_test'):
-                    continue
-
-                # Append any file issues found during previous tests
-                file_issues = data.get('issues')
-
-                vote = data.get('add_file_to_pending_tasks')
-                if vote is True:
-                    if queue_decision_plugin is None:
-                        queue_decision_plugin = {
-                            'plugin_id':   plugin_module.get('plugin_id'),
-                            'plugin_name': plugin_module.get('name'),
-                        }
-                elif vote is False:
-                    if file_test_skip_vote_is_advisory(plugin_module, data):
-                        if advisory_skip_plugin is None:
-                            advisory_skip_plugin = {
-                                'plugin_id':   plugin_module.get('plugin_id'),
-                                'plugin_name': plugin_module.get('name'),
-                            }
-                    else:
-                        veto_decision_plugin = {
-                            'plugin_id':   plugin_module.get('plugin_id'),
-                            'plugin_name': plugin_module.get('name'),
-                        }
-                        # A veto is final. Stop here rather than running the
-                        # remaining plugins (probes, etc.) against a file that
-                        # will not be queued regardless of what they say.
-                        break
-
-            if veto_decision_plugin is not None:
-                return_value = False
-                decision_plugin = veto_decision_plugin
-            elif queue_decision_plugin is not None:
-                return_value = True
-                decision_plugin = queue_decision_plugin
-            elif advisory_skip_plugin is not None:
-                return_value = False
-                decision_plugin = advisory_skip_plugin
-            # Set the priority score modification
-            priority_score_modification = data.get('priority_score', 0)
+            return_value, file_issues, priority_score_modification, decision_plugin = self.run_file_test_plugins(
+                path, file_issues=file_issues)
 
         return return_value, file_issues, priority_score_modification, decision_plugin
+
+    def run_file_test_plugins(self, path, file_issues=None, shared_info=None):
+        """
+        Tiers 1-3 only: what do this library's file-test PLUGINS make of this
+        path, with no native tier-0 gate in front of them?
+
+        Split out of should_file_be_added_to_task_list() so that the library's
+        criteria can be asked as a post-condition and not only as a
+        pre-condition (issue #16's request, and what issue #34's convergence
+        check is built on). The split is a pure extraction - the scan path
+        calls straight through to it and behaves exactly as before.
+
+        Why convergence must use THIS and not the full test: tier 0 answers
+        "is this file in scope, and is it already done?". A file that has just
+        completed is, by construction, recorded as done (issue #33), so the
+        full test would answer "no, do not queue" for every completed file and
+        report universal convergence while reporting nothing at all. The
+        question convergence actually asks is narrower and is entirely a
+        plugin-layer question: *given what the library is configured to want,
+        does this file still qualify?*
+
+        :param path:
+        :param file_issues:  issues collected by earlier checks, if any
+        :param shared_info:  seed for the plugin `shared_info` dict, so a
+                             caller that has already probed this exact file
+                             can offer the result to plugins that honour the
+                             convention rather than making them probe again
+        :return: (return_value, file_issues, priority_score_modification, decision_plugin)
+        """
+        file_issues = [] if file_issues is None else file_issues
+        decision_plugin = None
+        return_value = None
+
+        # Set the initial data with just the priority score.
+        data = {
+            'priority_score': 0,
+            'shared_info':    dict(shared_info) if shared_info else {},
+        }
+        # Run the file-test plugins and collect their votes. Precedence,
+        # highest first (see issue #32 and the notes at the top of this
+        # module):
+        #   1. a guard voting False vetoes the file outright. Nothing can
+        #      override it, and the loop stops there so the expensive
+        #      requester plugins are not run against a file that has
+        #      already been ruled out.
+        #   2. any plugin voting True ("queue this file") wins over a
+        #      filter voting False, so requester-style plugins are not
+        #      locked out by a filter that found nothing to do.
+        #   3. otherwise a filter voting False skips the file.
+        # Within a tier, the first plugin to cast the winning vote is
+        # recorded as the decision plugin (used by /pending/test).
+        # A future API revision should let plugins declare their role
+        # explicitly; see issue #16.
+        queue_decision_plugin = None
+        veto_decision_plugin = None
+        advisory_skip_plugin = None
+
+        for plugin_module in self.plugin_modules:
+            data['library_id'] = self.library_id
+            data['path'] = path
+            data['issues'] = deepcopy(file_issues)
+            data['add_file_to_pending_tasks'] = None
+            data[FILE_TEST_ROLE_KEY] = None
+
+            # Run plugin to update data
+            if not self.plugin_handler.exec_plugin_runner(data, plugin_module.get('plugin_id'),
+                                                          'library_management.file_test'):
+                continue
+
+            # Append any file issues found during previous tests
+            file_issues = data.get('issues')
+
+            vote = data.get('add_file_to_pending_tasks')
+            if vote is True:
+                if queue_decision_plugin is None:
+                    queue_decision_plugin = {
+                        'plugin_id':   plugin_module.get('plugin_id'),
+                        'plugin_name': plugin_module.get('name'),
+                    }
+            elif vote is False:
+                if file_test_skip_vote_is_advisory(plugin_module, data):
+                    if advisory_skip_plugin is None:
+                        advisory_skip_plugin = {
+                            'plugin_id':   plugin_module.get('plugin_id'),
+                            'plugin_name': plugin_module.get('name'),
+                        }
+                else:
+                    veto_decision_plugin = {
+                        'plugin_id':   plugin_module.get('plugin_id'),
+                        'plugin_name': plugin_module.get('name'),
+                    }
+                    # A veto is final. Stop here rather than running the
+                    # remaining plugins (probes, etc.) against a file that
+                    # will not be queued regardless of what they say.
+                    break
+
+        if veto_decision_plugin is not None:
+            return_value = False
+            decision_plugin = veto_decision_plugin
+        elif queue_decision_plugin is not None:
+            return_value = True
+            decision_plugin = queue_decision_plugin
+        elif advisory_skip_plugin is not None:
+            return_value = False
+            decision_plugin = advisory_skip_plugin
+
+        return return_value, file_issues, data.get('priority_score', 0), decision_plugin
 
 
 class FileTesterThread(threading.Thread):

@@ -40,8 +40,10 @@ from trawlarr.webserver.api_v2.schema.schemas import CompletedTasksLogRequestSch
     CompletedTasksSchema, \
     RequestHistoryTableDataSchema, \
     RequestAddCompletedToPendingTasksSchema, RequestCompletedTasksBulkActionSchema, \
-    RequestDismissTaskFailuresSchema, TaskFailureSummarySchema
+    RequestDismissTaskFailuresSchema, TaskFailureSummarySchema, \
+    ConvergenceSummarySchema, RequestDismissConvergenceSchema
 from trawlarr.webserver.helpers import completed_tasks
+from trawlarr.libs import convergence
 
 
 def _single_line(text, limit=500):
@@ -99,6 +101,16 @@ class ApiHistoryHandler(BaseApiHandler):
             "path_pattern":      r"/history/failures/dismiss",
             "supported_methods": ["POST"],
             "call_method":       "dismiss_task_failures",
+        },
+        {
+            "path_pattern":      r"/history/convergence",
+            "supported_methods": ["GET"],
+            "call_method":       "get_convergence_summary",
+        },
+        {
+            "path_pattern":      r"/history/convergence/dismiss",
+            "supported_methods": ["POST"],
+            "call_method":       "dismiss_convergence_records",
         }
     ]
 
@@ -522,6 +534,128 @@ class ApiHistoryHandler(BaseApiHandler):
         try:
             json_request = self.read_json_request(RequestDismissTaskFailuresSchema())
             completed_tasks.dismiss_completed_task_failures(
+                json_request.get('id_list', []),
+                dismissed=json_request.get('dismissed', True))
+            self.write_success()
+            return
+        except BaseApiError as bae:
+            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            return
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def get_convergence_summary(self):
+        """
+        History - convergence health view
+        ---
+        description: |
+            Returns the files that completed a task and STILL match their library's criteria
+            for processing (issue #34).
+
+            These are not failed tasks. Each of these tasks ran and reported success; what is
+            wrong is that the work did not achieve what the library asked for. Such files are
+            deliberately NOT re-queued - silent re-queueing is the reprocess loop - so this
+            endpoint, and the standing notification that accompanies it, are how the condition
+            becomes visible.
+
+            `occurrences` counts consecutive completed tasks that left a file non-converged. A
+            file at or above `repeat_limit` is flagged as a configuration or plugin bug rather
+            than a one-off.
+        responses:
+            200:
+                description: 'Successful request; Returns the non-convergence health view'
+                content:
+                    application/json:
+                        schema:
+                            ConvergenceSummarySchema
+            404:
+                description: Bad request; Requested endpoint not found
+                content:
+                    application/json:
+                        schema:
+                            BadEndpointSchema
+            405:
+                description: Bad request; Requested method is not allowed
+                content:
+                    application/json:
+                        schema:
+                            BadMethodSchema
+            500:
+                description: Internal error; Check `error` for exception
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            summary = convergence.outstanding_summary()
+            summary['files'] = convergence.list_outstanding()
+            response = self.build_response(
+                ConvergenceSummarySchema(),
+                summary
+            )
+            self.write_success(response)
+            return
+        except BaseApiError as bae:
+            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            return
+        except Exception as e:
+            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
+            self.write_error()
+
+    async def dismiss_convergence_records(self):
+        """
+        History - dismiss non-converged files
+        ---
+        description: |
+            Acknowledge non-converged files without deleting the record.
+
+            The occurrence count keeps advancing underneath a dismissal, so a file that is
+            dismissed and then completes again without converging returns to the health view
+            with a higher count.
+        requestBody:
+            description: Requested list of convergence records to acknowledge.
+            required: True
+            content:
+                application/json:
+                    schema:
+                        RequestDismissConvergenceSchema
+        responses:
+            200:
+                description: 'Successful request; Returns success status'
+                content:
+                    application/json:
+                        schema:
+                            BaseSuccessSchema
+            400:
+                description: Bad request; Check `messages` for any validation errors
+                content:
+                    application/json:
+                        schema:
+                            BadRequestSchema
+            404:
+                description: Bad request; Requested endpoint not found
+                content:
+                    application/json:
+                        schema:
+                            BadEndpointSchema
+            405:
+                description: Bad request; Requested method is not allowed
+                content:
+                    application/json:
+                        schema:
+                            BadMethodSchema
+            500:
+                description: Internal error; Check `error` for exception
+                content:
+                    application/json:
+                        schema:
+                            InternalErrorSchema
+        """
+        try:
+            json_request = self.read_json_request(RequestDismissConvergenceSchema())
+            convergence.set_dismissed(
                 json_request.get('id_list', []),
                 dismissed=json_request.get('dismissed', True))
             self.write_success()
