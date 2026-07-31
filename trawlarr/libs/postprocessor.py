@@ -152,6 +152,10 @@ class PostProcessor(threading.Thread):
                         except Exception as e:
                             self._log("Exception in post-processing local task file",
                                       message2=str(e), level="exception")
+                            # This is the stage that establishes delivery. If
+                            # it did not finish, the task did not succeed, and
+                            # every stage below it must be told (issue #82).
+                            self.mark_task_failed_in_post_processing('post_process_file', e)
                         try:
                             # Write source and destination data to historic log
                             self.write_history_log()
@@ -190,6 +194,11 @@ class PostProcessor(threading.Thread):
                         except Exception as e:
                             self._log("Exception in post-processing remote task file",
                                       message2=str(e), level="exception")
+                            # Same rule as the local branch: the delivery
+                            # stage did not finish, so 'task_success' in the
+                            # data.json this task hands back must not say it
+                            # did (issue #82).
+                            self.mark_task_failed_in_post_processing('post_process_remote_file', e)
                         try:
                             # Write source and destination data to historic log
                             self.dump_history_log()
@@ -204,6 +213,82 @@ class PostProcessor(threading.Thread):
                                       message2=str(e), level="exception")
 
         self._log("Leaving PostProcessor Monitor loop...")
+
+    def mark_task_failed_in_post_processing(self, stage, exception):
+        """
+        A post-processing stage raised. Record that the task failed.
+
+        Trawlarr fork addition (see issue #82).
+
+        WHAT THIS FIXES
+        ---------------
+        run() wraps every stage in a try/except that logs and moves to the
+        next one. So a task whose delivery blew up half way through went on to
+        write itself into history as a SUCCESS, and (before #79 and #86) to
+        record its source file as done. A file the pipeline never delivered
+        was signed off, removed from every future library scan, and nothing
+        the operator can see said otherwise.
+
+        Marking the task failed is enough to fix all of that, because the
+        stages that follow already ask: record_completed_file() and
+        run_convergence_check() both return early for an unsuccessful task,
+        and write_history_log() records the failure and raises the "new failed
+        task" notification. This method exists so that the answer they get is
+        the true one.
+
+        WHY THE LOOP STILL CONTINUES
+        ---------------------------
+        The remaining stages are not "more work on a task that failed", they
+        are how the failure gets recorded and how the task leaves the queue.
+        Aborting the loop instead would leave the row in the 'processed' state
+        that run() selects on, and the post-processor would pick the same task
+        up again immediately, forever.
+
+        WHICH STAGES CALL THIS, AND WHICH DELIBERATELY DO NOT
+        ----------------------------------------------------
+        Only the delivery stages - post_process_file() and
+        post_process_remote_file(). They are the ones whose failure means the
+        success was never established.
+
+        The bookkeeping stages after them (write_history_log,
+        record_completed_file, commit_task_metadata, delete) stay as they are,
+        logged and stepped over, because their failure does not make the
+        delivery untrue and marking a correctly delivered file's task as
+        failed would blacklist a good file from ever being queued again via
+        FileTest.file_failed_in_history(). The rule is not "any exception
+        fails the task"; it is "nothing may record an outcome an earlier stage
+        did not establish".
+
+        Never raises: this runs from an exception handler.
+
+        :param stage:      name of the stage that raised
+        :param exception:  what it raised
+        :return: True when the task was successfully marked failed
+        """
+        marked = False
+        try:
+            self.current_task.set_success(False)
+            marked = True
+        except Exception as e:
+            # Nothing else can be done from here, but this must be loud: the
+            # task is about to be written to history as a success it did not
+            # earn, which is the exact outcome this method exists to prevent.
+            self._log("Unable to mark task as failed after post-processing stage '{}' raised".format(stage),
+                      message2=str(e), level="exception")
+
+        try:
+            # Do not overwrite a more specific reason the worker already
+            # recorded; a post-processing blow-up is often the consequence of
+            # it rather than the cause.
+            taskfailure.record(
+                self.current_task.get_task_id(),
+                taskfailure.CATEGORY_POSTPROCESSOR_ERROR,
+                "Post-processing stage '{}' raised {}: {}".format(stage, type(exception).__name__, exception))
+        except Exception as e:
+            self._log("Unable to record the failure reason for post-processing stage '{}'".format(stage),
+                      message2=str(e), level="exception")
+
+        return marked
 
     def system_configuration_is_valid(self):
         """

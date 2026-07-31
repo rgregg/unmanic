@@ -22,9 +22,15 @@
 
     WHAT IS CHECKED
     ---------------
-    Three cheap assertions, run in the post-processor after the worker has
+    Four cheap assertions, run in the post-processor after the worker has
     finished but before the output is allowed anywhere near the library:
 
+      unprobeable_output - the input probed cleanly and the output did not.
+                         Added by issue #82: this used to be treated as "the
+                         check could not run" and passed, so the most damaged
+                         output a task can produce was the one that always got
+                         through. See evaluate() for why the check is phrased
+                         relative to the input.
       duplicate_audio  - the output has MORE audio streams than the input, and
                          more copies of some comparable audio track (same
                          channel count, language and title) than the input had.
@@ -113,6 +119,8 @@ STATE_MAX_AGE_DAYS = 365
 CHECK_DUPLICATE_AUDIO = 'duplicate_audio'
 CHECK_STREAM_GROWTH = 'stream_growth'
 CHECK_SIZE_GROWTH = 'size_growth'
+#: Issue #82. The input probed cleanly and the output did not.
+CHECK_UNPROBEABLE_OUTPUT = 'unprobeable_output'
 
 logger = TrawlarrLogging.get_logger(name='OutputSanity')
 
@@ -198,9 +206,12 @@ class SanityResult(object):
     :ivar failures:   list of dicts with 'id' and 'message'. Non-empty means
                       the output must not be delivered.
     :ivar state:      the per-path state to persist for the next task.
-    :ivar checked:    False when there was not enough information to judge
-                      (no probe, missing file). Never a failure - an
-                      unrunnable check must not block a good transcode.
+    :ivar checked:    False when there was not enough information to judge -
+                      no probe of EITHER file and no sizes, i.e. the tooling
+                      itself was unavailable. Never a failure; an unrunnable
+                      check must not block a good transcode. An output that
+                      alone cannot be probed is a different thing entirely
+                      and is a failure - see evaluate() and issue #82.
     :ivar output_probe: the ffprobe dict for the output file, when one was
                       obtained. Carried on the result purely so the caller can
                       hand it on rather than probing the same bytes twice -
@@ -386,7 +397,38 @@ def evaluate(source_probe, output_probe, source_size, output_size, previous_stat
     previous_state = previous_state or {}
     failures = []
 
-    have_probes = bool(_streams(source_probe)) and bool(_streams(output_probe))
+    source_readable = bool(_streams(source_probe))
+    output_readable = bool(_streams(output_probe))
+
+    # --- the output could not be read at all -----------------------------
+    # Issue #82. This used to be an "unrunnable check", reported as checked=
+    # False and waved through, which meant the single most damaged output a
+    # task can produce - one ffprobe will not open - was the one case that
+    # always passed.
+    #
+    # It is asked as "the INPUT probed and the OUTPUT did not", never as
+    # "the output did not probe", and the difference is the whole reason this
+    # is safe to fail on. A missing ffmpeg, an unreadable mount or a build
+    # without the probe library fails both files identically and is not
+    # reported here; it still degrades to the size comparison as before.
+    # Only a task that demonstrably had a readable file to work from and
+    # produced something unreadable trips this.
+    if source_readable and not output_readable:
+        failures.append({
+            'id':      CHECK_UNPROBEABLE_OUTPUT,
+            'message': (
+                'The input file probed cleanly but the output did not: it is missing, empty, or '
+                'damaged badly enough that ffprobe cannot read a single stream from it. It has not '
+                'been delivered to the library.'
+            ),
+        })
+        # Nothing else can be compared against a file we cannot read, and the
+        # task is failing regardless. Returning here keeps the report to the
+        # one finding that actually explains it. No streak state is returned:
+        # the output is discarded, so there is no growth to carry forward.
+        return SanityResult(failures=failures, state={}, checked=True)
+
+    have_probes = source_readable and output_readable
     have_sizes = bool(source_size) and bool(output_size)
     if not have_probes and not have_sizes:
         # Nothing to compare. Say so rather than reporting a clean bill of

@@ -188,9 +188,26 @@ def evaluate_path(abspath, library_id, shared_info=None, file_test=None):
             message='Library {} has no file test plugins enabled, so it has no criteria to converge against'.format(
                 library_id))
 
+    # Imported here rather than at module scope: filetest pulls in the whole
+    # plugin handler, and this module is imported by the post-processor.
+    from trawlarr.libs.filetest import FileTestPluginError
+
     try:
         should_queue, issues, _priority, decision_plugin = file_test.run_file_test_plugins(
             abspath, shared_info=shared_info)
+    except FileTestPluginError as e:
+        # A plugin failed, so the criteria were never fully asked (issue #82).
+        # Note this is the OPPOSITE resolution to the scan path, which refuses
+        # to queue: here the unfavourable answer is "converged", because that
+        # is the one that would file the case closed. Same rule, both times -
+        # never record an answer the check did not establish.
+        logger.warning("File test plugin '%s' failed while re-checking '%s': %s", e.plugin_id, abspath, e.detail)
+        return ConvergenceResult(
+            STATE_NOT_EVALUATED,
+            plugin_id=e.plugin_id,
+            plugin_name=e.plugin_name,
+            message="File test plugin '{}' failed while re-checking the output, so convergence could not "
+                    "be established".format(e.plugin_name or e.plugin_id))
     except Exception:
         logger.exception("Unable to re-run the library file test against '%s'", abspath)
         return ConvergenceResult(STATE_NOT_EVALUATED, message='The library file test raised while re-checking the output')
