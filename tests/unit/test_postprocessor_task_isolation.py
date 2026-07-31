@@ -68,6 +68,9 @@ def _bare_postprocessor():
     """
     pp = PostProcessor.__new__(PostProcessor)
     pp._last_destination_files = []
+    # These tests are about task-to-task leakage, not about the file move
+    # verdict, so start from "the move worked" and let each test say otherwise.
+    pp._last_file_move_processes_success = True
     # _log() reaches for a logger the bare object has none of.
     pp._log = lambda *args, **kwargs: None
     return pp

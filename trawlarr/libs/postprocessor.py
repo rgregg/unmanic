@@ -114,6 +114,11 @@ class PostProcessor(threading.Thread):
                     # A file would be marked complete without having been
                     # processed, and never queued again.
                     self._last_destination_files = []
+                    # Same reasoning for the file-move verdict. It gates
+                    # record_completed_file(), so a stale True from the previous
+                    # task would let this task's untouched source be signed off.
+                    # False is the only safe starting point: nothing has moved.
+                    self._last_file_move_processes_success = False
 
                     # Execute event plugin runners
                     plugin_handler = PluginsHandler()
@@ -715,9 +720,23 @@ class PostProcessor(threading.Thread):
         by the time we get here, so its (untouched) source file is correctly
         never recorded as done.
 
+        Task success is necessary but not sufficient. The worker can succeed
+        and the post-processor file movement still fail - a full disk, a
+        read-only mount, a file_move plugin that raises. In that case the file
+        sitting at the destination path is the ORIGINAL, unprocessed one, and
+        recording it as done would sign off work that was never delivered and
+        remove the file from every future library scan. So the file movement
+        must have reported success too.
+
         :return: list of paths recorded
         """
         if not self.current_task.get_task_success():
+            return []
+
+        if not self._last_file_move_processes_success:
+            self._log("Post-processor file movement did not complete successfully. "
+                      "Not recording this file as done - the file in the library has not been replaced.",
+                      level="warning")
             return []
 
         source_data = self.current_task.get_source_data() or {}
