@@ -41,7 +41,8 @@ import psutil
 
 from trawlarr import config, metadata
 from trawlarr.libs import (libraryscanner, common, envvars, eventmonitor, plugin_registration, plugin_settings,
-                           runtimepaths, taskrecovery)
+                           runtimepaths, taskrecovery, threadhealth)
+from trawlarr.libs.supervisor import ThreadSupervisor, supervise_until_shutdown
 from trawlarr.libs.db_migrate import Migrations
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.scheduler import ScheduledTasksManager
@@ -83,8 +84,21 @@ def init_db(config_path):
 
 class RootService:
 
+    #: Seconds between thread supervision passes. Short enough that a dead
+    #: thread is reported before an external maintenance script gated on
+    #: /activity/status has done much; long enough to be free.
+    SUPERVISION_INTERVAL = 5
+
     def __init__(self):
         self.threads = []
+        # name -> callable that starts a replacement for that thread. A thread
+        # absent from this map is supervised but never restarted; see
+        # ThreadSupervisor for why UIServer is deliberately one of those.
+        self.thread_restarters = {}
+        self.supervisor = None
+        # Set by the signal handler so the supervision loop wakes immediately
+        # on SIGTERM instead of sitting out the rest of its interval.
+        self.shutdown_event = threading.Event()
         self.run_threads = True
         self.db_connection = None
 
@@ -98,12 +112,34 @@ class RootService:
 
         self._mgr = None
 
+    def register_thread(self, name, thread):
+        """
+        Record a running thread under `name`, replacing any previous entry.
+
+        Replacing rather than appending is what makes a supervised restart
+        possible: the supervisor iterates this list, so a second entry for a
+        name would leave the dead thread in it forever, permanently
+        "unhealthy", while its replacement ran perfectly well beside it.
+
+        :param name:
+        :param thread:
+        :return:
+        """
+        for entry in self.threads:
+            if entry["name"] == name:
+                entry["thread"] = thread
+                break
+        else:
+            self.threads.append({"name": name, "thread": thread})
+        threadhealth.get_registry().record_started(name)
+        return thread
+
     def start_handler(self, data_queues, task_queue):
         self.logger.info("Starting TaskHandler")
         handler = TaskHandler(data_queues, task_queue, self.event)
         handler.daemon = True
         handler.start()
-        self.threads.append({"name": "TaskHandler", "thread": handler})
+        self.register_thread("TaskHandler", handler)
         return handler
 
     def start_post_processor(self, data_queues, task_queue):
@@ -111,7 +147,7 @@ class RootService:
         postprocessor = PostProcessor(data_queues, task_queue, self.event)
         postprocessor.daemon = True
         postprocessor.start()
-        self.threads.append({"name": "PostProcessor", "thread": postprocessor})
+        self.register_thread("PostProcessor", postprocessor)
         return postprocessor
 
     def start_foreman(self, data_queues, settings, task_queue):
@@ -119,7 +155,15 @@ class RootService:
         foreman = Foreman(data_queues, settings, task_queue, self.event)
         foreman.daemon = True
         foreman.start()
-        self.threads.append({"name": "Foreman", "thread": foreman})
+        self.register_thread("Foreman", foreman)
+        # Every web request that needs the Foreman resolves it through this
+        # singleton at request time. On a supervised restart the replacement
+        # has to be published here, or the API and the activity gate would go
+        # on reading the dead one - which is the same class of "looks fine,
+        # answers wrongly" failure this whole change is about.
+        from trawlarr.libs.uiserver import TrawlarrRunningTreads
+
+        TrawlarrRunningTreads().set_unmanic_running_threads({"foreman": foreman})
         return foreman
 
     def start_library_scanner_manager(self, data_queues):
@@ -127,7 +171,7 @@ class RootService:
         library_scanner_manager = libraryscanner.LibraryScannerManager(data_queues, self.event)
         library_scanner_manager.daemon = True
         library_scanner_manager.start()
-        self.threads.append({"name": "LibraryScannerManager", "thread": library_scanner_manager})
+        self.register_thread("LibraryScannerManager", library_scanner_manager)
         return library_scanner_manager
 
     def start_inotify_watch_manager(self, data_queues, settings):
@@ -136,7 +180,7 @@ class RootService:
             event_monitor_manager = eventmonitor.EventMonitorManager(data_queues, self.event)
             event_monitor_manager.daemon = True
             event_monitor_manager.start()
-            self.threads.append({"name": "EventMonitorManager", "thread": event_monitor_manager})
+            self.register_thread("EventMonitorManager", event_monitor_manager)
             return event_monitor_manager
         else:
             self.logger.warn("Unable to start EventMonitorManager as no event monitor module was found")
@@ -146,7 +190,7 @@ class RootService:
         uiserver = UIServer(data_queues, foreman, self.developer)
         uiserver.daemon = True
         uiserver.start()
-        self.threads.append({"name": "UIServer", "thread": uiserver})
+        self.register_thread("UIServer", uiserver)
         return uiserver
 
     def start_scheduled_tasks_manager(self):
@@ -154,7 +198,7 @@ class RootService:
         scheduled_tasks_manager = ScheduledTasksManager(self.event)
         scheduled_tasks_manager.daemon = True
         scheduled_tasks_manager.start()
-        self.threads.append({"name": "ScheduledTasksManager", "thread": scheduled_tasks_manager})
+        self.register_thread("ScheduledTasksManager", scheduled_tasks_manager)
         return scheduled_tasks_manager
 
     def start_resource_logger(self):
@@ -203,7 +247,8 @@ class RootService:
         thread = threading.Thread(target=log_resources, name="RootServiceResourceLogger", daemon=True)
         thread.stop = abort_flag.set
         thread.start()
-        self.threads.append({"name": "RootServiceResourceLogger", "thread": thread})
+        self.register_thread("RootServiceResourceLogger", thread)
+        return thread
 
     def initial_register_unmanic(self):
         from trawlarr.libs import session
@@ -283,6 +328,26 @@ class RootService:
         # Start main thread resource logger
         self.start_resource_logger()
 
+        # Record how each thread is restarted, now that the arguments they
+        # need are in scope. A thread listed here may be restarted by the
+        # supervisor (bounded - see ThreadSupervisor); a thread not listed is
+        # still watched and still reported, but never restarted.
+        #
+        # UIServer is deliberately absent. It binds a port, so a replacement
+        # racing the old socket is a worse failure than the one being fixed,
+        # and it is the one thread whose death is already obvious from
+        # outside: callers of /activity/status get a refused connection, and
+        # docs/AUTOMATION.md tells them to treat that as "do not proceed".
+        self.thread_restarters = {
+            "PostProcessor":             lambda: self.start_post_processor(data_queues, task_queue),
+            "Foreman":                   lambda: self.start_foreman(data_queues, settings, task_queue),
+            "TaskHandler":               lambda: self.start_handler(data_queues, task_queue),
+            "LibraryScannerManager":     lambda: self.start_library_scanner_manager(data_queues),
+            "EventMonitorManager":       lambda: self.start_inotify_watch_manager(data_queues, settings),
+            "ScheduledTasksManager":     self.start_scheduled_tasks_manager,
+            "RootServiceResourceLogger": self.start_resource_logger,
+        }
+
     def stop_threads(self):
         self.logger.info("Stopping all threads")
         self.event.set()
@@ -301,6 +366,39 @@ class RootService:
 
     def stop(self):
         self.run_threads = False
+        # Wake the supervision loop so shutdown is not delayed by the rest of
+        # its wait, which is what signal.pause() used to give us for free.
+        self.shutdown_event.set()
+
+    def build_supervisor(self):
+        """
+        Build the thread supervisor over the registry start_threads() filled.
+
+        :return: ThreadSupervisor
+        """
+        return ThreadSupervisor(self.threads, restarters=self.thread_restarters)
+
+    def supervise_threads(self):
+        """
+        Watch the worker threads until the service is asked to stop.
+
+        This is the main thread's job now. It used to sit in signal.pause(),
+        which is precisely why a dead Foreman could go unnoticed for days
+        (issue #81): nothing in the process was looking. Running supervision
+        here rather than on a thread of its own is deliberate - a supervisor
+        thread would need a supervisor. This one cannot die quietly, because
+        every other thread in the application is a daemon and the process
+        ends when this function returns.
+
+        :return:
+        """
+        self.supervisor = self.build_supervisor()
+        supervise_until_shutdown(
+            self.supervisor,
+            self.shutdown_event,
+            lambda: self.run_threads,
+            interval=self.SUPERVISION_INTERVAL,
+        )
 
     def run(self):
         # Init the TaskDataStore and PluginChildProcess
@@ -334,18 +432,14 @@ class RootService:
         self.start_threads(settings)
 
         # Watch for the term signal
-        if os.name == "nt":
-            while self.run_threads:
-                try:
-                    time.sleep(1)
-                except (KeyboardInterrupt, SystemExit) as e:
-                    break
-        else:
+        if os.name != "nt":
             signal.signal(signal.SIGINT, self.sig_handle)
             signal.signal(signal.SIGTERM, self.sig_handle)
-            while self.run_threads:
-                signal.pause()
-                time.sleep(0.5)
+
+        # Supervise the threads until we are told to stop. The signal handlers
+        # above set shutdown_event, so this returns promptly on SIGTERM;
+        # on Windows a KeyboardInterrupt out of the wait ends it instead.
+        self.supervise_threads()
 
         # Received term signal. Stop everything
         self.stop_threads()

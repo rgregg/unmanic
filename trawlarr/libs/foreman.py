@@ -44,6 +44,11 @@ from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.worker_group import WorkerGroup
 from trawlarr.libs.workers import Worker
 
+#: How many consecutive failed passes of the monitor loop are absorbed before
+#: the Foreman thread gives up and lets itself die (to be reported, and
+#: possibly restarted, by the supervisor). See Foreman.run().
+MAX_CONSECUTIVE_MONITOR_FAILURES = 5
+
 
 class Foreman(threading.Thread):
     def __init__(self, data_queues, settings, task_queue, event):
@@ -59,6 +64,16 @@ class Foreman(threading.Thread):
         self.paused_worker_threads = []
         self.abort_flag = threading.Event()
         self.abort_flag.clear()
+
+        # Monitor loop state. These were locals of run() until the loop body
+        # was extracted into run_monitor_pass(); they have to survive a pass.
+        #
+        # allow_local_idle_worker_check forces a short back-off when False,
+        # which prevents looping on idle local workers whose tags stop them
+        # taking up any of the pending tasks.
+        self.allow_local_idle_worker_check = True
+        self.last_metrics_time = 0
+        self.metrics_interval = 2
 
         # Set the current plugin config
         self.current_config = {
@@ -101,7 +116,7 @@ class Foreman(threading.Thread):
             try:
                 library_config = Library(library.get('id'))
             except Exception as e:
-                self.logger.exception('Unable to fetch library config for ID', library.get('id'))
+                self.logger.exception('Unable to fetch library config for ID %s', library.get('id'))
                 continue
             # Get list of enabled plugins with their settings
             enabled_plugins = []
@@ -452,136 +467,193 @@ class Foreman(threading.Thread):
                 plugin_handler.run_event_plugins_for_plugin_type('events.task_scheduled', event_data)
         # If the worker thread specified was not available to collect this task, it will be fetched again in the next loop
 
+    def run_monitor_pass(self):
+        """
+        One pass of the Foreman monitor loop.
+
+        Extracted from run() so that the loop's error handling has something
+        to wrap: an exception raised anywhere in here has to be attributable
+        to a single pass, and a pass that gives up early has to be able to
+        say "done, try again in a moment" without deciding how long the wait
+        is or whether the thread should still be alive. That is what the
+        early returns are - they were `continue` statements against the
+        while loop, and they mean exactly what they meant before.
+
+        The three pieces of state that used to be locals of run() are now
+        attributes, because they have to survive a pass.
+
+        :return:
+        """
+        # Fetch all completed tasks from workers
+        while not self.abort_flag.is_set() and not self.complete_queue.empty():
+            self.event.wait(.5)
+            try:
+                task_item = self.complete_queue.get_nowait()
+                task_item.set_status('processed')
+            except queue.Empty:
+                continue
+            except Exception as e:
+                self.logger.exception('Exception when fetching completed task report from worker: %s', str(e))
+
+        # Set up the correct number of workers
+        if not self.abort_flag.is_set():
+            self.init_worker_threads()
+
+        # If the worker config is not valid, then pause all workers until it is
+        valid_config = self.validate_worker_config()
+        if not valid_config:
+            # Pause all workers
+            self.pause_all_worker_threads(record_paused=True)
+            return
+        elif self.paused_worker_threads:
+            # for thread in self.worker_threads:
+            self.resume_all_worker_threads(recorded_paused_only=True)
+            # Reset pause worker list
+            self.paused_worker_threads = []
+
+        # Record metrics for each worker (slow down when all workers are idle)
+        workers_info = self.get_all_worker_status()
+        any_busy = any(not worker_info.get('idle') for worker_info in workers_info)
+        self.metrics_interval = 2 if any_busy else 10
+        now = time.time()
+        if now - self.last_metrics_time >= self.metrics_interval:
+            for worker_info in workers_info:
+                TrawlarrLogging.metric("worker_info",
+                                      worker_name=worker_info.get('name'),
+                                      idle=worker_info.get('idle'),
+                                      paused=worker_info.get('paused'),
+                                      start_time=worker_info.get('start_time'),
+                                      current_task=worker_info.get('current_task'),
+                                      current_file=worker_info.get('current_file'),
+                                      current_command=worker_info.get('current_command'),
+                                      worker_log_tail=worker_info.get('worker_log_tail'),
+                                      runners_info=worker_info.get('runners_info'),
+                                      subprocess=worker_info.get('subprocess'),
+                                      )
+            self.last_metrics_time = now
+
+        # Manage worker event schedules
+        self.manage_event_schedules()
+
+        if self.abort_flag.is_set() or self.task_queue.task_list_pending_is_empty():
+            return
+
+        # Check if we are able to start up a worker for another encoding job
+        # This queue holds only one task at a time and is used to hand tasks to the workers
+        if self.workers_pending_task_queue.full():
+            # In order to simplify the process and run the foreman management in a single thread, if this
+            # queue is full, it means the thread that is assigned to pick up the item has not done so.
+            # In order to prevent a second thread starting and taking the first thread's task, we should not
+            # process any more pending tasks until that first thread is ready and has taken its task out of the
+            # queue.
+            return
+
+        # Check if there are any free workers
+        if self.allow_local_idle_worker_check and self.check_for_idle_workers():
+            # Specify the worker ID that will handle the next task
+            worker_ids = self.fetch_available_worker_ids()
+            # If not workers were available (possibly due to being recycled), just continue loop
+            if not worker_ids:
+                return
+        else:
+            self.allow_local_idle_worker_check = True
+            # All workers are currently busy
+            self.event.wait(1)
+            return
+
+        # Check if postprocessor task queue is full
+        if self.postprocessor_queue_full():
+            self.event.wait(5)
+            return
+
+        # Fetch the next item in the queue
+        available_worker_id = None
+        next_item_to_process = None
+        # Ensure tags match the available library and worker
+        for worker_id in worker_ids:
+            try:
+                library_tags = self.get_tags_configured_for_worker(worker_id)
+            except Exception as e:
+                # This will happen if the worker group is deleted
+                self.logger.debug('Error while fetching the tags for the configured worker: %s', str(e))
+                # Break this fore loop. The main while loop wil clean up these workers on the next pass
+                break
+            next_item_to_process = self.task_queue.get_next_pending_tasks(library_tags=library_tags)
+            if next_item_to_process:
+                available_worker_id = worker_id
+                break
+        # If no local worker ID was assigned to the given item, then try again in 2 seconds
+        if not available_worker_id:
+            self.allow_local_idle_worker_check = False
+            self.event.wait(1)
+            return
+
+        if next_item_to_process:
+            try:
+                source_abspath = next_item_to_process.get_source_abspath()
+            except Exception as e:
+                self.logger.exception('Exception in fetching task details: %s', str(e))
+                self.event.wait(3)
+                return
+
+            self.logger.info('Processing item - %s', str(source_abspath))
+            self.hand_task_to_workers(next_item_to_process, worker_id=available_worker_id)
+
     def run(self):
+        """
+        The Foreman monitor loop.
+
+        On the error handling, which used to be `except Exception as e: raise
+        Exception(e)` (issue #81): that killed the dispatch engine on the
+        first exception of any kind, and threw the original traceback away on
+        the way out, leaving a log entry that pointed at this line and
+        nothing else.
+
+        Neither extreme is right. The Foreman is the ONLY thing that claims a
+        pending task, so dying on a transient fault - a locked database, a
+        library row deleted mid-pass - stops the installation dead. But
+        swallowing everything forever is the same bug in the other direction:
+        a fault that recurs every pass would spin here quietly, claiming
+        nothing, looking exactly like an idle installation.
+
+        So: absorb, back off, and count. Consecutive failures escalate; a
+        successful pass resets the count. Once MAX_CONSECUTIVE_MONITOR_FAILURES
+        passes in a row have failed, the fault is not transient and this
+        thread stops pretending it can do its job - it re-raises with a bare
+        `raise`, which keeps the original traceback intact, and dies. The
+        supervisor (trawlarr/libs/supervisor.py) then notices, reports it,
+        and decides whether a restart is worth attempting.
+
+        :return:
+        """
         self.logger.info('Starting Foreman Monitor loop')
 
-        # Flag to force a short back-off when set to False.
-        # This will prevent always looping on idle local workers when the local worker's
-        # tags prevent them from taking up tasks
-        allow_local_idle_worker_check = True
-
-        last_metrics_time = 0
-        metrics_interval = 2
+        consecutive_failures = 0
 
         while not self.abort_flag.is_set():
             self.event.wait(2)
 
             try:
-                # Fetch all completed tasks from workers
-                while not self.abort_flag.is_set() and not self.complete_queue.empty():
-                    self.event.wait(.5)
-                    try:
-                        task_item = self.complete_queue.get_nowait()
-                        task_item.set_status('processed')
-                    except queue.Empty:
-                        continue
-                    except Exception as e:
-                        self.logger.exception('Exception when fetching completed task report from worker', str(e))
-
-                # Set up the correct number of workers
-                if not self.abort_flag.is_set():
-                    self.init_worker_threads()
-
-                # If the worker config is not valid, then pause all workers until it is
-                valid_config = self.validate_worker_config()
-                if not valid_config:
-                    # Pause all workers
-                    self.pause_all_worker_threads(record_paused=True)
-                    continue
-                elif self.paused_worker_threads:
-                    # for thread in self.worker_threads:
-                    self.resume_all_worker_threads(recorded_paused_only=True)
-                    # Reset pause worker list
-                    self.paused_worker_threads = []
-
-                # Record metrics for each worker (slow down when all workers are idle)
-                workers_info = self.get_all_worker_status()
-                any_busy = any(not worker_info.get('idle') for worker_info in workers_info)
-                metrics_interval = 2 if any_busy else 10
-                now = time.time()
-                if now - last_metrics_time >= metrics_interval:
-                    for worker_info in workers_info:
-                        TrawlarrLogging.metric("worker_info",
-                                              worker_name=worker_info.get('name'),
-                                              idle=worker_info.get('idle'),
-                                              paused=worker_info.get('paused'),
-                                              start_time=worker_info.get('start_time'),
-                                              current_task=worker_info.get('current_task'),
-                                              current_file=worker_info.get('current_file'),
-                                              current_command=worker_info.get('current_command'),
-                                              worker_log_tail=worker_info.get('worker_log_tail'),
-                                              runners_info=worker_info.get('runners_info'),
-                                              subprocess=worker_info.get('subprocess'),
-                                              )
-                    last_metrics_time = now
-
-                # Manage worker event schedules
-                self.manage_event_schedules()
-
-                if not self.abort_flag.is_set() and not self.task_queue.task_list_pending_is_empty():
-
-                    # Check if we are able to start up a worker for another encoding job
-                    # This queue holds only one task at a time and is used to hand tasks to the workers
-                    if self.workers_pending_task_queue.full():
-                        # In order to simplify the process and run the foreman management in a single thread, if this
-                        # queue is full, it means the thread that is assigned to pick up the item has not done so.
-                        # In order to prevent a second thread starting and taking the first thread's task, we should not
-                        # process any more pending tasks until that first thread is ready and has taken its task out of the
-                        # queue.
-                        continue
-
-                    # Check if there are any free workers
-                    if allow_local_idle_worker_check and self.check_for_idle_workers():
-                        # Specify the worker ID that will handle the next task
-                        worker_ids = self.fetch_available_worker_ids()
-                        # If not workers were available (possibly due to being recycled), just continue loop
-                        if not worker_ids:
-                            continue
-                    else:
-                        allow_local_idle_worker_check = True
-                        # All workers are currently busy
-                        self.event.wait(1)
-                        continue
-
-                    # Check if postprocessor task queue is full
-                    if self.postprocessor_queue_full():
-                        self.event.wait(5)
-                        continue
-
-                    # Fetch the next item in the queue
-                    available_worker_id = None
-                    next_item_to_process = None
-                    # Ensure tags match the available library and worker
-                    for worker_id in worker_ids:
-                        try:
-                            library_tags = self.get_tags_configured_for_worker(worker_id)
-                        except Exception as e:
-                            # This will happen if the worker group is deleted
-                            self.logger.debug('Error while fetching the tags for the configured worker: %s', str(e))
-                            # Break this fore loop. The main while loop wil clean up these workers on the next pass
-                            break
-                        next_item_to_process = self.task_queue.get_next_pending_tasks(library_tags=library_tags)
-                        if next_item_to_process:
-                            available_worker_id = worker_id
-                            break
-                    # If no local worker ID was assigned to the given item, then try again in 2 seconds
-                    if not available_worker_id:
-                        allow_local_idle_worker_check = False
-                        self.event.wait(1)
-                        continue
-
-                    if next_item_to_process:
-                        try:
-                            source_abspath = next_item_to_process.get_source_abspath()
-                        except Exception as e:
-                            self.logger.exception('Exception in fetching task details', str(e))
-                            self.event.wait(3)
-                            continue
-
-                        self.logger.info('Processing item - %s', str(source_abspath))
-                        self.hand_task_to_workers(next_item_to_process, worker_id=available_worker_id)
-            except Exception as e:
-                raise Exception(e)
+                self.run_monitor_pass()
+            except Exception:
+                consecutive_failures += 1
+                self.logger.exception(
+                    'Exception in the Foreman monitor loop (consecutive failure %s of %s)',
+                    consecutive_failures, MAX_CONSECUTIVE_MONITOR_FAILURES)
+                if consecutive_failures >= MAX_CONSECUTIVE_MONITOR_FAILURES:
+                    self.logger.error(
+                        'The Foreman monitor loop has failed %s times in a row. This is not a '
+                        'transient fault, and no task can be claimed while it persists. Stopping '
+                        'the Foreman thread so that it is reported rather than silently spinning.',
+                        consecutive_failures)
+                    # Bare `raise`: the original exception, with its original
+                    # traceback. `raise Exception(e)` destroyed both.
+                    raise
+                # Back off before the next attempt, so a fast-failing pass cannot
+                # spin the CPU while it is being counted.
+                self.event.wait(min(2 ** consecutive_failures, 30))
+            else:
+                consecutive_failures = 0
 
         self.logger.info('Leaving Foreman Monitor loop...')
 

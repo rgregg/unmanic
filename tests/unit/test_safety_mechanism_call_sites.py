@@ -506,3 +506,124 @@ class TestValidatorDefaultPluginsDirectory:
 
         monkeypatch.setattr(config_module, 'Config', boom)
         assert plugin_registration._default_plugins_directory() is None
+
+
+# ---------------------------------------------------------------------------
+# 7. RootService.run() supervises the threads it started (#81)
+# ---------------------------------------------------------------------------
+
+class _DeadThread:
+    """A supervised thread that is not running."""
+
+    def __init__(self):
+        self.stopped = False
+
+    def is_alive(self):
+        return False
+
+    def stop(self):
+        self.stopped = True
+
+
+@pytest.mark.unittest
+class TestTheServiceSupervisesItsThreads:
+    """`self.supervise_threads()` in RootService.run(). Delete it and the
+    main thread goes back to waiting for a signal while a dead Foreman leaves
+    the installation up, answering HTTP, and reporting itself idle - which is
+    issue #81 in full, and which no other test in this suite would notice,
+    because every other test of the supervisor drives the supervisor itself.
+
+    Pinned at the call site rather than driven for run(), which builds a
+    multiprocessing Manager and starts the whole application; the loop itself
+    is driven below over the real ThreadSupervisor.
+    """
+
+    def test_run_supervises_the_threads(self):
+        from trawlarr import service
+
+        assert 'supervise_threads' in _calls_made_by(service.RootService.run), (
+            "RootService.run() no longer supervises its threads. Every thread in this "
+            "application is a daemon, so any one of them can die without the process "
+            "noticing, exiting, or changing a single thing it reports."
+        )
+
+    def test_supervision_starts_only_after_the_threads_do(self):
+        from trawlarr import service
+
+        calls = _calls_made_by(service.RootService.run)
+        assert calls.index('start_threads') < calls.index('supervise_threads')
+
+    def test_a_dead_thread_is_actually_restarted_through_the_service(self):
+        """Behavioural end of the same wiring: the list RootService keeps,
+        the restarter map it builds, and the real ThreadSupervisor."""
+        from trawlarr import service
+        from trawlarr.libs import threadhealth
+
+        threadhealth.get_registry().reset()
+        try:
+            instance = service.RootService.__new__(service.RootService)
+            instance.logger = service.TrawlarrLogging.get_logger(name='TestRootService')
+            instance.threads = [{'name': 'Foreman', 'thread': _DeadThread()}]
+            instance.run_threads = True
+            instance.shutdown_event = threading.Event()
+            instance.supervisor = None
+
+            restarted = []
+
+            def restart_foreman():
+                replacement = mock.Mock()
+                replacement.is_alive.return_value = True
+                restarted.append(replacement)
+                instance.register_thread('Foreman', replacement)
+                # One pass is enough; stop the loop.
+                instance.run_threads = False
+                return replacement
+
+            instance.thread_restarters = {'Foreman': restart_foreman}
+
+            instance.supervise_threads()
+
+            assert restarted, (
+                "the service ran its supervision loop over a dead Foreman and did not restart it"
+            )
+            assert instance.threads == [{'name': 'Foreman', 'thread': restarted[0]}], (
+                "the restarted thread was not swapped into the registry the supervisor reads"
+            )
+        finally:
+            threadhealth.get_registry().reset()
+
+    def test_start_threads_records_how_to_restart_the_pipeline(self, monkeypatch):
+        """The restarter map is what makes a restart possible at all. An
+        empty map supervises perfectly and recovers from nothing."""
+        from trawlarr import service
+
+        class FakeSettings:
+            @staticmethod
+            def get_cache_path():
+                return '/tmp/does-not-matter'
+
+        instance = service.RootService.__new__(service.RootService)
+        instance.threads = []
+        instance.thread_restarters = {}
+        instance.logger = service.TrawlarrLogging.get_logger(name='TestRootService')
+
+        monkeypatch.setattr(service.common, 'clean_files_in_cache_dir', lambda path: None)
+        monkeypatch.setattr(service.plugin_registration, 'report_plugin_registration', lambda **kwargs: None)
+        monkeypatch.setattr(service.plugin_settings, 'validate_required_plugin_settings', lambda: [])
+        monkeypatch.setattr(service.taskrecovery, 'reconcile_interrupted_tasks', lambda settings=None: None)
+        monkeypatch.setattr(service, 'TaskQueue', lambda data_queues: object())
+        for name in ('initial_register_unmanic', 'start_handler', 'start_post_processor',
+                     'start_foreman', 'start_library_scanner_manager', 'start_inotify_watch_manager',
+                     'start_ui_server', 'start_scheduled_tasks_manager', 'start_resource_logger'):
+            monkeypatch.setattr(service.RootService, name, lambda self, *args, **kwargs: None)
+
+        instance.start_threads(FakeSettings())
+
+        assert 'Foreman' in instance.thread_restarters, (
+            "nothing knows how to restart the Foreman, so a dead one can only ever be reported"
+        )
+        assert 'PostProcessor' in instance.thread_restarters
+        assert 'UIServer' not in instance.thread_restarters, (
+            "the UIServer is now restarted automatically; it binds a port, and a replacement "
+            "racing the old socket is a worse failure than the one being repaired"
+        )
