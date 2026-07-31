@@ -249,13 +249,18 @@ class TestThePostProcessorRecordsCompletedFiles:
         pp.task_queue = _OneTaskQueue(task)
         pp.current_task = None
         pp._last_destination_files = []
+        pp._last_file_move_processes_success = False
         pp.system_configuration_is_valid = lambda: True
 
-        # post_process_file() is the writer of _last_destination_files. The
-        # real one copies files around and runs plugins; what matters here is
-        # only what it leaves behind for record_completed_file() to read.
+        # post_process_file() is the writer of _last_destination_files and of
+        # the file-move verdict. The real one copies files around and runs
+        # plugins; what matters here is only what it leaves behind for
+        # record_completed_file() to read. This test is about the call site
+        # existing at all, so it stands in for a delivery that worked - the
+        # failed-move case is tested in test_postprocessor_failed_move.py.
         def fake_post_process_file():
             pp._last_destination_files = [str(delivered_file)]
+            pp._last_file_move_processes_success = True
 
         pp.post_process_file = fake_post_process_file
         pp.write_history_log = lambda: None
