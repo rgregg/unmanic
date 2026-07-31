@@ -313,6 +313,44 @@ def _calls_made_by(func):
 
 
 @pytest.mark.unittest
+@pytest.mark.unittest
+class TestThePostProcessorRunsTheConvergenceCheck:
+    """Issue #34's check is only worth having if the loop calls it.
+
+    Added because deleting `self.run_convergence_check()` from
+    PostProcessor.run() left the whole suite green at 739 passed. The
+    convergence module itself is covered thoroughly -- 34 tests, and
+    breaking `evaluate_path` fails 15 of them -- but nothing asserted the
+    application ever asks the question. That is the same shape as the four
+    mechanisms this module was written to pin, arriving in the very PR that
+    adds a new one.
+
+    Source-level rather than behavioural: driving a real convergence
+    verdict needs a bound state database, a library, patched file-test
+    plugins and a probe, all of which
+    tests/unit/test_convergence_detection.py already sets up properly. The
+    only thing missing was the wiring, so that is what this asserts.
+    """
+
+    def test_the_run_loop_calls_the_convergence_check(self):
+        source = inspect.getsource(PostProcessor.run)
+        assert 'self.run_convergence_check()' in source, (
+            "PostProcessor.run() no longer runs the convergence check, so a "
+            "task that completes without satisfying the library's criteria "
+            "goes unnoticed again -- which is issue #34 in full."
+        )
+
+    def test_the_convergence_check_runs_after_completion_is_recorded(self):
+        """Order matters. #33 records the file as done; convergence asks
+        whether that file actually satisfies the criteria. Asking first
+        would evaluate a file the post-processor has not finished with."""
+        source = inspect.getsource(PostProcessor.run)
+        assert source.index('self.record_completed_file()') < source.index('self.run_convergence_check()'), (
+            "the convergence check runs before completion is recorded; it "
+            "should evaluate the delivered file, not the in-flight one"
+        )
+
+
 class TestStartUpRunsTheLegacyInstallGuards:
     """Both guards are thoroughly tested as functions (test_runtime_paths.py,
     test_env_vars.py) and both were called from exactly one unpinned line in
