@@ -72,10 +72,36 @@ class ScheduledTasksManager(threading.Thread):
         self.manage_completed_tasks()
 
         # Loop every 2 seconds to check if a task is due to be run
+        #
+        # run_pending() runs whatever the scheduled jobs do, which is plugin
+        # repo updates and completed-task cleanup: database work and network
+        # calls, both of which can raise. Until issue #81 there was no
+        # try/except here at all, so the first such exception killed this
+        # thread outright - after which no plugin repo was ever refreshed
+        # and no completed task was ever cleaned up again, silently, for the
+        # life of the process. (That is not hypothetical: see the note in
+        # manage_completed_tasks about the AttributeError that did exactly
+        # this.)
+        #
+        # A scheduled job failing is not a reason to lose the scheduler. Log
+        # it and take the next tick. A fault that recurs is then a repeating
+        # log entry rather than a thread that vanished once, hours ago.
+        consecutive_failures = 0
         while not self.abort_flag.is_set():
             self.event.wait(2)
             # Check if scheduled task is due
-            self.scheduler.run_pending()
+            try:
+                self.scheduler.run_pending()
+            except Exception:
+                consecutive_failures += 1
+                self.logger.exception(
+                    "Exception while running a scheduled task (consecutive failure %s). The "
+                    "scheduler is still running and will try again on the next tick.",
+                    consecutive_failures)
+                # Back off so a job that fails instantly cannot spin this loop
+                self.event.wait(min(2 ** consecutive_failures, 60))
+            else:
+                consecutive_failures = 0
 
         # Clear any tasks and exit
         self.scheduler.clear()

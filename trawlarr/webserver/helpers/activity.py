@@ -30,9 +30,18 @@
     2. If the state cannot be determined, that is an error, never an "idle".
        An unknown answer reported as False here becomes two processes writing
        to the same file out in the world.
+
+    The second of those is why this helper asks about thread health at all
+    (issue #81). "Idle because there is no work" and "idle because the thing
+    that does the work is dead" produce identical numbers: no busy worker, no
+    task moving out of pending. Reported as `busy: false`, the second is the
+    worst answer this endpoint can give - the gate opens precisely because
+    the application has broken. So a dead pipeline thread is an unknown
+    state, and an unknown state is a 500.
 """
 from peewee import fn
 
+from trawlarr.libs import threadhealth
 from trawlarr.libs.uiserver import TrawlarrRunningTreads
 from trawlarr.libs.unmodels import Tasks
 
@@ -76,11 +85,32 @@ def get_activity_status():
     :raises ActivityStateUnavailableError: if the Foreman is not running, and
         the answer would therefore be a guess.
     """
+    # Threads the supervisor has given up on. Asked first, because a thread
+    # that will not stay up makes every number below a description of a
+    # pipeline that is not running.
+    failed = threadhealth.get_registry().failed_critical_threads()
+    if failed:
+        raise ActivityStateUnavailableError(
+            "Trawlarr is running in a degraded state: the {} thread(s) are not running and could "
+            "not be restarted. The activity state cannot be determined, and this installation is "
+            "not processing files.".format(', '.join(failed))
+        )
+
     urt = TrawlarrRunningTreads()
     foreman = urt.get_unmanic_running_thread('foreman')
     if foreman is None:
         raise ActivityStateUnavailableError(
             "The Foreman thread is not running. Trawlarr's activity state cannot be determined."
+        )
+
+    # Asked directly as well as through the registry, so that the window
+    # between a thread dying and the next supervision pass is not a window in
+    # which this endpoint reports a tidy `busy: false`.
+    is_alive = getattr(foreman, 'is_alive', None)
+    if callable(is_alive) and not is_alive():
+        raise ActivityStateUnavailableError(
+            "The Foreman thread has died. Nothing is claiming tasks, so the workers below are "
+            "idle for a reason that is not safe to read as idle."
         )
 
     all_worker_status = foreman.get_all_worker_status()

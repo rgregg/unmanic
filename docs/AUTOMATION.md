@@ -74,6 +74,26 @@ if [ "$(printf '%s' "${response}" | jq -r '.busy')" != "false" ]; then
 fi
 ```
 
+**A broken Trawlarr is an unknown state, not an idle one.** "Idle
+because there is no work" and "idle because the thing that does the work
+has died" produce identical numbers: no busy worker, nothing moving out
+of `pending`. Reported as `{"busy": false}`, the second is the worst
+answer this endpoint could give — the gate would open precisely because
+Trawlarr had broken.
+
+So it does not report it. If one of the threads that make up the
+processing pipeline (the Foreman, the post-processor, or the task
+handler) is not running, `/activity/status` returns **HTTP 500** naming
+the thread, for as long as the condition lasts. Trawlarr supervises
+those threads and will restart one a bounded number of times; a thread
+that will not stay up is reported here, in the log, and as a UI
+notification, and the endpoint keeps returning 500 until Trawlarr is
+restarted.
+
+The `curl -sf ... || exit 1` above already handles this correctly, and
+so does a refused connection from a dead web server. That is the whole
+reason to write the check that way rather than parsing `.busy` alone.
+
 ## What this is not
 
 It is not a lock. Trawlarr can pick up new work the instant after you
