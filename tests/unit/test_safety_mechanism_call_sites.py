@@ -627,3 +627,66 @@ class TestTheServiceSupervisesItsThreads:
             "the UIServer is now restarted automatically; it binds a port, and a replacement "
             "racing the old socket is a worse failure than the one being repaired"
         )
+
+
+@pytest.mark.unittest
+class TestARestartedForemanIsPublishedWhereTheApiLooks:
+    """A restart nobody can see is not a recovery.
+
+    Every web request that needs the Foreman -- workers_api, the websocket,
+    the workers helper, and #42's activity gate -- resolves it through the
+    TrawlarrRunningTreads singleton at request time. `start_foreman()`
+    republishes the new object there, and without that line the supervisor
+    would restart the Foreman while the API and the busy/idle gate went on
+    reading the dead one.
+
+    That is the same "looks fine, answers wrongly" failure the supervisor
+    exists to end, so it is worth more than a comment. Deleting the publish
+    left the whole suite green when this was written, which is exactly the
+    unpinned-call-site pattern this module was created for.
+    """
+
+    def _start_a_foreman(self, monkeypatch):
+        from trawlarr import service
+        from trawlarr.libs.uiserver import TrawlarrRunningTreads
+
+        started = []
+
+        class FakeForeman:
+            def __init__(self, *args, **kwargs):
+                self.daemon = False
+                started.append(self)
+
+            def start(self):
+                pass
+
+            def is_alive(self):
+                return True
+
+        monkeypatch.setattr(service, 'Foreman', FakeForeman)
+
+        root = service.RootService.__new__(service.RootService)
+        root.logger = logging.getLogger('test-foreman-publish')
+        root.threads = []
+        root.restarters = {}
+        root.event = threading.Event()
+
+        foreman = root.start_foreman({}, object(), object())
+        return foreman, TrawlarrRunningTreads()
+
+    def test_the_running_foreman_is_the_one_the_api_resolves(self, monkeypatch):
+        foreman, running_threads = self._start_a_foreman(monkeypatch)
+        published = running_threads.get_unmanic_running_thread('foreman')
+        assert published is foreman, (
+            "start_foreman() did not publish the Foreman to TrawlarrRunningTreads, so "
+            "the API and the activity gate would keep resolving whichever object was "
+            "published before -- after a supervised restart, a dead one"
+        )
+
+    def test_a_replacement_foreman_displaces_the_previous_one(self, monkeypatch):
+        first, running_threads = self._start_a_foreman(monkeypatch)
+        second, _ = self._start_a_foreman(monkeypatch)
+        published = running_threads.get_unmanic_running_thread('foreman')
+        assert published is second and published is not first, (
+            "a restarted Foreman did not displace the dead one in the singleton"
+        )

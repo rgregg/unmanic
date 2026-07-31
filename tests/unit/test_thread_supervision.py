@@ -552,3 +552,73 @@ class TestTheSupervisionLoop:
             "an exception from one supervision pass ended supervision, which "
             "leaves the threads unwatched again"
         )
+
+
+# ---------------------------------------------------------------------------
+# 5. Giving up means giving up
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unittest
+class TestGivingUpIsActuallyTerminal:
+    """`threadhealth.record_failure()` documents STATE_FAILED as "terminal for
+    the life of the process. Nothing clears it."
+
+    That was not true when written. `handle_dead_thread()` never consulted the
+    current state, and the restart budget is a ROLLING window -- so once the
+    old restart timestamps aged out of it, the budget refilled and a thread the
+    supervisor had permanently failed quietly started being restarted again. A
+    docstring making a false promise about a safety mechanism is worse than no
+    docstring: it is the thing a reader checks instead of the code.
+
+    The same early-out is what stops give_up() re-firing on every pass. At the
+    5s supervision interval that was 720 notification updates an hour about a
+    thread whose state had not changed since the first one.
+    """
+
+    def _crash_looping_supervisor(self, registry, notifications, max_restarts=3):
+        threads = [{'name': 'Foreman', 'thread': FakeThread(alive=False)}]
+        attempts = []
+
+        def restart():
+            attempts.append(time.time())
+            replacement = FakeThread(alive=False)
+            threads[0]['thread'] = replacement
+            return replacement
+
+        sup = build_supervisor(threads, {'Foreman': restart}, registry, notifications,
+                               max_restarts=max_restarts)
+        return sup, attempts
+
+    def test_a_failed_thread_stays_failed_when_the_budget_window_rolls(self, registry, notifications):
+        sup, attempts = self._crash_looping_supervisor(registry, notifications, max_restarts=3)
+        for _ in range(10):
+            sup.run_pass()
+        assert registry.get_state('Foreman') == STATE_FAILED
+        spent = len(attempts)
+
+        # Age every recorded restart out of the rolling window. This is exactly
+        # what the passage of an hour does, with no other state change.
+        registry.forget_restarts('Foreman')
+
+        for _ in range(10):
+            sup.run_pass()
+
+        assert len(attempts) == spent, (
+            "a thread the supervisor permanently failed was restarted again once "
+            "the rolling budget window refilled, so STATE_FAILED is not terminal"
+        )
+        assert registry.get_state('Foreman') == STATE_FAILED
+
+    def test_giving_up_is_announced_once_not_on_every_pass(self, registry, notifications):
+        sup, _ = self._crash_looping_supervisor(registry, notifications, max_restarts=3)
+        for _ in range(10):
+            sup.run_pass()
+        after_give_up = len(notifications.items)
+
+        for _ in range(50):
+            sup.run_pass()
+
+        assert len(notifications.items) == after_give_up, (
+            "give_up() re-fired on later supervision passes. At a 5s interval that is "
+            "720 notification updates an hour saying nothing new."
+        )

@@ -118,6 +118,18 @@ class ThreadHealthRegistry(object):
             entry['reason'] = str(reason)
             entry['failure_time'] = time.time()
 
+    def forget_restarts(self, name):
+        """
+        Drop the recorded restart timestamps for `name`.
+
+        Models what the passage of time does to the rolling budget window
+        without waiting an hour for it. The state and reason are deliberately
+        left alone: aging out restarts is not the same as recovering, and a
+        thread already marked FAILED must stay that way.
+        """
+        with self._lock:
+            self._entry(name)['restarts'] = []
+
     def restarts_within(self, name, window_seconds, now=None):
         """How many restarts of `name` happened in the last `window_seconds`."""
         with self._lock:

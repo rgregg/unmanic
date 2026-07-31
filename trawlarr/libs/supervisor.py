@@ -137,6 +137,17 @@ class ThreadSupervisor(object):
 
         :return: True if a replacement was started
         """
+        # A thread we have already given up on stays given up on. Without this
+        # the claim in threadhealth.record_failure() -- "terminal for the life
+        # of the process" -- is simply untrue: the restart budget is a ROLLING
+        # window, so once the old restart timestamps age out it refills and a
+        # thread we permanently failed quietly starts being restarted again.
+        # It also stops the supervisor re-running give_up() on every pass,
+        # which at a 5s interval is 720 notification updates an hour for a
+        # thread whose state has not changed since the first one.
+        if self.registry.get_state(name) == threadhealth.STATE_FAILED:
+            return False
+
         deaths = self.registry.record_death(name)
         self.logger.error(
             "Supervised thread '%s' is no longer running (death %s). Trawlarr cannot do its "
