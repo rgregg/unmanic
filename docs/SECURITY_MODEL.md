@@ -54,11 +54,16 @@ can reach the port can, among other things:
   plugin can additionally run `pip install` for package names taken
   from that plugin's metadata — see
   [`PLUGIN-DEPENDENCIES.md`](PLUGIN-DEPENDENCIES.md). That setting is
-  off by default, but note that it is not the only way a plugin install
-  runs pip: a plugin shipping a requirements file has always caused one,
-  and still does. What holds in every case is that pip is only ever
-  given package names — never a URL, a path, or an index option — so a
-  plugin cannot choose where packages are fetched from.
+  off by default, and it now covers every route from a plugin into a
+  package manager: `python_dependencies` in its `info.json`, a
+  `requirements.post-install.txt` or `requirements.txt` in its zip, and
+  the `npm install` that a shipped `package.json` triggers. With it off,
+  a plugin that wants any of those is refused rather than installed.
+  With it on, pip is still only ever given package names — never a URL,
+  a path, or an index option — so a plugin cannot choose where Python
+  packages are fetched from. No equivalent limit exists for npm: a
+  `package.json` is a program, and the opt-in is the only thing between
+  it and your container.
 - **Browse the filesystem.** The file browser API lists any directory
   the process can read, not just configured library paths.
 - **Read and rewrite configuration** — library paths, cache path,

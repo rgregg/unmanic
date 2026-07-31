@@ -695,6 +695,13 @@ class PluginsHandler(object, metaclass=SingletonType):
         # installed. See trawlarr/libs/plugin_dependencies.py.
         plugin_dependencies.assert_requirements_file_is_safe(
             os.path.basename(str(plugin_path)), requirements_file)
+        # ... and the same opt-in (issue #88). Running pip because a plugin shipped a
+        # file is the same trust as running pip because a plugin declared a dependency,
+        # so it is the same switch. Checked after the grammar scan on purpose: an
+        # operator whose plugin is refused for BOTH reasons should be told about the
+        # `--index-url` first, not sent to flip a flag that will not help.
+        plugin_dependencies.assert_requirements_file_install_permitted(
+            os.path.basename(str(plugin_path)), requirements_file)
         # First, remove the existing site-packages directory if it exists to ensure a clean installation
         if os.path.exists(install_target):
             shutil.rmtree(install_target)
@@ -711,6 +718,11 @@ class PluginsHandler(object, metaclass=SingletonType):
         package_file = os.path.join(plugin_path, 'package.json')
         if not os.path.exists(package_file):
             return
+        # `npm install` runs the package.json's lifecycle scripts and fetches whatever
+        # it names, from wherever it names it. That is more trust than the pip path
+        # above, not less, so it sits behind the same opt-in (issue #88).
+        plugin_dependencies.assert_npm_install_permitted(
+            os.path.basename(str(plugin_path)), package_file)
         subprocess.call(['npm', 'install'], cwd=plugin_path)
         subprocess.call(['npm', 'run', 'build'], cwd=plugin_path)
 

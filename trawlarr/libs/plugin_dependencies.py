@@ -98,34 +98,50 @@
     names packages on the configured index, and that is the trust the
     operator opts into.
 
-    THE OTHER ROUTE INTO PIP, AND WHAT THE OPT-IN REALLY BOUNDS
-    -----------------------------------------------------------
-    A plugin shipping `requirements.txt` (with `defer_dependency_install`)
-    or `requirements.post-install.txt` has caused `pip install -r` to run at
-    install time since long before this module existed. That path is NOT
-    behind `ALLOW_INSTALL_ENV_VAR`, and putting it there would break every
-    existing plugin that ships one, for a risk those plugins have always
-    carried and which the operator already took when they chose to run that
-    plugin's code.
+    THE OTHER ROUTES INTO A PACKAGE MANAGER (issue #88)
+    ---------------------------------------------------
+    Declared dependencies were never the only way plugin metadata could
+    start a package install. Since long before this module existed:
 
-    So the opt-in must not be described as "no plugin can cause a package
-    install" - that would be false, and a false security guarantee is worse
-    than none, because someone will leave the gate off believing it protects
-    them. What IS true, and what `scan_requirements_file` exists to keep
-    true, is narrower: pip is only ever handed package names, from the index
-    this installation is configured with. A requirements file is plugin
-    metadata like any other, so it gets the same treatment as a declared
-    requirement - a pip option (`--index-url` above all), a URL, a VCS
-    reference or a local path in that file refuses the whole plugin install.
-    Plain `name==version` lines, which is what real plugins ship, are
-    untouched.
+      * `requirements.post-install.txt` in the plugin zip runs
+        `pip install -r` on it, unconditionally;
+      * `requirements.txt` plus `"defer_dependency_install": true` in
+        info.json does the same, and additionally runs `npm install` and
+        `npm run build` if the plugin ships a `package.json` - which
+        executes that package.json's lifecycle scripts.
 
-    The opt-in therefore bounds *whose names* may be installed, not *whether
-    pip runs*. docs/PLUGIN-DEPENDENCIES.md says exactly that.
+    Neither was behind `ALLOW_INSTALL_ENV_VAR`, so the gate an operator
+    reads about could be off while a freshly installed plugin still drove
+    pip. Two rules, one of them invisible.
+
+    These paths are now behind the SAME gate as declared dependencies (see
+    `assert_requirements_file_install_permitted` and
+    `assert_npm_install_permitted`). That is a behaviour change, and the
+    honest measure of its cost is what it breaks in the wild: of the 56
+    plugins in the official catalog, zero ship a
+    `requirements.post-install.txt` and zero set `defer_dependency_install`.
+    54 of them ship a `requirements.txt`, but without that flag it is
+    build-time metadata for the plugin's own CI - those plugins vendor the
+    resulting `site-packages/` into their zip, and Trawlarr never reads
+    their requirements file at all. So the previous claim here, that gating
+    "would break every existing plugin that ships one", was simply wrong: it
+    counted files, not installs.
+
+    The grammar restriction stays, and is enforced even with the gate ON: a
+    requirements file is plugin metadata like any other, so a pip option
+    (`--index-url` above all), a URL, a VCS reference or a local path in
+    that file refuses the whole plugin install. Belt and braces - the gate
+    decides whether pip runs, the grammar decides what it may be told.
+
+    npm gets the gate but no grammar check. A package.json is a program,
+    not a list of names; there is no subset of it worth pretending to
+    validate. Off by default is the whole of the protection there, and
+    docs/PLUGIN-DEPENDENCIES.md says so.
 
     WHAT THIS DOES NOT DO
     ---------------------
     No lockfile, no hash pinning, no dependency resolution across plugins,
+
     no uninstall of a removed dependency (the site-packages directory is
     rebuilt from scratch on each install, so a dropped requirement
     disappears with it). No check that an installed package still imports -
@@ -274,10 +290,10 @@ def scan_requirements_file(requirements_file):
 
     A plugin shipping `requirements.txt` or `requirements.post-install.txt`
     has caused `pip install -r` to run at install time since long before this
-    module existed, and that path is not gated by
-    `ALLOW_INSTALL_ENV_VAR` - gating it would break every existing plugin
-    that ships one, for a risk they have always carried. See the boundary
-    described in docs/PLUGIN-DEPENDENCIES.md.
+    module existed. That path is now behind `ALLOW_INSTALL_ENV_VAR` too
+    (issue #88), but this check runs regardless of the gate: opting in to
+    plugin dependency installs is not opting in to letting a plugin choose
+    the index. See the boundary described in docs/PLUGIN-DEPENDENCIES.md.
 
     What is NOT acceptable, opt-in or not, is that a requirements FILE
     carries the full pip grammar: `--index-url` redirects pip at an index the
@@ -347,6 +363,93 @@ def assert_requirements_file_is_safe(plugin_id, requirements_file):
             os.path.basename(str(requirements_file)),
             'a line' if len(refused) == 1 else '{} lines'.format(len(refused)),
             detail))
+
+
+def requirement_lines(requirements_file):
+    """
+    The requirement lines of a plugin-shipped requirements file.
+
+    Comments and blank lines dropped, nothing else interpreted. Used only
+    to tell the operator what the plugin wanted, so an unreadable file is
+    an empty list rather than an error - the caller is already refusing.
+
+    :param requirements_file:
+    :return: list of str
+    """
+    try:
+        with open(requirements_file, 'r', errors='replace') as handle:
+            lines = handle.readlines()
+    except OSError:
+        logger.warning("Unable to read plugin requirements file '%s'", requirements_file, exc_info=True)
+        return []
+    stripped = (raw.split('#', 1)[0].strip() for raw in lines)
+    return [line for line in stripped if line]
+
+
+def assert_requirements_file_install_permitted(plugin_id, requirements_file, environ=None):
+    """
+    Refuse to run pip for a plugin-shipped requirements file unless the
+    operator opted in.
+
+    Issue #88. A `requirements.post-install.txt`, or a `requirements.txt`
+    with `defer_dependency_install`, made pip run at install time with no
+    gate at all - so an operator who left `ALLOW_INSTALL_ENV_VAR` off, and
+    read the documentation saying plugin metadata could not drive pip,
+    could still get a pip install from a plugin they installed. This puts
+    that path behind the same switch as a declared dependency, so there is
+    one rule instead of two.
+
+    Raises rather than skipping the install: a plugin whose imports are
+    going to fail must not end up recorded as installed. Same reasoning as
+    `install_dependencies`, and it must be the same reasoning, or the two
+    routes diverge again.
+
+    :param plugin_id:
+    :param requirements_file:
+    :param environ: defaults to os.environ
+    :raises PluginDependencyError: if installs are not permitted
+    """
+    if installs_are_permitted(environ=environ):
+        return
+    wanted = requirement_lines(requirements_file)
+    raise PluginDependencyError(
+        "Plugin '{}' ships a '{}' ({}) and installing plugin dependencies is disabled. Installing it "
+        "runs pip against a package index using names taken from a third-party plugin's files. Set "
+        "{}=true to allow it, or install these packages into the image yourself. Refusing to install "
+        "the plugin - it would not work.".format(
+            plugin_id or os.path.basename(os.path.dirname(str(requirements_file))),
+            os.path.basename(str(requirements_file)),
+            ', '.join(wanted) if wanted else 'no requirements',
+            ALLOW_INSTALL_ENV_VAR))
+
+
+def assert_npm_install_permitted(plugin_id, package_file, environ=None):
+    """
+    Refuse to run npm for a plugin-shipped package.json unless the operator
+    opted in.
+
+    Reached only through `defer_dependency_install`, alongside the pip path
+    above, and strictly the more powerful of the two: `npm install` runs
+    that package.json's lifecycle scripts, and its dependencies may name any
+    registry, git URL or tarball. There is no `scan_requirements_file`
+    equivalent here and this module does not pretend otherwise - a
+    package.json is a program, not a list of names. The gate is the whole
+    of the protection.
+
+    :param plugin_id:
+    :param package_file:
+    :param environ: defaults to os.environ
+    :raises PluginDependencyError: if installs are not permitted
+    """
+    if installs_are_permitted(environ=environ):
+        return
+    raise PluginDependencyError(
+        "Plugin '{}' ships a '{}' and installing plugin dependencies is disabled. Installing it runs "
+        "'npm install', which downloads packages the plugin names and executes their install scripts. "
+        "Set {}=true to allow it. Refusing to install the plugin - it would not work.".format(
+            plugin_id or os.path.basename(os.path.dirname(str(package_file))),
+            os.path.basename(str(package_file)),
+            ALLOW_INSTALL_ENV_VAR))
 
 
 def site_packages_path(plugin_path):
