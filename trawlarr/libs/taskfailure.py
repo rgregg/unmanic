@@ -64,6 +64,7 @@ CATEGORY_WORKER_TERMINATED = 'worker_terminated'  # worker was shut down mid-tas
 CATEGORY_OUTPUT_MISSING = 'output_missing'  # the final cache file could not be produced
 CATEGORY_POSTPROCESSOR_ERROR = 'postprocessor_error'  # failed after the worker, during delivery
 CATEGORY_CONFIGURATION = 'configuration'  # #40: refused before processing, a required plugin setting is unset
+CATEGORY_INTERRUPTED = 'interrupted'  # #83: the process stopped while the task was claimed
 CATEGORY_UNKNOWN = 'unknown'  # failed, and nothing on the way down said why
 
 KNOWN_CATEGORIES = (
@@ -75,6 +76,7 @@ KNOWN_CATEGORIES = (
     CATEGORY_OUTPUT_MISSING,
     CATEGORY_POSTPROCESSOR_ERROR,
     CATEGORY_CONFIGURATION,
+    CATEGORY_INTERRUPTED,
     CATEGORY_UNKNOWN,
 )
 
