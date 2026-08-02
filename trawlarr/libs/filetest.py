@@ -41,6 +41,7 @@ from trawlarr import config
 from trawlarr.libs import donestate, extensions, history, common
 from trawlarr.libs.logs import TrawlarrLogging
 from trawlarr.libs.plugins import PluginsHandler
+from trawlarr.libs.unplugins.executor import PLUGIN_RUNNER_EXCEPTION_KEY
 
 # Trawlarr fork addition (see issue #33).
 #
@@ -108,6 +109,61 @@ FILE_TEST_ROLE_FILTER = 'filter'
 ADVISORY_SKIP_PLUGIN_IDS = frozenset([
     'skip_files_matching_ffprobe_data',
 ])
+
+
+#: Issue id used for the file issue recorded when a plugin fails to vote.
+#: Shown by /pending/test and logged by the file tester, so a broken plugin
+#: names itself instead of disappearing.
+ISSUE_PLUGIN_FAILED = 'filetestpluginfailed'
+
+
+class FileTestPluginError(Exception):
+    """
+    A file-test plugin raised, so the file test has NO VERDICT for this file.
+
+    Trawlarr fork addition (see issue #82).
+
+    Before this, `execute_plugin_runner()` swallowed everything a third-party
+    plugin threw and returned False, which the loop below treated exactly like
+    "this plugin has no opinion". For a guard plugin - the one whose entire job
+    is to say "do not touch this file" - that is the dangerous direction: the
+    veto evaporates, the file is queued, and it gets modified. Nothing in any
+    log the operator reads says the guard never ran.
+
+    So a failed plugin no longer produces a (missing) vote; it produces this,
+    and every caller decides for its own direction what an unanswered question
+    means. Both existing callers resolve it to the answer that does NOT take
+    irreversible action:
+
+      * the scan/event path (should_file_be_added_to_task_list) does not queue
+        the file, and records an issue naming the plugin. A wrongly unqueued
+        file is visible in /pending/test and costs a scan cycle; a wrongly
+        queued file is transcoded in place and may not be recoverable at all.
+      * the convergence check (issue #34) lets it propagate and reports
+        "not evaluated", never "converged" - the same rule that module already
+        applies to a file test that raises.
+
+    :ivar plugin_id:
+    :ivar plugin_name:
+    :ivar detail:  what the plugin actually threw
+    """
+
+    def __init__(self, plugin_id, plugin_name=None, detail=''):
+        self.plugin_id = plugin_id
+        self.plugin_name = plugin_name
+        self.detail = detail
+        super(FileTestPluginError, self).__init__(
+            "File test plugin '{}' failed and cast no vote: {}".format(plugin_id, detail))
+
+    @property
+    def issue(self):
+        return {
+            'id':      ISSUE_PLUGIN_FAILED,
+            'message': (
+                "File test plugin '{}' raised and cast no vote ({}). The file has NOT been queued: "
+                "a plugin that fails may be the one guarding this file, and its veto cannot be "
+                "assumed away.").format(self.plugin_name or self.plugin_id, self.detail),
+        }
 
 
 def file_test_skip_vote_is_advisory(plugin_module, data):
@@ -297,8 +353,20 @@ class FileTest(object):
         # Only run checks with plugins if other tests were not conclusive
         priority_score_modification = 0
         if return_value is None:
-            return_value, file_issues, priority_score_modification, decision_plugin = self.run_file_test_plugins(
-                path, file_issues=file_issues)
+            try:
+                return_value, file_issues, priority_score_modification, decision_plugin = self.run_file_test_plugins(
+                    path, file_issues=file_issues)
+            except FileTestPluginError as e:
+                # Fail CLOSED. See FileTestPluginError for why this direction:
+                # the plugin that broke may be the guard, and there is no way
+                # to tell from here. The file is not queued and says why.
+                self.logger.error("Not queueing '%s': %s", path, e)
+                file_issues.append(e.issue)
+                return_value = False
+                decision_plugin = {
+                    'plugin_id':   e.plugin_id,
+                    'plugin_name': e.plugin_name,
+                }
 
         return return_value, file_issues, priority_score_modification, decision_plugin
 
@@ -328,6 +396,11 @@ class FileTest(object):
                              caller that has already probed this exact file
                              can offer the result to plugins that honour the
                              convention rather than making them probe again
+        :raises FileTestPluginError: a plugin raised, so there is no verdict.
+                             Deliberately not caught here: what "no verdict"
+                             means depends on what the caller would do next,
+                             and this method has no business guessing. See
+                             FileTestPluginError.
         :return: (return_value, file_issues, priority_score_modification, decision_plugin)
         """
         file_issues = [] if file_issues is None else file_issues
@@ -364,10 +437,53 @@ class FileTest(object):
             data['issues'] = deepcopy(file_issues)
             data['add_file_to_pending_tasks'] = None
             data[FILE_TEST_ROLE_KEY] = None
+            data.pop(PLUGIN_RUNNER_EXCEPTION_KEY, None)
 
             # Run plugin to update data
-            if not self.plugin_handler.exec_plugin_runner(data, plugin_module.get('plugin_id'),
-                                                          'library_management.file_test'):
+            try:
+                ran = self.plugin_handler.exec_plugin_runner(data, plugin_module.get('plugin_id'),
+                                                             'library_management.file_test')
+            except Exception as e:
+                # The executor swallows what the plugin throws, but not what
+                # the loading machinery around it throws. Treat both the same.
+                ran = False
+                data[PLUGIN_RUNNER_EXCEPTION_KEY] = {
+                    'plugin_id':      plugin_module.get('plugin_id'),
+                    'exception_type': type(e).__name__,
+                    'exception':      str(e),
+                }
+
+            plugin_error = data.get(PLUGIN_RUNNER_EXCEPTION_KEY)
+            if plugin_error:
+                # A plugin that raised cast no vote, and we cannot know which
+                # vote it would have been (issue #82).
+                #
+                # The one exception is a plugin already known to be a FILTER.
+                # A filter can only ever vote False, and a filter's False is
+                # overridable by any True, so dropping it cannot change
+                # whether the file is queued: with the vote, the answer is
+                # False; without it and with no other vote, the answer is None
+                # - and neither queues the file. Nothing irreversible follows
+                # from losing it, so a broken filter is reported and stepped
+                # over rather than halting the whole library.
+                if file_test_skip_vote_is_advisory(plugin_module, data):
+                    self.logger.warning("File test filter plugin '%s' raised while testing '%s': %s",
+                                        plugin_module.get('plugin_id'), path, plugin_error.get('exception'))
+                    file_issues.append({
+                        'id':      ISSUE_PLUGIN_FAILED,
+                        'message': (
+                            "File test plugin '{}' raised and cast no vote ({}). It is a content filter, "
+                            "whose vote cannot change whether a file is queued, so the test continued."
+                        ).format(plugin_module.get('name') or plugin_module.get('plugin_id'),
+                                 plugin_error.get('exception')),
+                    })
+                    continue
+                raise FileTestPluginError(
+                    plugin_module.get('plugin_id'),
+                    plugin_name=plugin_module.get('name'),
+                    detail='{}: {}'.format(plugin_error.get('exception_type'), plugin_error.get('exception')))
+
+            if not ran:
                 continue
 
             # Append any file issues found during previous tests

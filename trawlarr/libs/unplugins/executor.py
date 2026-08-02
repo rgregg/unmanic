@@ -48,6 +48,22 @@ from ..logs import TrawlarrLogging
 from ..task import TaskDataStore
 from trawlarr.libs.metadata import TrawlarrFileMetadata
 
+#: Trawlarr fork addition (see issue #82).
+#:
+#: `execute_plugin_runner()` returns False for three quite different things:
+#: the plugin has no module, the plugin has no runner of this type, and the
+#: plugin's runner RAISED. A caller that only sees the bool cannot tell "this
+#: plugin had nothing to say" from "this plugin failed to say it", and the
+#: file test was treating the second as the first - a guard plugin that threw
+#: had its veto silently dropped and the file was queued.
+#:
+#: So the exception is also reported through the `data` dict the caller
+#: already owns. After a call, this key is present if and only if THIS call's
+#: runner raised; any value left over from an earlier call on the same dict is
+#: removed on entry. The value is a dict with 'plugin_id', 'runner',
+#: 'exception_type' and 'exception'.
+PLUGIN_RUNNER_EXCEPTION_KEY = 'plugin_runner_exception'
+
 
 class PluginExecutor(object):
 
@@ -309,11 +325,21 @@ class PluginExecutor(object):
         Load that plugin module and execute the runner
         Return the modified data
 
+        Returns False when the runner did not complete. When the reason was an
+        exception raised by the plugin itself, PLUGIN_RUNNER_EXCEPTION_KEY is
+        also set on `data` so a caller that needs to tell "no opinion" from
+        "broken" can (issue #82).
+
         :param data:
         :param plugin_id:
         :param plugin_type:
         :return:
         """
+        # Any exception report on this dict belongs to a previous call. Drop
+        # it now so the key is only ever set by the call that owns it.
+        if isinstance(data, dict):
+            data.pop(PLUGIN_RUNNER_EXCEPTION_KEY, None)
+
         # Get the path for this plugin
         plugin_path = self.__get_plugin_directory(plugin_id)
 
@@ -399,8 +425,17 @@ class PluginExecutor(object):
                     runner(data)
 
             run_successfully = True
-        except Exception:
+        except Exception as e:
             self.logger.exception("Exception while carrying out '%s' plugin runner '%s'", plugin_type, plugin_id)
+            # Report it to the caller as well as the log. See issue #82: a
+            # log line is not a signal any code can act on.
+            if isinstance(data, dict):
+                data[PLUGIN_RUNNER_EXCEPTION_KEY] = {
+                    'plugin_id':      plugin_id,
+                    'runner':         plugin_runner,
+                    'exception_type': type(e).__name__,
+                    'exception':      str(e),
+                }
         finally:
             TaskDataStore.clear_context()
             TrawlarrFileMetadata.clear_context()

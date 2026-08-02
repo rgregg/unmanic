@@ -39,6 +39,13 @@ def _bare_file_test(plugin_votes):
     `plugin_votes` is an ordered list of (plugin_id, vote, role) tuples, where
     vote is True/False/None and role is None or 'filter'. It stands in for the
     library's configured file-test plugin flow.
+
+    NOTE: this fake's exec_plugin_runner always succeeds, so nothing in this
+    module can reach the branch taken when a plugin RAISES - which is how a
+    broken guard plugin silently lost its veto for as long as it did (#82).
+    That branch has its own fake, one that honours the real executor's
+    contract, in test_failures_are_not_swallowed.py. Everything here is about
+    precedence between votes that were actually cast; keep it that way.
     """
     ft = FileTest.__new__(FileTest)
     ft.logger = logging.getLogger("test_filetest")
