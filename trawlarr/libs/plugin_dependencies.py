@@ -138,6 +138,19 @@
     validate. Off by default is the whole of the protection there, and
     docs/PLUGIN-DEPENDENCIES.md says so.
 
+    And they get the same FAILURE semantics, which they did not before:
+    those two call sites ran `subprocess.call` and discarded the exit code,
+    so a pip that exited 1 - or an npm that was not installed at all - left
+    the plugin recorded as installed with its dependencies absent. That is
+    the same silently-broken plugin this module exists to prevent, arriving
+    by a different door. Every route now goes through
+    `run_package_manager`, where a missing executable, a non-zero exit and a
+    timeout all raise and abandon the install. Two consequences worth
+    stating: `npm run build` is only run when the package.json actually
+    defines that script (asking npm for a missing script exits 1), and a
+    requirements file that names nothing - empty, or only comments - is a
+    no-op rather than a refusal, because there is no pip run to gate.
+
     WHAT THIS DOES NOT DO
     ---------------------
     No lockfile, no hash pinning, no dependency resolution across plugins,
@@ -386,6 +399,35 @@ def requirement_lines(requirements_file):
     return [line for line in stripped if line]
 
 
+def requirements_file_asks_for_anything(requirements_file):
+    """
+    Does this requirements file actually ask pip for something?
+
+    An empty file, or one holding nothing but comments and blank lines, asks
+    for nothing. There is no pip invocation to gate and no packages to name in
+    a refusal, so the caller treats it as a no-op rather than refusing to
+    install a plugin over a file whose entire content is `# nothing here`.
+
+    An UNREADABLE file is not "nothing" and raises: we cannot tell what it
+    asks for, and guessing "nothing" would install a plugin whose
+    requirements were never read - the silent-partial-install shape this
+    module exists to avoid.
+
+    :param requirements_file:
+    :return: bool
+    :raises PluginDependencyError: if the file cannot be read
+    """
+    try:
+        with open(requirements_file, 'r', errors='replace') as handle:
+            lines = handle.readlines()
+    except OSError as exc:
+        raise PluginDependencyError(
+            "Cannot read the requirements file '{}' shipped by this plugin ({}). Refusing to install "
+            "it: an unreadable requirements file cannot be checked, and installing anyway would leave "
+            "a plugin whose imports fail the first time it runs.".format(requirements_file, exc))
+    return any(raw.split('#', 1)[0].strip() for raw in lines)
+
+
 def assert_requirements_file_install_permitted(plugin_id, requirements_file, environ=None):
     """
     Refuse to run pip for a plugin-shipped requirements file unless the
@@ -450,6 +492,55 @@ def assert_npm_install_permitted(plugin_id, package_file, environ=None):
             plugin_id or os.path.basename(os.path.dirname(str(package_file))),
             os.path.basename(str(package_file)),
             ALLOW_INSTALL_ENV_VAR))
+
+
+def run_package_manager(plugin_id, description, command, cwd=None, timeout=INSTALL_TIMEOUT):
+    """
+    Run a package manager for a plugin, and make its failure terminal.
+
+    Every route from a plugin into pip or npm goes through here, so that
+    "failures are terminal, not partial" is one implementation rather than a
+    claim repeated at four call sites. A missing executable, a non-zero exit
+    and a timeout all raise `PluginDependencyError`, which abandons the
+    plugin install - a plugin whose dependencies are not on disk must not be
+    recorded as installed, because that failure would otherwise resurface as
+    an ImportError in the middle of processing a file.
+
+    Output is captured rather than inherited so the failure message can carry
+    the package manager's own diagnosis, which is always better than anything
+    this module could invent.
+
+    :param plugin_id: for the message
+    :param description: what was being attempted, e.g. "install the
+           requirements in 'requirements.txt'"
+    :param command: argv list
+    :param cwd:
+    :param timeout: seconds before the invocation is abandoned
+    :return: the CompletedProcess
+    :raises PluginDependencyError: not runnable, non-zero exit, or timed out
+    """
+    logger.info("Running '%s' for plugin '%s'", ' '.join(str(part) for part in command), plugin_id)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    except FileNotFoundError as exc:
+        raise PluginDependencyError(
+            "Cannot {} for plugin '{}': '{}' could not be run ({}).".format(
+                description, plugin_id, command[0], exc))
+    except OSError as exc:
+        raise PluginDependencyError(
+            "Cannot {} for plugin '{}': running '{}' failed ({}).".format(
+                description, plugin_id, command[0], exc))
+    except subprocess.TimeoutExpired:
+        raise PluginDependencyError(
+            "Timed out after {} seconds trying to {} for plugin '{}'.".format(
+                timeout, description, plugin_id))
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or '').strip()
+        raise PluginDependencyError(
+            "Failed to {} for plugin '{}'. '{}' exited {}:\n{}".format(
+                description, plugin_id, command[0], result.returncode, detail))
+    return result
 
 
 def site_packages_path(plugin_path):
@@ -537,24 +628,13 @@ def install_dependencies(plugin_id, plugin_path, dependencies, environ=None):
     command.extend(dependencies)
 
     logger.info("Installing declared dependencies for plugin '%s': %s", plugin_id, ', '.join(dependencies))
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=INSTALL_TIMEOUT)
-    except FileNotFoundError as exc:
-        raise PluginDependencyError(
-            "Cannot install dependencies for plugin '{}': no Python interpreter at '{}' ({}).".format(
-                plugin_id, sys.executable, exc))
-    except subprocess.TimeoutExpired:
-        raise PluginDependencyError(
-            "Timed out after {} seconds installing dependencies for plugin '{}' ({}).".format(
-                INSTALL_TIMEOUT, plugin_id, ', '.join(dependencies)))
-
-    if result.returncode != 0:
-        # pip's own diagnosis is far more useful than anything we could
-        # invent, so it goes in the message verbatim rather than the log.
-        detail = (result.stderr or result.stdout or '').strip()
-        raise PluginDependencyError(
-            "Failed to install dependencies for plugin '{}' ({}). pip exited {}:\n{}".format(
-                plugin_id, ', '.join(dependencies), result.returncode, detail))
+    # Shared with the requirements-file and npm routes: a package manager that
+    # cannot be run, exits non-zero, or hangs raises, and the plugin install is
+    # abandoned. The receipt is written only after that has NOT happened.
+    run_package_manager(
+        plugin_id,
+        "install the declared dependencies ({})".format(', '.join(dependencies)),
+        command)
 
     _write_receipt(plugin_path, dependencies)
     logger.info("Installed %s dependencies for plugin '%s' into '%s'", len(dependencies), plugin_id, target)
@@ -587,8 +667,8 @@ def check_dependencies(plugin_id, plugin_path, plugin_info):
     Are a plugin's declared dependencies present and usable, right now?
 
     Returns None when there is nothing to say - which includes the plugin
-    declaring no dependencies at all. Otherwise returns
-    `(code, severity, message)` describing exactly one problem.
+    declaring no dependencies at all. Otherwise returns `(code, message)`
+    describing exactly one problem; the caller supplies the severity.
 
     Deliberately does NOT try to import anything: importing a plugin's
     dependencies to test them runs third-party module-level code as a side

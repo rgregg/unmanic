@@ -129,8 +129,13 @@ What that trust is bounded by:
 - The opt-in, which covers every route from a plugin into a package
   manager. Leave it off and none of them run; the plugin is refused
   instead. The next section lists them.
-- Failures are terminal, not partial. If pip is missing, fails or times
-  out, the plugin install fails and no plugin record is written.
+- Failures are terminal, not partial. This holds for every route in the
+  table below: if pip or npm cannot be run, exits non-zero, or times out,
+  the plugin install fails with the package manager's own error and no
+  plugin record is written. A plugin is never recorded as installed with
+  its dependencies missing — that would move the failure to first
+  execution, in the middle of a file, which is what this whole feature
+  exists to prevent.
 
 ## What the opt-in covers
 
@@ -142,11 +147,25 @@ four routes and they are all behind the one flag:
 | `python_dependencies` in `info.json` | `pip install <names>` | yes |
 | `requirements.post-install.txt` | `pip install -r` | yes |
 | `requirements.txt` **and** `"defer_dependency_install": true` | `pip install -r` | yes |
-| `package.json` (same `defer_dependency_install` route) | `npm install` + `npm run build` | yes |
+| `package.json` (same `defer_dependency_install` route) | `npm install`, then `npm run build` if the package.json defines a `build` script | yes |
 
 With the flag off, a plugin that ships any of them is **refused at
 install time**, with a message naming what it wanted. It is not
 installed-without-them.
+
+Two details of the requirements-file routes, so the table is not read as
+more than it says:
+
+- A requirements file that names nothing — empty, or nothing but
+  comments — is a **no-op**, not a refusal. There is no pip run to gate.
+  A file whose only content is a pip option is not "nothing": it is
+  refused by the grammar rule below. A requirements file that cannot be
+  read is also refused, because what it asks for is then unknown.
+- The developer CLI (`--manage_plugins` → "Reload Plugin from Disk")
+  runs these same two routes against plugins already on disk, so it is
+  behind the same flag. A plugin it cannot install dependencies for is
+  reported and **skipped**, leaving its database row as it was; the
+  reload continues with the remaining plugins.
 
 The last three were **not** gated until issue #88 was fixed, and that
 was a real hole: an operator could read this page, leave the flag

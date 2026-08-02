@@ -32,6 +32,17 @@
     the official catalog - ships a requirements.txt, sets no flag, declares
     nothing, vendors its own site-packages - installs with the gate OFF,
     runs no pip, and keeps its vendored packages.
+
+    Gating those routes also made docs/PLUGIN-DEPENDENCIES.md claim
+    something about them that was not true: "failures are terminal, not
+    partial". Both call sites used `subprocess.call` and discarded the exit
+    code, so with the gate ON a pip that exited 1 installed the plugin
+    anyway, with its packages absent - the mid-task ImportError this
+    milestone exists to remove, arriving by a different door. The last three
+    classes here are the rest of that sentence: failures are terminal, a
+    requirements file that names nothing is a no-op rather than a refusal,
+    and the developer CLI's reload - the other caller of these two functions
+    - skips a plugin it cannot satisfy instead of aborting the run.
 """
 import json
 import logging
@@ -84,7 +95,7 @@ def _plugin_on_disk(plugins_path, plugin_id='my_plugin', files=None, **info):
 
 
 def _recorder(returncode=0):
-    """Stand-in for subprocess.call/run that records what it was asked to do."""
+    """Stand-in for subprocess.run that records what it was asked to do."""
     calls = []
 
     def _run(command, **kwargs):
@@ -164,7 +175,7 @@ class TestInstallPluginRequirementsIsGated:
         path = _plugin_on_disk(str(tmp_path / 'plugins'),
                                files={'requirements.txt': 'requests\n'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner):
+        with mock.patch('subprocess.run', runner):
             with pytest.raises(PluginDependencyError):
                 PluginsHandler.install_plugin_requirements(path)
         assert runner.calls == [], "pip ran without the operator opting in"
@@ -173,7 +184,7 @@ class TestInstallPluginRequirementsIsGated:
         path = _plugin_on_disk(str(tmp_path / 'plugins'),
                                files={'requirements.txt': 'requests\n'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner):
+        with mock.patch('subprocess.run', runner):
             PluginsHandler.install_plugin_requirements(path)
         assert len(runner.calls) == 1
         assert '-r' in runner.calls[0]
@@ -192,7 +203,7 @@ class TestInstallPluginRequirementsIsGated:
         with open(os.path.join(vendored, 'somedep.py'), 'w') as f:
             f.write('# vendored by the plugin author\n')
 
-        with mock.patch('subprocess.call', _recorder()):
+        with mock.patch('subprocess.run', _recorder()):
             with pytest.raises(PluginDependencyError):
                 PluginsHandler.install_plugin_requirements(path)
 
@@ -207,7 +218,7 @@ class TestInstallPluginRequirementsIsGated:
         path = _plugin_on_disk(
             str(tmp_path / 'plugins'),
             files={'requirements.txt': 'requests\n--index-url https://attacker.invalid/simple\n'})
-        with mock.patch('subprocess.call', _recorder()):
+        with mock.patch('subprocess.run', _recorder()):
             with pytest.raises(PluginDependencyError) as excinfo:
                 PluginsHandler.install_plugin_requirements(path)
         message = str(excinfo.value)
@@ -230,7 +241,7 @@ class TestInstallPluginRoutesAreGated:
         _plugin_on_disk(plugins_path,
                         files={'requirements.post-install.txt': 'some-package\n'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             with pytest.raises(PluginDependencyError) as excinfo:
                 _install(_handler(plugins_path))
         assert runner.calls == []
@@ -241,7 +252,7 @@ class TestInstallPluginRoutesAreGated:
         path = _plugin_on_disk(plugins_path,
                                files={'requirements.post-install.txt': 'some-package\n'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             _install(_handler(plugins_path))
         assert len(runner.calls) == 1
         command = runner.calls[0]
@@ -252,7 +263,7 @@ class TestInstallPluginRoutesAreGated:
         _plugin_on_disk(plugins_path, defer_dependency_install=True,
                         files={'requirements.txt': 'some-package\n'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             with pytest.raises(PluginDependencyError):
                 _install(_handler(plugins_path))
         assert runner.calls == []
@@ -264,7 +275,7 @@ class TestInstallPluginRoutesAreGated:
         _plugin_on_disk(plugins_path, defer_dependency_install=True,
                         files={'package.json': '{"name": "x"}'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             with pytest.raises(PluginDependencyError) as excinfo:
                 _install(_handler(plugins_path))
         assert runner.calls == [], "npm ran without the operator opting in"
@@ -273,11 +284,27 @@ class TestInstallPluginRoutesAreGated:
     def test_npm_runs_when_opted_in(self, tmp_path, allow_installs):
         plugins_path = str(tmp_path / 'plugins')
         _plugin_on_disk(plugins_path, defer_dependency_install=True,
-                        files={'package.json': '{"name": "x"}'})
+                        files={'package.json': '{"name": "x", "scripts": {"build": "webpack"}}'})
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             _install(_handler(plugins_path))
         assert [c[:2] for c in runner.calls] == [['npm', 'install'], ['npm', 'run']]
+
+    def test_npm_build_is_skipped_when_the_package_json_has_no_build_script(self, tmp_path, allow_installs):
+        """
+        `npm run build` on a package.json without a `build` script exits 1.
+        That was invisible while the exit code was discarded; now that a
+        failure fails the install, asking for a script the plugin never
+        defined would refuse every plugin that ships a package.json with no
+        build step.
+        """
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, defer_dependency_install=True,
+                        files={'package.json': '{"name": "x"}'})
+        runner = _recorder()
+        with mock.patch('subprocess.run', runner):
+            _install(_handler(plugins_path))
+        assert [c[:2] for c in runner.calls] == [['npm', 'install']]
 
     def test_a_refused_plugin_is_not_recorded_as_installed(self, tmp_path, deny_installs):
         """
@@ -291,7 +318,7 @@ class TestInstallPluginRoutesAreGated:
                         files={'requirements.post-install.txt': 'some-package\n'})
         handler = _handler(plugins_path)
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner), \
+        with mock.patch('subprocess.run', runner), \
                 mock.patch.object(handler, 'download_plugin', return_value='/tmp/x.zip'), \
                 mock.patch.object(handler, 'write_plugin_data_to_db') as write_db, \
                 mock.patch('zipfile.ZipFile'), \
@@ -326,7 +353,7 @@ class TestExistingCatalogPluginsAreUnaffected:
             f.write('# vendored into the plugin zip by the plugin repo CI\n')
 
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             info = _install(_handler(plugins_path))
 
         assert info.get('id') == 'my_plugin'
@@ -338,7 +365,259 @@ class TestExistingCatalogPluginsAreUnaffected:
         plugins_path = str(tmp_path / 'plugins')
         _plugin_on_disk(plugins_path)
         runner = _recorder()
-        with mock.patch('subprocess.call', runner), mock.patch('subprocess.run', runner):
+        with mock.patch('subprocess.run', runner):
             info = _install(_handler(plugins_path))
         assert info.get('id') == 'my_plugin'
         assert runner.calls == []
+
+
+# ---------------------------------------------------------------------------
+# Failures are terminal, not partial
+# ---------------------------------------------------------------------------
+
+class TestPackageManagerFailuresAreTerminal:
+    """
+    docs/PLUGIN-DEPENDENCIES.md tells the operator that "if pip or npm
+    cannot be run, exits non-zero, or times out, the plugin install fails
+    and no plugin record is written". These call sites used
+    `subprocess.call` and threw the exit code away, so that sentence was
+    false for exactly the routes #88 brought into scope: a pip that exited 1
+    left the plugin installed with its packages absent, and it then failed
+    at first execution instead. These tests are that sentence.
+    """
+
+    def test_a_failing_pip_fails_the_install(self, tmp_path, allow_installs):
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path,
+                        files={'requirements.post-install.txt': 'nosuchpkg\n'})
+
+        def _failing_pip(command, **kwargs):
+            return subprocess.CompletedProcess(
+                command, 1, stdout='', stderr='ERROR: No matching distribution found for nosuchpkg')
+
+        with mock.patch('subprocess.run', _failing_pip):
+            with pytest.raises(PluginDependencyError) as excinfo:
+                _install(_handler(plugins_path))
+        assert 'No matching distribution' in str(excinfo.value), "pip's own diagnosis must survive"
+
+    def test_a_failing_pip_means_no_plugin_record(self, tmp_path, allow_installs):
+        """The whole point: the failure must reach download_and_install_plugin,
+        which is what keeps the plugins-table row from being written."""
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, files={'requirements.post-install.txt': 'nosuchpkg\n'})
+        handler = _handler(plugins_path)
+
+        def _failing_pip(command, **kwargs):
+            return subprocess.CompletedProcess(command, 1, stdout='', stderr='boom')
+
+        with mock.patch('subprocess.run', _failing_pip), \
+                mock.patch.object(handler, 'download_plugin', return_value='/tmp/x.zip'), \
+                mock.patch.object(handler, 'write_plugin_data_to_db') as write_db, \
+                mock.patch('zipfile.ZipFile'), \
+                mock.patch.object(PluginsHandler, '_assert_zip_members_safe'):
+            result = handler.download_and_install_plugin({'plugin_id': 'my_plugin', 'version': '1.0'})
+
+        assert result is False
+        write_db.assert_not_called()
+
+    def test_a_missing_package_manager_fails_the_install(self, tmp_path, allow_installs):
+        """npm is not in the image at all, which is the common case."""
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, defer_dependency_install=True,
+                        files={'package.json': '{"name": "x"}'})
+
+        def _no_npm(command, **kwargs):
+            raise FileNotFoundError(2, 'No such file or directory: npm')
+
+        with mock.patch('subprocess.run', _no_npm):
+            with pytest.raises(PluginDependencyError) as excinfo:
+                _install(_handler(plugins_path))
+        assert 'npm' in str(excinfo.value)
+
+    def test_a_hung_pip_fails_the_install(self, tmp_path, allow_installs):
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, files={'requirements.post-install.txt': 'requests\n'})
+
+        def _hang(command, **kwargs):
+            raise subprocess.TimeoutExpired(command, plugin_dependencies.INSTALL_TIMEOUT)
+
+        with mock.patch('subprocess.run', _hang):
+            with pytest.raises(PluginDependencyError) as excinfo:
+                _install(_handler(plugins_path))
+        assert 'Timed out' in str(excinfo.value)
+
+    def test_pip_is_given_a_timeout(self, tmp_path, allow_installs):
+        """A wedged pip must not hold the install request open forever."""
+        calls = []
+
+        def _run(command, **kwargs):
+            calls.append(kwargs)
+            return subprocess.CompletedProcess(command, 0, stdout='', stderr='')
+
+        path = _plugin_on_disk(str(tmp_path / 'plugins'), files={'requirements.txt': 'requests\n'})
+        with mock.patch('subprocess.run', _run):
+            PluginsHandler.install_plugin_requirements(path)
+        assert calls[0].get('timeout') == plugin_dependencies.INSTALL_TIMEOUT
+
+    def test_a_failing_npm_build_fails_the_install(self, tmp_path, allow_installs):
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, defer_dependency_install=True,
+                        files={'package.json': '{"name": "x", "scripts": {"build": "exit 1"}}'})
+
+        def _npm(command, **kwargs):
+            code = 1 if command[:2] == ['npm', 'run'] else 0
+            return subprocess.CompletedProcess(command, code, stdout='', stderr='build failed')
+
+        with mock.patch('subprocess.run', _npm):
+            with pytest.raises(PluginDependencyError) as excinfo:
+                _install(_handler(plugins_path))
+        assert 'build failed' in str(excinfo.value)
+
+    def test_an_unparseable_package_json_fails_the_install(self, tmp_path, allow_installs):
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, defer_dependency_install=True,
+                        files={'package.json': 'not json at all'})
+        runner = _recorder()
+        with mock.patch('subprocess.run', runner):
+            with pytest.raises(PluginDependencyError) as excinfo:
+                _install(_handler(plugins_path))
+        assert 'package.json' in str(excinfo.value)
+        assert runner.calls == [], "npm must not be run against a package.json we could not read"
+
+
+# ---------------------------------------------------------------------------
+# A requirements file that asks for nothing
+# ---------------------------------------------------------------------------
+
+class TestRequirementsFileThatNamesNothing:
+    """
+    An empty or comment-only requirements file asks pip for no packages.
+    There is no install to gate, so refusing the plugin over it is wrong -
+    and the refusal message read "ships a 'requirements.txt' (no
+    requirements) and installing plugin dependencies is disabled", which
+    tells the operator to flip a flag that would only make pip run with
+    nothing to do.
+    """
+
+    @pytest.mark.parametrize('contents', ['', '\n\n', '# nothing here\n', '  \n# just a note\n\n'])
+    def test_it_is_a_no_op_with_the_gate_off(self, tmp_path, deny_installs, contents):
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, defer_dependency_install=True,
+                        files={'requirements.txt': contents})
+        runner = _recorder()
+        with mock.patch('subprocess.run', runner):
+            info = _install(_handler(plugins_path))
+        assert info.get('id') == 'my_plugin'
+        assert runner.calls == [], "there is nothing to install"
+
+    def test_it_does_not_run_pip_with_the_gate_on_either(self, tmp_path, allow_installs):
+        path = _plugin_on_disk(str(tmp_path / 'plugins'),
+                               files={'requirements.txt': '# nothing here\n'})
+        runner = _recorder()
+        with mock.patch('subprocess.run', runner):
+            PluginsHandler.install_plugin_requirements(path)
+        assert runner.calls == [], "pip has no packages to be given"
+
+    def test_it_does_not_destroy_the_vendored_site_packages(self, tmp_path, allow_installs):
+        """A no-op must be a no-op on disk too: site-packages is rebuilt from
+        empty by a real install, and there is no install here."""
+        path = _plugin_on_disk(str(tmp_path / 'plugins'),
+                               files={'requirements.txt': '# nothing here\n'})
+        vendored = os.path.join(path, 'site-packages')
+        os.makedirs(vendored)
+        with open(os.path.join(vendored, 'somedep.py'), 'w') as f:
+            f.write('# vendored by the plugin author\n')
+
+        with mock.patch('subprocess.run', _recorder()):
+            PluginsHandler.install_plugin_requirements(path)
+
+        assert os.path.isfile(os.path.join(vendored, 'somedep.py'))
+
+    def test_a_file_of_nothing_but_a_pip_option_is_still_refused(self, tmp_path, deny_installs):
+        """`--index-url` on its own is not "nothing"; the grammar rule runs
+        first precisely so that emptiness cannot be a way past it."""
+        path = _plugin_on_disk(str(tmp_path / 'plugins'),
+                               files={'requirements.txt': '--index-url https://attacker.invalid/simple\n'})
+        with mock.patch('subprocess.run', _recorder()):
+            with pytest.raises(PluginDependencyError) as excinfo:
+                PluginsHandler.install_plugin_requirements(path)
+        assert 'pip options are not accepted' in str(excinfo.value)
+
+    def test_an_unreadable_requirements_file_is_refused(self, tmp_path, allow_installs):
+        """Unreadable is not empty: we cannot say what it asked for, so we do
+        not install a plugin whose requirements were never read."""
+        path = _plugin_on_disk(str(tmp_path / 'plugins'), files={'requirements.txt': 'requests\n'})
+        requirements = os.path.join(path, 'requirements.txt')
+        os.chmod(requirements, 0o000)
+        try:
+            if os.access(requirements, os.R_OK):
+                pytest.skip("running as a user that can read a 0o000 file")
+            with mock.patch('subprocess.run', _recorder()):
+                with pytest.raises(PluginDependencyError) as excinfo:
+                    PluginsHandler.install_plugin_requirements(path)
+        finally:
+            os.chmod(requirements, 0o644)
+        assert 'requirements.txt' in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# The other caller: the developer CLI
+# ---------------------------------------------------------------------------
+
+class TestDeveloperCliReloadFromDisk:
+    """
+    `--manage_plugins` -> "Reload Plugin from Disk" calls the same two
+    functions, so gating them changed that command too. Before, it ran pip
+    for any plugin with a requirements.txt - no flag, no
+    `defer_dependency_install`. Now those calls can raise, and they sat
+    outside any try/except: one plugin the operator has not opted in for
+    would abort the whole reload with a traceback, after its database row
+    had already been written.
+    """
+
+    def _cli(self, plugins_directory):
+        from trawlarr.libs.unplugins.pluginscli import PluginsCLI
+        cli = PluginsCLI.__new__(PluginsCLI)
+        cli.plugins_directory = plugins_directory
+        return cli
+
+    def _reload(self, cli, plugin_ids):
+        from trawlarr.libs.unplugins.pluginscli import PluginsCLI
+        with mock.patch.object(PluginsCLI, '_PluginsCLI__get_installed_plugins',
+                               return_value=[{'plugin_id': p} for p in plugin_ids]), \
+                mock.patch.object(PluginsHandler, 'write_plugin_data_to_db') as write_db, \
+                mock.patch('subprocess.run', _recorder()):
+            cli.reload_plugin_from_disk()
+        return [call.args[0].get('plugin_id') for call in write_db.call_args_list]
+
+    def test_a_refused_plugin_does_not_stop_the_reload(self, tmp_path, deny_installs, capsys):
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, plugin_id='needs_deps',
+                        files={'requirements.txt': 'requests\n'})
+        _plugin_on_disk(plugins_path, plugin_id='plain_plugin')
+
+        written = self._reload(self._cli(plugins_path), ['needs_deps', 'plain_plugin'])
+
+        assert written == ['plain_plugin'], \
+            "the refused plugin must be skipped and the next one still reloaded"
+        assert ENV_VAR in capsys.readouterr().out, \
+            "the operator has to be told which switch would have allowed it"
+
+    def test_a_failing_pip_does_not_record_the_plugin(self, tmp_path, allow_installs):
+        """Same rule as install: dependencies first, and no database row for a
+        plugin whose dependencies are not there."""
+        from trawlarr.libs.unplugins.pluginscli import PluginsCLI
+        plugins_path = str(tmp_path / 'plugins')
+        _plugin_on_disk(plugins_path, plugin_id='needs_deps', files={'requirements.txt': 'nosuchpkg\n'})
+        cli = self._cli(plugins_path)
+
+        def _failing_pip(command, **kwargs):
+            return subprocess.CompletedProcess(command, 1, stdout='', stderr='boom')
+
+        with mock.patch.object(PluginsCLI, '_PluginsCLI__get_installed_plugins',
+                               return_value=[{'plugin_id': 'needs_deps'}]), \
+                mock.patch.object(PluginsHandler, 'write_plugin_data_to_db') as write_db, \
+                mock.patch('subprocess.run', _failing_pip):
+            cli.reload_plugin_from_disk()
+
+        write_db.assert_not_called()
