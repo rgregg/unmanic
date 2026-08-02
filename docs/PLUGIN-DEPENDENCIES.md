@@ -42,6 +42,11 @@ dependencies **fails**, with a message naming the packages it asked for.
 It does not install the plugin without its dependencies — a plugin whose
 imports are going to fail must not look installed.
 
+The same flag governs the older routes a plugin has for starting a
+package install — a `requirements.post-install.txt`, or a
+`requirements.txt` with `defer_dependency_install` — see [What the
+opt-in covers](#what-the-opt-in-covers).
+
 ## Where they go
 
 `~/.trawlarr/plugins/<plugin_id>/site-packages`, one directory per
@@ -106,9 +111,10 @@ the container user — see [SECURITY_MODEL.md](SECURITY_MODEL.md) — but
 the code came from one place you chose.
 
 **After**, installing a plugin additionally runs `pip install` with
-package names taken from that plugin's metadata. pip downloads from the
-index the image is configured with and executes package build and
-install hooks. So the plugin author picks a *name*; whoever controls
+package names taken from that plugin's metadata or its requirements
+file — and `npm install` if it ships a `package.json`. pip downloads
+from the index the image is configured with and executes package build
+and install hooks. So the plugin author picks a *name*; whoever controls
 that name on the index picks the *code*. A typosquatted or
 newly-compromised package name in a plugin's `info.json` becomes code
 running as the Trawlarr user.
@@ -118,58 +124,95 @@ What that trust is bounded by:
 - The requirement grammar. Plugin metadata cannot supply a URL, a path,
   or a pip option, so it cannot redirect pip at an index you did not
   configure, and cannot point pip at a file inside the container.
-  Requirements are also passed after `--`, so one can never be read as
-  an option.
-- The opt-in, for *declared* dependencies. Leave it off and no
-  `python_dependencies` list installs anything; the plugin is refused
-  instead. See the section below for what the opt-in does **not**
-  cover.
-- Failures are terminal, not partial. If pip is missing, fails or times
-  out, the plugin install fails and no plugin record is written.
+  Declared requirements are also passed after `--`, so one can never be
+  read as an option.
+- The opt-in, which covers every route from a plugin into a package
+  manager. Leave it off and none of them run; the plugin is refused
+  instead. The next section lists them.
+- Failures are terminal, not partial. This holds for every route in the
+  table below: if pip or npm cannot be run, exits non-zero, or times out,
+  the plugin install fails with the package manager's own error and no
+  plugin record is written. A plugin is never recorded as installed with
+  its dependencies missing — that would move the failure to first
+  execution, in the middle of a file, which is what this whole feature
+  exists to prevent.
 
-## What the opt-in does not cover
+## What the opt-in covers
 
-Be clear about this, because it is easy to read the flag as a promise
-it does not make: **leaving the flag off does not mean pip never runs.**
+Everything that makes a plugin install run a package manager. There are
+four routes and they are all behind the one flag:
 
-Long before this feature existed, installing a plugin that ships a
-`requirements.txt` (with `defer_dependency_install` set) or a
-`requirements.post-install.txt` ran `pip install -r` against that file.
-That path is unchanged and is **not** gated by
-`TRAWLARR_ALLOW_PLUGIN_DEPENDENCY_INSTALL`. Gating it would break every
-existing plugin that ships one, for a risk those plugins have always
-carried — and the operator already accepted running that plugin's code
-when they installed it.
+| What the plugin ships | What it runs | Gated |
+| --- | --- | --- |
+| `python_dependencies` in `info.json` | `pip install <names>` | yes |
+| `requirements.post-install.txt` | `pip install -r` | yes |
+| `requirements.txt` **and** `"defer_dependency_install": true` | `pip install -r` | yes |
+| `package.json` (same `defer_dependency_install` route) | `npm install`, then `npm run build` if the package.json defines a `build` script | yes |
 
-What the flag off *does* guarantee is narrower and true:
+With the flag off, a plugin that ships any of them is **refused at
+install time**, with a message naming what it wanted. It is not
+installed-without-them.
 
-- No plugin's `info.json` can drive a pip install.
-- **No plugin, by either route, can choose where pip fetches from.**
+Two details of the requirements-file routes, so the table is not read as
+more than it says:
+
+- A requirements file that names nothing — empty, or nothing but
+  comments — is a **no-op**, not a refusal. There is no pip run to gate.
+  A file whose only content is a pip option is not "nothing": it is
+  refused by the grammar rule below. A requirements file that cannot be
+  read is also refused, because what it asks for is then unknown.
+- The developer CLI (`--manage_plugins` → "Reload Plugin from Disk")
+  runs these same two routes against plugins already on disk, so it is
+  behind the same flag. A plugin it cannot install dependencies for is
+  reported and **skipped**, leaving its database row as it was; the
+  reload continues with the remaining plugins.
+
+The last three were **not** gated until issue #88 was fixed, and that
+was a real hole: an operator could read this page, leave the flag
+off, and still get a pip install from a plugin they installed. Bringing
+them under the flag is a behaviour change. Its cost, measured rather
+than assumed: of the 56 plugins in the official catalog, **none** ship a
+`requirements.post-install.txt` and **none** set
+`defer_dependency_install`. 54 do ship a `requirements.txt`, but without
+that flag it is build metadata for the plugin's own CI — those plugins
+vendor the resulting `site-packages/` into their zip, and Trawlarr never
+reads their requirements file. So no plugin in the catalog changes
+behaviour. A plugin from elsewhere that does use one of these routes now
+needs the flag, and that is the point: it was always installing packages
+onto your system, and now you are the one who decides.
+
+On top of the flag, for the pip routes only:
+
+- **No plugin can choose where pip fetches from**, flag on or off.
   Plugin-shipped requirements files are held to the same grammar as
   declared dependencies: a line that is a pip option (`--index-url`,
   `--extra-index-url`, `--find-links`, `-e`, `-r`, …), a URL, a VCS
   reference or a local path is refused, and the refusal fails the whole
   plugin install. Plain `name`/`name==version` lines — what real
-  plugins actually ship — install exactly as before.
+  plugins actually ship — are untouched.
 
-So the boundary is not "pip runs or it does not". It is: **pip only ever
-installs package names, from the index this installation is configured
-with.** The flag decides whether a plugin's *metadata* may add to those
-names.
+There is **no** equivalent for npm, and this page will not pretend
+otherwise. A `package.json` names its own registries, can depend on git
+URLs and tarballs, and runs lifecycle scripts on install. There is no
+useful subset of that to validate, so the flag is the whole of the
+protection: leave it off and npm never runs; turn it on and a plugin
+with a `package.json` gets to execute what it likes as the Trawlarr
+user.
 
 If you want the stronger guarantee that no plugin install may reach the
-network for packages at all, that is not something this flag gives you;
-run Trawlarr without outbound access to your package index, or install
-only plugins you have vetted.
+network for packages at all, leaving the flag off now gives you that for
+plugin-driven installs — but a plugin's own code can still make network
+calls once it runs. For a hard boundary, run Trawlarr without outbound
+access, or install only plugins you have vetted.
 
-What it is **not** bounded by, and you should know it: there is no
+What the flag is **not** bounded by, and you should know it: there is no
 lockfile, no hash pinning, and no allowlist of packages. If you enable
 this, you are trusting the plugin authors you install to name
 dependencies as carefully as they write their plugin.
 
 If you would rather not take that on, leave the flag off. Be aware of
-what that costs, stated plainly: a plugin that declares dependencies
-then cannot be installed **at all**, even if you have already baked
+what that costs, stated plainly: a plugin that declares or ships
+dependencies then cannot be installed **at all**, even if you have baked
 those exact packages into a derived image. Trawlarr does not try to
 detect that — checking whether a requirement is "already satisfied"
 means either importing third-party code as a side effect of an install

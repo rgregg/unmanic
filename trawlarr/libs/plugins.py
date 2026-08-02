@@ -36,7 +36,6 @@ import hashlib
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import zipfile
@@ -693,26 +692,71 @@ class PluginsHandler(object, metaclass=SingletonType):
         # abandons the install (see install_plugin's callers), which is the
         # point - a plugin that wanted to redirect pip must not end up
         # installed. See trawlarr/libs/plugin_dependencies.py.
-        plugin_dependencies.assert_requirements_file_is_safe(
-            os.path.basename(str(plugin_path)), requirements_file)
+        plugin_id = os.path.basename(str(plugin_path))
+        plugin_dependencies.assert_requirements_file_is_safe(plugin_id, requirements_file)
+        # A file that names nothing - empty, or only comments - asks for no
+        # packages. There is no pip run to gate and no package names to put in a
+        # refusal, so it is a no-op rather than a reason to refuse the plugin.
+        # Checked after the grammar scan, so a file whose only content is
+        # `--index-url ...` is still refused: an option line is not nothing.
+        if not plugin_dependencies.requirements_file_asks_for_anything(requirements_file):
+            return
+        # ... and the same opt-in (issue #88). Running pip because a plugin shipped a
+        # file is the same trust as running pip because a plugin declared a dependency,
+        # so it is the same switch. Checked after the grammar scan on purpose: an
+        # operator whose plugin is refused for BOTH reasons should be told about the
+        # `--index-url` first, not sent to flip a flag that will not help.
+        plugin_dependencies.assert_requirements_file_install_permitted(plugin_id, requirements_file)
         # First, remove the existing site-packages directory if it exists to ensure a clean installation
         if os.path.exists(install_target):
             shutil.rmtree(install_target)
         # Recreate the site-packages directory
         os.makedirs(install_target, exist_ok=True)
-        subprocess.call([
-            sys.executable, '-m', 'pip', 'install', '--upgrade',
-            '-r', requirements_file,
-            '--target={}'.format(install_target)
-        ])
+        # A failing pip fails the install. Ignoring pip's exit code here (which is
+        # what this did before) recorded the plugin as installed with its packages
+        # absent, and turned a legible install-time error into an ImportError in
+        # the middle of a task - the exact failure #39 and #88 exist to remove.
+        plugin_dependencies.run_package_manager(
+            plugin_id,
+            "install the requirements in '{}'".format(os.path.basename(str(requirements_file))),
+            [
+                sys.executable, '-m', 'pip', 'install', '--upgrade',
+                '--no-input', '--disable-pip-version-check',
+                '-r', requirements_file,
+                '--target={}'.format(install_target)
+            ])
 
     @staticmethod
     def install_npm_modules(plugin_path):
         package_file = os.path.join(plugin_path, 'package.json')
         if not os.path.exists(package_file):
             return
-        subprocess.call(['npm', 'install'], cwd=plugin_path)
-        subprocess.call(['npm', 'run', 'build'], cwd=plugin_path)
+        plugin_id = os.path.basename(str(plugin_path))
+        # `npm install` runs the package.json's lifecycle scripts and fetches whatever
+        # it names, from wherever it names it. That is more trust than the pip path
+        # above, not less, so it sits behind the same opt-in (issue #88).
+        plugin_dependencies.assert_npm_install_permitted(plugin_id, package_file)
+        try:
+            with open(package_file) as handle:
+                package_json = json.load(handle)
+        except Exception as e:
+            raise plugin_dependencies.PluginDependencyError(
+                "Plugin '{}' ships a 'package.json' that cannot be read as JSON ({}). Refusing to "
+                "install it: npm would not be able to install its dependencies either.".format(plugin_id, e))
+        # Same rule as pip: a failure here is terminal.
+        plugin_dependencies.run_package_manager(
+            plugin_id, "install the node modules in 'package.json'",
+            ['npm', 'install'], cwd=plugin_path)
+        # `npm run build` only if the package.json actually defines that script.
+        # Running it unconditionally used to be harmless because the exit code was
+        # thrown away; now that it is not, asking npm for a script that does not
+        # exist would fail the install of every plugin that ships a package.json
+        # without a build step.
+        scripts = package_json.get('scripts') if isinstance(package_json, dict) else None
+        if isinstance(scripts, dict) and scripts.get('build'):
+            plugin_dependencies.run_package_manager(
+                plugin_id, "run the 'build' script from 'package.json'",
+                ['npm', 'run', 'build'], cwd=plugin_path)
 
     @staticmethod
     def write_plugin_data_to_db(plugin, plugin_directory):

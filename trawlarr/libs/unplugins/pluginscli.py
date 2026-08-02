@@ -43,6 +43,7 @@ from . import plugin_types
 
 from trawlarr import config
 from trawlarr.libs import common
+from trawlarr.libs.plugin_dependencies import PluginDependencyError
 from trawlarr.libs.plugins import PluginsHandler
 from trawlarr.libs.task import TaskDataStore
 from trawlarr.libs.unplugins import PluginExecutor
@@ -419,6 +420,26 @@ class PluginsCLI(object):
             with open(info_file) as json_file:
                 plugin_info = json.load(json_file)
 
+            # Dependencies FIRST, and before the DB write. These two calls are gated
+            # by TRAWLARR_ALLOW_PLUGIN_DEPENDENCY_INSTALL (issue #88) and now also fail
+            # when the package manager fails, so either can raise. Left bare, one
+            # unhappy plugin would abort the whole reload with a traceback - and
+            # writing the DB row first would record a plugin whose dependencies were
+            # never installed, which is the exact state the gate exists to prevent.
+            # So: report it, leave this plugin alone, carry on with the next.
+            try:
+                PluginsHandler.install_plugin_requirements(plugin_path)
+                PluginsHandler.install_npm_modules(plugin_path)
+            except PluginDependencyError as e:
+                print("Not reloading Plugin '{}' - {}".format(plugin.get('plugin_id'), str(e)))
+                print()
+                continue
+            except Exception as e:
+                print("Exception while installing dependencies for Plugin '{}'. - {}".format(
+                    plugin.get('plugin_id'), str(e)))
+                print()
+                continue
+
             # Insert plugin details to DB
             try:
                 plugin_info['plugin_id'] = plugin_info.get('id')
@@ -427,8 +448,6 @@ class PluginsCLI(object):
                 print("Exception while saving plugin info to DB. - {}".format(str(e)))
                 return
 
-            PluginsHandler.install_plugin_requirements(plugin_path)
-            PluginsHandler.install_npm_modules(plugin_path)
             print()
         print()
 

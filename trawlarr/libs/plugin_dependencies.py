@@ -98,34 +98,63 @@
     names packages on the configured index, and that is the trust the
     operator opts into.
 
-    THE OTHER ROUTE INTO PIP, AND WHAT THE OPT-IN REALLY BOUNDS
-    -----------------------------------------------------------
-    A plugin shipping `requirements.txt` (with `defer_dependency_install`)
-    or `requirements.post-install.txt` has caused `pip install -r` to run at
-    install time since long before this module existed. That path is NOT
-    behind `ALLOW_INSTALL_ENV_VAR`, and putting it there would break every
-    existing plugin that ships one, for a risk those plugins have always
-    carried and which the operator already took when they chose to run that
-    plugin's code.
+    THE OTHER ROUTES INTO A PACKAGE MANAGER (issue #88)
+    ---------------------------------------------------
+    Declared dependencies were never the only way plugin metadata could
+    start a package install. Since long before this module existed:
 
-    So the opt-in must not be described as "no plugin can cause a package
-    install" - that would be false, and a false security guarantee is worse
-    than none, because someone will leave the gate off believing it protects
-    them. What IS true, and what `scan_requirements_file` exists to keep
-    true, is narrower: pip is only ever handed package names, from the index
-    this installation is configured with. A requirements file is plugin
-    metadata like any other, so it gets the same treatment as a declared
-    requirement - a pip option (`--index-url` above all), a URL, a VCS
-    reference or a local path in that file refuses the whole plugin install.
-    Plain `name==version` lines, which is what real plugins ship, are
-    untouched.
+      * `requirements.post-install.txt` in the plugin zip runs
+        `pip install -r` on it, unconditionally;
+      * `requirements.txt` plus `"defer_dependency_install": true` in
+        info.json does the same, and additionally runs `npm install` and
+        `npm run build` if the plugin ships a `package.json` - which
+        executes that package.json's lifecycle scripts.
 
-    The opt-in therefore bounds *whose names* may be installed, not *whether
-    pip runs*. docs/PLUGIN-DEPENDENCIES.md says exactly that.
+    Neither was behind `ALLOW_INSTALL_ENV_VAR`, so the gate an operator
+    reads about could be off while a freshly installed plugin still drove
+    pip. Two rules, one of them invisible.
+
+    These paths are now behind the SAME gate as declared dependencies (see
+    `assert_requirements_file_install_permitted` and
+    `assert_npm_install_permitted`). That is a behaviour change, and the
+    honest measure of its cost is what it breaks in the wild: of the 56
+    plugins in the official catalog, zero ship a
+    `requirements.post-install.txt` and zero set `defer_dependency_install`.
+    54 of them ship a `requirements.txt`, but without that flag it is
+    build-time metadata for the plugin's own CI - those plugins vendor the
+    resulting `site-packages/` into their zip, and Trawlarr never reads
+    their requirements file at all. So the previous claim here, that gating
+    "would break every existing plugin that ships one", was simply wrong: it
+    counted files, not installs.
+
+    The grammar restriction stays, and is enforced even with the gate ON: a
+    requirements file is plugin metadata like any other, so a pip option
+    (`--index-url` above all), a URL, a VCS reference or a local path in
+    that file refuses the whole plugin install. Belt and braces - the gate
+    decides whether pip runs, the grammar decides what it may be told.
+
+    npm gets the gate but no grammar check. A package.json is a program,
+    not a list of names; there is no subset of it worth pretending to
+    validate. Off by default is the whole of the protection there, and
+    docs/PLUGIN-DEPENDENCIES.md says so.
+
+    And they get the same FAILURE semantics, which they did not before:
+    those two call sites ran `subprocess.call` and discarded the exit code,
+    so a pip that exited 1 - or an npm that was not installed at all - left
+    the plugin recorded as installed with its dependencies absent. That is
+    the same silently-broken plugin this module exists to prevent, arriving
+    by a different door. Every route now goes through
+    `run_package_manager`, where a missing executable, a non-zero exit and a
+    timeout all raise and abandon the install. Two consequences worth
+    stating: `npm run build` is only run when the package.json actually
+    defines that script (asking npm for a missing script exits 1), and a
+    requirements file that names nothing - empty, or only comments - is a
+    no-op rather than a refusal, because there is no pip run to gate.
 
     WHAT THIS DOES NOT DO
     ---------------------
     No lockfile, no hash pinning, no dependency resolution across plugins,
+
     no uninstall of a removed dependency (the site-packages directory is
     rebuilt from scratch on each install, so a dropped requirement
     disappears with it). No check that an installed package still imports -
@@ -274,10 +303,10 @@ def scan_requirements_file(requirements_file):
 
     A plugin shipping `requirements.txt` or `requirements.post-install.txt`
     has caused `pip install -r` to run at install time since long before this
-    module existed, and that path is not gated by
-    `ALLOW_INSTALL_ENV_VAR` - gating it would break every existing plugin
-    that ships one, for a risk they have always carried. See the boundary
-    described in docs/PLUGIN-DEPENDENCIES.md.
+    module existed. That path is now behind `ALLOW_INSTALL_ENV_VAR` too
+    (issue #88), but this check runs regardless of the gate: opting in to
+    plugin dependency installs is not opting in to letting a plugin choose
+    the index. See the boundary described in docs/PLUGIN-DEPENDENCIES.md.
 
     What is NOT acceptable, opt-in or not, is that a requirements FILE
     carries the full pip grammar: `--index-url` redirects pip at an index the
@@ -347,6 +376,179 @@ def assert_requirements_file_is_safe(plugin_id, requirements_file):
             os.path.basename(str(requirements_file)),
             'a line' if len(refused) == 1 else '{} lines'.format(len(refused)),
             detail))
+
+
+def requirement_lines(requirements_file):
+    """
+    The requirement lines of a plugin-shipped requirements file.
+
+    Comments and blank lines dropped, nothing else interpreted. Used only
+    to tell the operator what the plugin wanted, so an unreadable file is
+    an empty list rather than an error - the caller is already refusing.
+
+    :param requirements_file:
+    :return: list of str
+    """
+    try:
+        with open(requirements_file, 'r', errors='replace') as handle:
+            lines = handle.readlines()
+    except OSError:
+        logger.warning("Unable to read plugin requirements file '%s'", requirements_file, exc_info=True)
+        return []
+    stripped = (raw.split('#', 1)[0].strip() for raw in lines)
+    return [line for line in stripped if line]
+
+
+def requirements_file_asks_for_anything(requirements_file):
+    """
+    Does this requirements file actually ask pip for something?
+
+    An empty file, or one holding nothing but comments and blank lines, asks
+    for nothing. There is no pip invocation to gate and no packages to name in
+    a refusal, so the caller treats it as a no-op rather than refusing to
+    install a plugin over a file whose entire content is `# nothing here`.
+
+    An UNREADABLE file is not "nothing" and raises: we cannot tell what it
+    asks for, and guessing "nothing" would install a plugin whose
+    requirements were never read - the silent-partial-install shape this
+    module exists to avoid.
+
+    :param requirements_file:
+    :return: bool
+    :raises PluginDependencyError: if the file cannot be read
+    """
+    try:
+        with open(requirements_file, 'r', errors='replace') as handle:
+            lines = handle.readlines()
+    except OSError as exc:
+        raise PluginDependencyError(
+            "Cannot read the requirements file '{}' shipped by this plugin ({}). Refusing to install "
+            "it: an unreadable requirements file cannot be checked, and installing anyway would leave "
+            "a plugin whose imports fail the first time it runs.".format(requirements_file, exc))
+    return any(raw.split('#', 1)[0].strip() for raw in lines)
+
+
+def assert_requirements_file_install_permitted(plugin_id, requirements_file, environ=None):
+    """
+    Refuse to run pip for a plugin-shipped requirements file unless the
+    operator opted in.
+
+    Issue #88. A `requirements.post-install.txt`, or a `requirements.txt`
+    with `defer_dependency_install`, made pip run at install time with no
+    gate at all - so an operator who left `ALLOW_INSTALL_ENV_VAR` off, and
+    read the documentation saying plugin metadata could not drive pip,
+    could still get a pip install from a plugin they installed. This puts
+    that path behind the same switch as a declared dependency, so there is
+    one rule instead of two.
+
+    Raises rather than skipping the install: a plugin whose imports are
+    going to fail must not end up recorded as installed. Same reasoning as
+    `install_dependencies`, and it must be the same reasoning, or the two
+    routes diverge again.
+
+    :param plugin_id:
+    :param requirements_file:
+    :param environ: defaults to os.environ
+    :raises PluginDependencyError: if installs are not permitted
+    """
+    if installs_are_permitted(environ=environ):
+        return
+    wanted = requirement_lines(requirements_file)
+    if not wanted:
+        # The file exists but asks for nothing -- empty, or only comments.
+        # There is no package index to reach and no third-party name to
+        # trust, so there is nothing for the gate to protect against.
+        # Refusing here would turn a harmless file into a hard install
+        # failure, and say so with the self-refuting "(no requirements) ...
+        # Refusing to install the plugin - it would not work."
+        return
+    raise PluginDependencyError(
+        "Plugin '{}' ships a '{}' ({}) and installing plugin dependencies is disabled. Installing it "
+        "runs pip against a package index using names taken from a third-party plugin's files. Set "
+        "{}=true to allow it, or install these packages into the image yourself. Refusing to install "
+        "the plugin - it would not work.".format(
+            plugin_id or os.path.basename(os.path.dirname(str(requirements_file))),
+            os.path.basename(str(requirements_file)),
+            ', '.join(wanted) if wanted else 'no requirements',
+            ALLOW_INSTALL_ENV_VAR))
+
+
+def assert_npm_install_permitted(plugin_id, package_file, environ=None):
+    """
+    Refuse to run npm for a plugin-shipped package.json unless the operator
+    opted in.
+
+    Reached only through `defer_dependency_install`, alongside the pip path
+    above, and strictly the more powerful of the two: `npm install` runs
+    that package.json's lifecycle scripts, and its dependencies may name any
+    registry, git URL or tarball. There is no `scan_requirements_file`
+    equivalent here and this module does not pretend otherwise - a
+    package.json is a program, not a list of names. The gate is the whole
+    of the protection.
+
+    :param plugin_id:
+    :param package_file:
+    :param environ: defaults to os.environ
+    :raises PluginDependencyError: if installs are not permitted
+    """
+    if installs_are_permitted(environ=environ):
+        return
+    raise PluginDependencyError(
+        "Plugin '{}' ships a '{}' and installing plugin dependencies is disabled. Installing it runs "
+        "'npm install', which downloads packages the plugin names and executes their install scripts. "
+        "Set {}=true to allow it. Refusing to install the plugin - it would not work.".format(
+            plugin_id or os.path.basename(os.path.dirname(str(package_file))),
+            os.path.basename(str(package_file)),
+            ALLOW_INSTALL_ENV_VAR))
+
+
+def run_package_manager(plugin_id, description, command, cwd=None, timeout=INSTALL_TIMEOUT):
+    """
+    Run a package manager for a plugin, and make its failure terminal.
+
+    Every route from a plugin into pip or npm goes through here, so that
+    "failures are terminal, not partial" is one implementation rather than a
+    claim repeated at four call sites. A missing executable, a non-zero exit
+    and a timeout all raise `PluginDependencyError`, which abandons the
+    plugin install - a plugin whose dependencies are not on disk must not be
+    recorded as installed, because that failure would otherwise resurface as
+    an ImportError in the middle of processing a file.
+
+    Output is captured rather than inherited so the failure message can carry
+    the package manager's own diagnosis, which is always better than anything
+    this module could invent.
+
+    :param plugin_id: for the message
+    :param description: what was being attempted, e.g. "install the
+           requirements in 'requirements.txt'"
+    :param command: argv list
+    :param cwd:
+    :param timeout: seconds before the invocation is abandoned
+    :return: the CompletedProcess
+    :raises PluginDependencyError: not runnable, non-zero exit, or timed out
+    """
+    logger.info("Running '%s' for plugin '%s'", ' '.join(str(part) for part in command), plugin_id)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    except FileNotFoundError as exc:
+        raise PluginDependencyError(
+            "Cannot {} for plugin '{}': '{}' could not be run ({}).".format(
+                description, plugin_id, command[0], exc))
+    except OSError as exc:
+        raise PluginDependencyError(
+            "Cannot {} for plugin '{}': running '{}' failed ({}).".format(
+                description, plugin_id, command[0], exc))
+    except subprocess.TimeoutExpired:
+        raise PluginDependencyError(
+            "Timed out after {} seconds trying to {} for plugin '{}'.".format(
+                timeout, description, plugin_id))
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or '').strip()
+        raise PluginDependencyError(
+            "Failed to {} for plugin '{}'. '{}' exited {}:\n{}".format(
+                description, plugin_id, command[0], result.returncode, detail))
+    return result
 
 
 def site_packages_path(plugin_path):
@@ -434,24 +636,13 @@ def install_dependencies(plugin_id, plugin_path, dependencies, environ=None):
     command.extend(dependencies)
 
     logger.info("Installing declared dependencies for plugin '%s': %s", plugin_id, ', '.join(dependencies))
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=INSTALL_TIMEOUT)
-    except FileNotFoundError as exc:
-        raise PluginDependencyError(
-            "Cannot install dependencies for plugin '{}': no Python interpreter at '{}' ({}).".format(
-                plugin_id, sys.executable, exc))
-    except subprocess.TimeoutExpired:
-        raise PluginDependencyError(
-            "Timed out after {} seconds installing dependencies for plugin '{}' ({}).".format(
-                INSTALL_TIMEOUT, plugin_id, ', '.join(dependencies)))
-
-    if result.returncode != 0:
-        # pip's own diagnosis is far more useful than anything we could
-        # invent, so it goes in the message verbatim rather than the log.
-        detail = (result.stderr or result.stdout or '').strip()
-        raise PluginDependencyError(
-            "Failed to install dependencies for plugin '{}' ({}). pip exited {}:\n{}".format(
-                plugin_id, ', '.join(dependencies), result.returncode, detail))
+    # Shared with the requirements-file and npm routes: a package manager that
+    # cannot be run, exits non-zero, or hangs raises, and the plugin install is
+    # abandoned. The receipt is written only after that has NOT happened.
+    run_package_manager(
+        plugin_id,
+        "install the declared dependencies ({})".format(', '.join(dependencies)),
+        command)
 
     _write_receipt(plugin_path, dependencies)
     logger.info("Installed %s dependencies for plugin '%s' into '%s'", len(dependencies), plugin_id, target)
@@ -484,8 +675,8 @@ def check_dependencies(plugin_id, plugin_path, plugin_info):
     Are a plugin's declared dependencies present and usable, right now?
 
     Returns None when there is nothing to say - which includes the plugin
-    declaring no dependencies at all. Otherwise returns
-    `(code, severity, message)` describing exactly one problem.
+    declaring no dependencies at all. Otherwise returns `(code, message)`
+    describing exactly one problem; the caller supplies the severity.
 
     Deliberately does NOT try to import anything: importing a plugin's
     dependencies to test them runs third-party module-level code as a side
