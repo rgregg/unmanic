@@ -120,6 +120,126 @@ flattered by roughly 60 points of "covered but never asserted on".
   Unmanic generally, upstream and this fork both come out ahead if it lands in
   both places.
 
+### Pinning a call site
+
+Most of this project's escaped bugs share one shape:
+
+> The pieces are tested. The wiring between them is not.
+
+A mechanism gets built and tested thoroughly — and then the single line that
+invokes it in production is covered by nothing. Delete that line and the whole
+suite stays green while the mechanism is, in effect, gone. It has happened to
+the worker stall detector, the done-state write, the convergence check, both
+start-up guards, and the Foreman's republish after a supervised restart. Every
+one was found by mutation testing; none was found in review.
+
+The failures are silent by construction. Hung workers are never killed, files
+are reprocessed for ever, an unmigrated install comes up looking empty. Nothing
+raises, so nothing notices.
+
+**So: when you add a mechanism that something else must invoke, add a test that
+fails if the invocation is removed.**
+
+**Prefer a behavioural test.** If the machinery can be driven for one iteration
+with real objects, do that — it proves the mechanism runs *and* that its effect
+lands. `tests/unit/test_safety_mechanism_call_sites.py` has several:
+`PostProcessor.run()` is driven over exactly one task, with a bounded fake
+`event` so a broken loop fails rather than hangs, and the assertion is that the
+delivered file afterwards answers "already completed" to the check that keeps
+it out of the next scan.
+
+**Fall back to a source-level pin** when standing the machinery up would cost
+far more than it proves — `main()`, which parses `argv` and starts the whole
+application, is the canonical example. Read the function's AST for the call,
+never its source text: a call that has been commented out, or that survives
+only inside a docstring, is not a call, and a substring check cannot tell the
+difference.
+
+```python
+def _calls_made_by(func):
+    """Names of the functions called directly in `func`'s body."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(func)))
+    names = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name):
+                names.append(node.func.id)
+            elif isinstance(node.func, ast.Attribute):
+                names.append(node.func.attr)
+    return names
+
+
+def test_main_refuses_to_start_against_an_unmigrated_install():
+    from trawlarr import service
+
+    assert 'guard_against_legacy_config_directory' in _calls_made_by(service.main), (
+        "main() no longer calls guard_against_legacy_config_directory(). An "
+        "upgrade with a populated ~/.unmanic and no ~/.trawlarr will start "
+        "cleanly and present itself as a fresh install, with every library, "
+        "plugin and setting apparently gone."
+    )
+```
+
+Where ordering is part of the mechanism, pin the ordering too — the guards have
+to run *before* `Config()` creates the configuration directory, or they can no
+longer tell an unmigrated install from a fresh one:
+
+```python
+calls = _calls_made_by(service.main)
+assert calls.index('guard_against_legacy_config_directory') < calls.index('Config')
+```
+
+Three rules for either kind:
+
+- **The failure message names the consequence, not the assertion.** "The stall
+  detector is not called" is nearly useless at 3am; "hung workers are never
+  killed" is what the reader needs.
+- **Bound every loop from the outside.** A test that drives a `while True` loop
+  must make it terminate through something other than the line under test, or
+  deleting that line turns a failure into a hang.
+- **A source-level pin is a stopgap, not a destination.** Say in the docstring
+  why the behavioural version was not written, so the next person can upgrade it
+  rather than assume it was impossible.
+
+The end-to-end test in `tests/integration/test_pipeline_end_to_end.py` is the
+other half of this. It starts the service against a temp `$HOME` and a temp
+library and asserts a file is discovered, queued, processed and recorded as
+done.
+
+Its file is where the per-library allow-list regression and the
+plugins-directory regression would have been caught — both lived entirely
+between components, which is why every unit test passed while the features
+were disconnected. Note the two are caught by different tests in that file,
+and only the allow-list one by the pipeline path itself; the
+plugins-directory one is a call-site pin, because the running pipeline
+resolves plugin modules from the path stored in the database and so never
+crosses that seam. If your change touches the pipeline, run it.
+
+### Checking that a test actually catches something
+
+New tests are cheap to write and easy to write green. Before claiming a
+mechanism is covered, break it and watch the test fail:
+
+```bash
+python3 devops/mutation_check.py \
+    --file trawlarr/libs/postprocessor.py \
+    --old 'self.record_completed_file()' \
+    --new 'pass' \
+    --tests tests/unit/test_safety_mechanism_call_sites.py
+```
+
+The script copies your working tree to a temp directory, applies the
+substitution there, runs the tests you name, and reports `KILLED` (the suite
+noticed — good) or `SURVIVED` (**a finding**: nothing tests that the mutated
+line does anything). Your working tree is never modified and `HOME` is
+redirected inside the copy.
+
+Run with no arguments to re-check the catalogue of mutations that have already
+escaped once. It is deliberately not a CI job — a full mutation run is minutes
+of CPU for a signal nobody reads on a Tuesday, and a slow job on the PR path
+gets skipped and then deleted. It is a tool you point at the thing you are
+actually worried about.
+
 ### Copyright and licensing of contributions
 
 **You keep the copyright in what you write.** There is no CLA and no copyright
