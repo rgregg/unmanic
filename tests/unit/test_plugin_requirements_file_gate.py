@@ -621,3 +621,45 @@ class TestDeveloperCliReloadFromDisk:
             cli.reload_plugin_from_disk()
 
         write_db.assert_not_called()
+
+
+@pytest.mark.unittest
+class TestAFileThatAsksForNothingIsNotAThreat:
+    """The gate exists to stop pip being run against a package index using
+    names taken from a third-party plugin's files.
+
+    A requirements file that is empty, or contains only comments, names
+    nothing. There is no index to reach and no name to trust, so there is
+    nothing for the gate to protect against. Refusing it turned a harmless
+    file into a hard install failure -- the plugin would not install at all
+    under the default configuration, where on main it installed fine.
+
+    The message it produced said so itself: "ships a requirements.txt
+    (no requirements) ... Refusing to install the plugin - it would not
+    work." A refusal whose own text reports there was nothing to refuse.
+    """
+
+    def test_an_empty_requirements_file_is_a_no_op(self, tmp_path):
+        requirements = tmp_path / 'requirements.txt'
+        requirements.write_text('')
+        # Must not raise: installs are NOT permitted here (environ={}).
+        plugin_dependencies.assert_requirements_file_install_permitted(
+            'demo', str(requirements), environ={})
+
+    def test_a_comment_only_requirements_file_is_a_no_op(self, tmp_path):
+        requirements = tmp_path / 'requirements.txt'
+        requirements.write_text('# nothing here\n\n#  not even this\n')
+        plugin_dependencies.assert_requirements_file_install_permitted(
+            'demo', str(requirements), environ={})
+
+    def test_a_file_that_does_ask_for_something_is_still_gated(self, tmp_path):
+        """The guard above must not become a hole: one real requirement and
+        the refusal stands."""
+        requirements = tmp_path / 'requirements.txt'
+        requirements.write_text('# a comment\nrequests==2.31.0\n')
+        with pytest.raises(PluginDependencyError) as raised:
+            plugin_dependencies.assert_requirements_file_install_permitted(
+                'demo', str(requirements), environ={})
+        assert 'requests==2.31.0' in str(raised.value), (
+            "the refusal should name what it wanted, so an operator can decide"
+        )

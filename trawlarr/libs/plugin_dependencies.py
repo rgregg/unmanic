@@ -454,6 +454,14 @@ def assert_requirements_file_install_permitted(plugin_id, requirements_file, env
     if installs_are_permitted(environ=environ):
         return
     wanted = requirement_lines(requirements_file)
+    if not wanted:
+        # The file exists but asks for nothing -- empty, or only comments.
+        # There is no package index to reach and no third-party name to
+        # trust, so there is nothing for the gate to protect against.
+        # Refusing here would turn a harmless file into a hard install
+        # failure, and say so with the self-refuting "(no requirements) ...
+        # Refusing to install the plugin - it would not work."
+        return
     raise PluginDependencyError(
         "Plugin '{}' ships a '{}' ({}) and installing plugin dependencies is disabled. Installing it "
         "runs pip against a package index using names taken from a third-party plugin's files. Set "
