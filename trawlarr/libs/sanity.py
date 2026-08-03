@@ -206,12 +206,17 @@ class SanityResult(object):
     :ivar failures:   list of dicts with 'id' and 'message'. Non-empty means
                       the output must not be delivered.
     :ivar state:      the per-path state to persist for the next task.
-    :ivar checked:    False when there was not enough information to judge -
-                      no probe of EITHER file and no sizes, i.e. the tooling
-                      itself was unavailable. Never a failure; an unrunnable
-                      check must not block a good transcode. An output that
-                      alone cannot be probed is a different thing entirely
-                      and is a failure - see evaluate() and issue #82.
+    :ivar checked:    False when no check actually ran. Exactly two ways to
+                      get it: (a) check_task_output() was called with the
+                      feature disabled; (b) evaluate() had neither a usable
+                      pair of probes nor a usable pair of sizes. Note (b) is
+                      a pair, not "neither file probed" - one file probing
+                      and the other not is still no comparison, and the one
+                      case of that which IS a failure (source readable,
+                      output not) has already returned by the time this is
+                      decided. Never a failure; an unrunnable check must not
+                      block a good transcode. See evaluate() and issue #82.
+                      Pinned by tests/unit/test_doc_claims.py.
     :ivar output_probe: the ffprobe dict for the output file, when one was
                       obtained. Carried on the result purely so the caller can
                       hand it on rather than probing the same bytes twice -
@@ -408,11 +413,20 @@ def evaluate(source_probe, output_probe, source_size, output_size, previous_stat
     #
     # It is asked as "the INPUT probed and the OUTPUT did not", never as
     # "the output did not probe", and the difference is the whole reason this
-    # is safe to fail on. A missing ffmpeg, an unreadable mount or a build
-    # without the probe library fails both files identically and is not
-    # reported here; it still degrades to the size comparison as before.
+    # is safe to fail on. A missing ffmpeg or a build without the probe
+    # library fails both files identically, so it is not reported here; it
+    # degrades to the size comparison below when both sizes are readable, and
+    # to checked=False when they are not.
+    #
+    # Storage faults are NOT in that exempt set, and the earlier wording that
+    # put them there was wrong: the source and the output live on different
+    # mounts (library and cache), so a mount going away can perfectly well
+    # fail one probe and not the other. When it is the output's mount, this
+    # fires - which is correct. An output nobody can read is not a delivery.
+    #
     # Only a task that demonstrably had a readable file to work from and
     # produced something unreadable trips this.
+    # Pinned by tests/unit/test_doc_claims.py.
     if source_readable and not output_readable:
         failures.append({
             'id':      CHECK_UNPROBEABLE_OUTPUT,

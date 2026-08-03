@@ -104,9 +104,10 @@ auditing what we've changed:
   on plugin commands, postprocessor source-removal ordering.
 - Build/test/smoke CI workflows (`.github/workflows/`) and a `HEALTHCHECK`
   in the Dockerfile.
-- Test infrastructure: pytest + coverage configured to run on every push,
-  311 unit tests pinning the invariants this fork relies on so a careless
-  edit doesn't silently re-introduce upstream behaviour.
+- Test infrastructure: pytest + coverage configured to run on every push.
+  `tests/unit/` pins the invariants this fork relies on so a careless edit
+  doesn't silently re-introduce upstream behaviour; `tests/integration/`
+  follows a real file through the whole pipeline. Both gate every PR.
 - **The internal namespace renamed to `trawlarr`** (issue #49) — see
   [The rename](#the-rename-issue-49) below.
 

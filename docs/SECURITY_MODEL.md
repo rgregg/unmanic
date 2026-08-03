@@ -33,7 +33,10 @@ Consequences worth stating explicitly:
   a page in a user's browser can issue requests to a Trawlarr instance
   that browser can reach.
 - **The API surface is the whole application.** Swagger UI is served
-  at `/trawlarr/swagger` and documents every endpoint.
+  at `/trawlarr/swagger` and documents the whole v2 API — which is
+  everything the web UI itself uses. (The inherited v1 routes are not in
+  it; they are retired and answer `410 Gone`. Not being documented is
+  not a protection either way.)
 - **The default bind address is every interface.** `ui_address`
   defaults to `''` and `ui_port` to `8888` (`trawlarr/config.py`), so
   an unconfigured install listens on `0.0.0.0:8888`. Publishing that
@@ -47,8 +50,8 @@ can reach the port can, among other things:
 
 - **Run arbitrary code on the host.** Plugins execute inside the
   Trawlarr process, and the upload API
-  (`/trawlarr/api/v2/upload/plugin`) accepts a plugin zip and installs
-  it. Plugin install is remote code execution as the container user,
+  (`/trawlarr/api/v2/upload/plugin/file`) accepts a plugin zip and
+  installs it. Plugin install is remote code execution as the container user,
   by design. If
   `TRAWLARR_ALLOW_PLUGIN_DEPENDENCY_INSTALL` is enabled, installing a
   plugin can additionally run `pip install` for package names taken
@@ -56,9 +59,14 @@ can reach the port can, among other things:
   [`PLUGIN-DEPENDENCIES.md`](PLUGIN-DEPENDENCIES.md). That setting is
   off by default, and it now covers every route from a plugin into a
   package manager: `python_dependencies` in its `info.json`, a
-  `requirements.post-install.txt` or `requirements.txt` in its zip, and
-  the `npm install` that a shipped `package.json` triggers. With it off,
-  a plugin that wants any of those is refused rather than installed.
+  `requirements.post-install.txt` in its zip, and — when the plugin also
+  sets `"defer_dependency_install": true` — a `requirements.txt` and the
+  `npm install` that a shipped `package.json` triggers. With the flag
+  off, a plugin that asks for any of those is refused rather than
+  installed. A `requirements.txt` *without* `defer_dependency_install`
+  is not a route into pip at all: Trawlarr never reads it, so nothing is
+  gated and nothing runs. See
+  [`PLUGIN-DEPENDENCIES.md`](PLUGIN-DEPENDENCIES.md) for the full table.
   With it on, pip is still only ever given package names — never a URL,
   a path, or an index option — so a plugin cannot choose where Python
   packages are fetched from. No equivalent limit exists for npm: a

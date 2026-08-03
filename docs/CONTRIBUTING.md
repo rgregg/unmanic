@@ -83,10 +83,23 @@ Coverage floors here are a **ratchet, not a target**. The rule:
 
 Where the floors live:
 
-| Suite    | Floor                                                     | Value               | Measured on `main`         |
-| -------- | --------------------------------------------------------- | ------------------- | -------------------------- |
-| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          | 41.76% lines (487 tests)   |
-| Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js`  | 20 (functions)      | 20.5% functions (25 tests) |
+| Suite    | Floor                                                     | Value               |
+| -------- | --------------------------------------------------------- | ------------------- |
+| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          |
+| Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js`  | 20 (functions)      |
+
+The **Value** column is pinned to those two files by
+`tests/unit/test_doc_claims.py`, so raising a floor without updating this
+table fails the build. There is deliberately no "measured on `main`"
+column: it was here, it went stale within a fortnight — 41.76% and 487
+tests, against 52%+ and 900+ tests a few weeks later — and a stale
+measurement is exactly the reader-checks-the-doc-instead-of-the-code
+failure this project keeps hitting. Run the suite; it prints the number.
+
+> **The Python floor is currently well under the measurement**, which is
+> the ratchet not being turned rather than the rule being different. If
+> your PR is a good moment to turn it, turn it — and update the value
+> above in the same commit.
 
 The Python job does the nagging for you. When measured coverage runs more than
 three points ahead of the floor, the run emits a notice and a job-summary line
@@ -98,8 +111,9 @@ The suggested value is `floor(measured - 0.5)`. Half a point of slack is
 deliberate: a floor set a hundredth of a point under the measurement is a
 tripwire that ordinary work sets off, and a tripwire people disarm is worse than
 no floor at all. The measurement also drifts a few hundredths of a point with the
-interpreter version (41.76% on CI's Python 3.10, 41.72% on a 3.12 checkout), so
-quote the CI number when you raise the floor.
+interpreter version — when the floor was last set it read 41.76% on CI's Python
+3.10 and 41.72% on a 3.12 checkout — so quote the CI number when you raise the
+floor, not your laptop's.
 
 For the frontend, read **functions** as the honest number. v8 marks a module's
 top-level statements covered merely for having been imported, and the router
@@ -239,6 +253,100 @@ escaped once. It is deliberately not a CI job — a full mutation run is minutes
 of CPU for a signal nobody reads on a Tuesday, and a slow job on the PR path
 gets skipped and then deleted. It is a tool you point at the thing you are
 actually worried about.
+
+### Pinning a documented claim
+
+The call-site section above is about a mechanism nothing invokes. This one is
+the same failure with the words swapped:
+
+> The code is tested. The sentence describing it is not.
+
+In one working session six documents asserted a guarantee the code did not
+provide. Every one was checkable in under a minute; none had been checked. A
+sample: "leave the flag off and no plugin can cause a package install at all"
+(a second, ungated route existed); "anything calling the old `/unmanic/api/v2/`
+path gets a 404" (it was a permanent 301 to the dashboard, which browsers
+cached); "this is terminal for the life of the process" (the budget was a
+rolling window and refilled). None was written carelessly. Several were written
+by someone who had just verified the surrounding code by execution and still
+got the prose wrong, because prose is not run.
+
+Two documented behaviours in this repo have never drifted, and they are the two
+that are **derived from the code rather than described**: the migration
+commands in `README.md` and `FORK.md` are byte-compared against
+`runtimepaths.legacy_config_migration_command_lines()`, and the `UNMANIC_*` →
+`TRAWLARR_*` table is parametrised from `envvars.RENAMED_ENV_VARS`. When each
+of those changed, a test went red and the document was fixed in the same
+commit. That is the whole technique.
+
+**So: a documented sentence asserting a status code, a path, a default, a
+refusal, or a "never"/"always" needs one of four things done to it.** In
+descending order of preference:
+
+**1. Generate it.** If the claim is a command, a path, a table of names or a
+default, emit it from the code that owns it and compare byte-for-byte:
+
+```python
+def test_the_readme_documents_the_command_the_application_prints():
+    expected = runtimepaths.legacy_config_migration_command_lines('/config')
+    readme = _read('README.md')
+    for line in expected:
+        assert line in readme
+```
+
+**2. Pin it.** When it cannot be generated, assert it — and quote the sentence
+in the test, so a reviewer editing the prose can find the assertion by
+grepping for their own words:
+
+```python
+def test_the_retired_api_prefix_404s_rather_than_redirecting(self, app):
+    # README.md: "Anything calling the old `/unmanic/api/v2/` path gets a
+    # **404** — not a redirect."
+    assert _handler_for(app, '/unmanic/api/v2/version') is NotFoundHandler, (
+        'The retired prefix answers a redirect again. A browser or `curl -L` '
+        'caches a permanent redirect, so an API client that once hit the old '
+        'path is handed the dashboard HTML for as long as its cache lives.'
+    )
+```
+
+`tests/unit/test_doc_claims.py` is where these live, one test per sentence.
+`tests/unit/test_security_model_docs.py` predates it and does the same job for
+`SECURITY_MODEL.md`.
+
+**3. Bound it.** Most false claims here were true statements that had outgrown
+their subject — a blanket "the pipeline threads" over a set where only one is
+actually checked live, a "no plugin can" over a set of routes that had quietly
+grown to four. Say which cases it holds for. A narrow true claim beats a broad
+nearly-true one.
+
+**4. Delete it.** *A claim nobody will maintain is worse than silence, because
+a reader checks the doc instead of the code.* Silence sends them to the source;
+a stale sentence stops them looking. Counts, coverage percentages and
+measurements of other people's repositories are the usual candidates — if you
+keep one, give it a date and the command that reproduces it, and say plainly
+that nothing keeps it true.
+
+Two practical notes:
+
+- **Pin the claim, not the wording.** Assert the behaviour and put the
+  sentence in a comment. A test that string-matches the prose fails on a typo
+  fix, and a test everyone learns to "fix" by editing the expected string is
+  worse than no test.
+- **The failure message names the consequence**, same rule as call-site pins.
+  "The doc says 404" is useless; "an API client is handed dashboard HTML from
+  a cached permanent redirect" is what the reader needs.
+
+`devops/doc_claims.py` lists which sentences are currently pinned and by what,
+and re-runs the network measurements that cannot live in CI:
+
+```bash
+python3 devops/doc_claims.py                          # inventory
+python3 devops/doc_claims.py --survey-plugin-catalog  # re-measure the upstream catalog
+```
+
+Like `mutation_check.py`, it is deliberately not a gate — the assertions
+themselves are ordinary unit tests and already run on every PR; this is the
+map, and the one measurement CI cannot make.
 
 ### Copyright and licensing of contributions
 

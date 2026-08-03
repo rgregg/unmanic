@@ -117,15 +117,27 @@
     These paths are now behind the SAME gate as declared dependencies (see
     `assert_requirements_file_install_permitted` and
     `assert_npm_install_permitted`). That is a behaviour change, and the
-    honest measure of its cost is what it breaks in the wild: of the 56
-    plugins in the official catalog, zero ship a
-    `requirements.post-install.txt` and zero set `defer_dependency_install`.
-    54 of them ship a `requirements.txt`, but without that flag it is
-    build-time metadata for the plugin's own CI - those plugins vendor the
-    resulting `site-packages/` into their zip, and Trawlarr never reads
-    their requirements file at all. So the previous claim here, that gating
-    "would break every existing plugin that ships one", was simply wrong: it
-    counted files, not installs.
+    honest measure of its cost is what it breaks in the wild. Measured on
+    2026-08-02 by unpacking all 56 published zips in the official catalog
+    (`devops/doc_claims.py --survey-plugin-catalog` re-runs it):
+
+      * zero ship a `requirements.post-install.txt`;
+      * zero set `defer_dependency_install`, so Trawlarr never reads a
+        catalog plugin's `requirements.txt` at all;
+      * 54 ship a `requirements.txt`, of which 38 name nothing - they are
+        empty or comments only - and 16 name packages. All 16 of those, and
+        only those, also ship a vendored `site-packages/` in the zip.
+
+    So no plugin in the catalog changes behaviour under the gate, and the
+    previous claim here, that gating "would break every existing plugin that
+    ships one", was counting files rather than installs.
+
+    An earlier version of this paragraph said the 54 requirements-shipping
+    plugins vendor `site-packages/` into their zip. Measured, 38 of them do
+    not - they just ship an empty file. The conclusion held; the reason
+    given for it did not. This is a snapshot of somebody else's repository,
+    so it carries its date and its method rather than pretending to be an
+    invariant: nothing in this tree can keep it true.
 
     The grammar restriction stays, and is enforced even with the gate ON: a
     requirements file is plugin metadata like any other, so a pip option
