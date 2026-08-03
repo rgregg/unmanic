@@ -52,7 +52,7 @@ jobs:
       # refactoring noise does not trip it, small enough that a real
       # regression does. The drift check prints a reminder once actual
       # coverage runs more than PYTHON_COVERAGE_DRIFT points ahead.
-      PYTHON_COVERAGE_FLOOR: "41"
+      PYTHON_COVERAGE_FLOOR: "51"
       PYTHON_COVERAGE_DRIFT: "3"
 
     steps:

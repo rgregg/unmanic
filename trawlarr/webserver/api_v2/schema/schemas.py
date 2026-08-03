@@ -1628,6 +1628,262 @@ class PluginsDataPanelTypesDataSchema(BaseSchema):
     )
 
 
+# REPROCESS
+# =========
+
+class RequestReprocessSelectionSchema(BaseSchema):
+    """Schema for describing which files a reprocess request applies to"""
+
+    library_id = fields.Int(
+        required=False,
+        allow_none=True,
+        description=(
+            "Restrict the selection to files completed by this library. Either this or "
+            "`path_glob` is required - an unscoped reprocess request is refused."
+        ),
+        example=1,
+    )
+    path_glob = fields.Str(
+        required=False,
+        allow_none=True,
+        description=(
+            "fnmatch pattern applied to the absolute path. `*` crosses directory separators, "
+            "so '/library/TV/*.mkv' also matches files in sub-directories."
+        ),
+        example="/library/TV/*.mkv",
+    )
+    match_file_test = fields.Boolean(
+        required=False,
+        load_default=False,
+        description=(
+            "Additionally require that the library's file-test plugins currently want the file. "
+            "This is what answers 'which of these already-processed files would the NEW rules pick "
+            "up?'. It runs those plugins - which probe - against every candidate, so it is much "
+            "slower than the other filters."
+        ),
+        example=False,
+    )
+    include_failed = fields.Boolean(
+        required=False,
+        load_default=False,
+        description=(
+            "Also act on files blacklisted by a failed history entry. The file test checks failed "
+            "history independently of the completed state, so those files are otherwise reported as "
+            "blocked and left alone. Acting on them DELETES the failed history rows, which deletes "
+            "their diagnostics and resets the retry guard's consecutive-failure count for the file."
+        ),
+        example=False,
+    )
+    clear_convergence = fields.Boolean(
+        required=False,
+        load_default=False,
+        description=(
+            "Also clear any non-convergence records for the selected files. Off by default: the "
+            "occurrence count on those records only advances across deliberate reprocesses, so "
+            "clearing it every time would stop it ever reporting a file that never converges."
+        ),
+        example=False,
+    )
+    force = fields.Boolean(
+        required=False,
+        load_default=False,
+        description=(
+            "Ignore the cooldown that skips files reprocessed within the last `cooldown_hours`. "
+            "Repeatedly invalidating the same files is what a reprocess loop looks like, so this "
+            "is opt-in and every use is logged."
+        ),
+        example=False,
+    )
+    cooldown_hours = fields.Int(
+        required=False,
+        load_default=24,
+        description="How recently a file must have been reprocessed to be skipped. 0 disables the cooldown.",
+        example=24,
+        validate=validate.Range(min=0),
+    )
+    limit = fields.Int(
+        required=False,
+        load_default=200,
+        description="How many selected and skipped files to list individually. The counts are always complete.",
+        example=200,
+        validate=validate.Range(min=1),
+    )
+
+
+class RequestReprocessApplySchema(RequestReprocessSelectionSchema):
+    """Schema for carrying out a reprocess request"""
+
+    confirm_count = fields.Int(
+        required=True,
+        description=(
+            "The number of files the preview reported as selected. The request is refused unless "
+            "this matches what the same filter selects now, so nothing can be invalidated without "
+            "having been previewed first."
+        ),
+        example=12,
+        validate=validate.Range(min=0),
+    )
+
+
+class ReprocessFileSchema(BaseSchema):
+    """Schema for one file in a reprocess selection"""
+
+    abspath = fields.Str(
+        required=True,
+        description="Absolute path of the file",
+        example="/library/TV/Show/S01E01.mkv",
+    )
+    library_id = fields.Int(
+        required=True,
+        example=1,
+    )
+    completed_at = fields.Number(
+        required=False,
+        allow_none=True,
+        description="When the completion record being invalidated was written",
+        example=1627392616.6400812,
+    )
+    task_id = fields.Int(
+        required=False,
+        allow_none=True,
+        example=1,
+    )
+    has_completion_state = fields.Boolean(
+        required=True,
+        description="Whether this file has a completed-successfully record to invalidate",
+        example=True,
+    )
+    failed_history_rows = fields.Int(
+        required=True,
+        description="How many failed history entries blacklist this file",
+        example=0,
+    )
+    previous_reprocesses = fields.Int(
+        required=True,
+        description="How many times this file has already been reprocessed. A number that keeps climbing is a loop.",
+        example=0,
+    )
+    last_reprocessed_at = fields.Number(
+        required=False,
+        allow_none=True,
+        example=1627392616.6400812,
+    )
+    skip_reason = fields.Str(
+        required=False,
+        allow_none=True,
+        description=(
+            "Why this file was not selected: file_missing, already_queued, blocked_by_failed_history, "
+            "recently_reprocessed, file_test_no_match or file_test_error. Null for selected files."
+        ),
+        example="blocked_by_failed_history",
+    )
+    skip_detail = fields.Str(
+        required=False,
+        allow_none=True,
+        description="The same reason written out for a human",
+        example="",
+    )
+
+
+class ReprocessFilterSchema(BaseSchema):
+    """Schema for the filter a reprocess selection was built from"""
+
+    library_id = fields.Int(required=False, allow_none=True, example=1)
+    path_glob = fields.Str(required=False, allow_none=True, example="/library/TV/*.mkv")
+    match_file_test = fields.Boolean(required=True, example=False)
+    include_failed = fields.Boolean(required=True, example=False)
+    clear_convergence = fields.Boolean(required=True, example=False)
+    force = fields.Boolean(required=True, example=False)
+    cooldown_hours = fields.Int(required=False, allow_none=True, example=24)
+    description = fields.Str(
+        required=True,
+        description="The filter rendered as one line, as it appears in the log and in the audit trail",
+        example="library_id=1, path_glob='/library/TV/*.mkv'",
+    )
+
+
+class ReprocessCountsSchema(BaseSchema):
+    """Schema for the counts of a reprocess selection"""
+
+    candidates = fields.Int(
+        required=True,
+        description="Files with recorded state that the filter matched, before any file was ruled out",
+        example=40,
+    )
+    selected = fields.Int(
+        required=True,
+        description="Files that would be (or were) invalidated. This is the number `confirm_count` must equal.",
+        example=12,
+    )
+    skipped = fields.Int(
+        required=True,
+        example=28,
+    )
+    completion_records = fields.Int(
+        required=True,
+        description="Of the selected files, how many have a completed-successfully record",
+        example=12,
+    )
+    failed_history_rows = fields.Int(
+        required=True,
+        description="Of the selected files, how many failed history rows would be deleted",
+        example=0,
+    )
+
+
+class ReprocessAppliedSchema(BaseSchema):
+    """Schema for what a reprocess request actually changed"""
+
+    completion_records_cleared = fields.Int(required=True, example=12)
+    failed_history_rows_deleted = fields.Int(required=True, example=0)
+    convergence_records_cleared = fields.Int(required=True, example=0)
+    files = fields.List(
+        cls_or_instance=fields.Str,
+        required=True,
+        description="Every path whose recorded state was invalidated",
+        example=["/library/TV/Show/S01E01.mkv"],
+    )
+
+
+class ReprocessSelectionSchema(BaseSuccessSchema):
+    """Schema for returning what a reprocess request would act on"""
+
+    filter = fields.Nested(ReprocessFilterSchema, required=True)
+    counts = fields.Nested(ReprocessCountsSchema, required=True)
+    skipped_reasons = fields.Dict(
+        required=True,
+        keys=fields.Str(),
+        values=fields.Int(),
+        description="Skipped file counts grouped by reason",
+        example={"blocked_by_failed_history": 2},
+    )
+    selected = fields.List(
+        cls_or_instance=fields.Nested(ReprocessFileSchema),
+        required=True,
+        description="The files that would be invalidated, capped at `listing_limit`",
+    )
+    skipped = fields.List(
+        cls_or_instance=fields.Nested(ReprocessFileSchema),
+        required=True,
+        description="The files that would not be, and why, capped at `listing_limit`",
+    )
+    listing_limited = fields.Boolean(
+        required=True,
+        description="True when one of the lists above was truncated. The counts are still complete.",
+        example=False,
+    )
+    listing_limit = fields.Int(
+        required=True,
+        example=200,
+    )
+
+
+class ReprocessAppliedResultSchema(ReprocessSelectionSchema):
+    """Schema for returning what a reprocess request changed"""
+
+    applied = fields.Nested(ReprocessAppliedSchema, required=True)
+
+
 # SESSION
 # =======
 

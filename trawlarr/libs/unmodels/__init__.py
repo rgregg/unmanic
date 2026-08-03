@@ -38,6 +38,7 @@ from .enabledplugins import EnabledPlugins
 from .filecompletionstate import FileCompletionState
 from .fileconvergencestate import FileConvergenceState
 from .filemetadata import FileMetadata
+from .filereprocessstate import FileReprocessState
 from .filemetadatapaths import FileMetadataPaths
 from .filesanitystate import FileSanityState
 from .installation import Installation

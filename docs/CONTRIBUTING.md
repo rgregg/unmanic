@@ -85,7 +85,7 @@ Where the floors live:
 
 | Suite    | Floor                                                     | Value               | Measured on `main`         |
 | -------- | --------------------------------------------------------- | ------------------- | -------------------------- |
-| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          | 41.76% lines (487 tests)   |
+| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 51 (lines)          | 53.1% lines (969 tests)    |
 | Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js`  | 20 (functions)      | 20.5% functions (25 tests) |
 
 The Python job does the nagging for you. When measured coverage runs more than
