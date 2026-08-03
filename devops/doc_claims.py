@@ -41,10 +41,31 @@
 
       1. An INVENTORY. `doc_claims.py` with no arguments prints every
          documented claim that currently has a pin, the file it lives in and
-         the test that defends it - and, more usefully, checks that each
-         named test still exists. A reviewer looking at a documentation diff
-         can ask "is this sentence one of the pinned ones?" and get an
+         the test that defends it. A reviewer looking at a documentation
+         diff can ask "is this sentence one of the pinned ones?" and get an
          answer without reading the whole suite.
+
+         An inventory that lies is worse than none, and the first version of
+         this one did: its only check was that a file with the named path
+         EXISTED, so it printed `[ok]` beside a row claiming
+         `tests/unit/test_env_vars.py` pinned the README's env-var table
+         when nothing in that file had ever read the README. A check of
+         "a file with this name exists" certifies anything.
+
+         So every row now carries EVIDENCE: literal strings that must appear
+         in the named test's source - the document it reads, the symbol it
+         compares against. The row is verified by finding them, and a row
+         that names a class must name one the file defines. A claim nobody
+         can check that way is marked `[??] unverified` and says why; it is
+         never printed as `ok`. `tests/unit/test_doc_claims.py` runs this
+         verification, so a row that rots fails the suite rather than
+         waiting for someone to run the script.
+
+         Evidence is a necessary condition, not a sufficient one - it
+         proves the test is looking at the right thing, not that it asserts
+         the right thing about it. The sufficient check is the one
+         docs/CONTRIBUTING.md describes: break the behaviour with
+         `devops/mutation_check.py` and watch the test fail.
 
       2. The MEASUREMENTS CI CANNOT MAKE. One claim in
          docs/PLUGIN-DEPENDENCIES.md is a survey of somebody else's
@@ -65,8 +86,10 @@
     date is a claim nobody can check.
 """
 import argparse
+import collections
 import json
 import os
+import re
 import sys
 import tempfile
 import zipfile
@@ -76,134 +99,208 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 REPO_JSON_URL = 'https://raw.githubusercontent.com/Unmanic/unmanic-plugins/repo/repo.json'
 
 
-#: The inventory. Each entry: the document, a short form of the claim, and
-#: the test that fails when it stops being true.
+#: One row of the inventory.
+#:
+#:   document  - where the sentence lives.
+#:   claim     - a short form of it.
+#:   tests     - the test(s) that fail when it stops being true, each as
+#:               `path` or `path::ClassName`. More than one when the claim
+#:               spans them: "all four routes are gated" is not pinned by a
+#:               file that only knows about three of them.
+#:   evidence  - literal strings that must appear in those tests' combined
+#:               source. This is what makes the row checkable: the document
+#:               the test reads, the symbol it compares against, the path it
+#:               asserts. Empty means "cannot be checked mechanically", and
+#:               the row is reported as UNVERIFIED rather than ok.
+#:   why       - required when `evidence` is empty: why not.
+Claim = collections.namedtuple('Claim', 'document claim tests evidence why')
+
+
+def pinned(document, claim, tests, evidence=(), why=''):
+    assert evidence or why, 'An unverifiable row must say why: {}'.format(claim)
+    if isinstance(tests, str):
+        tests = [tests]
+    return Claim(document, claim, tuple(tests), tuple(evidence), why)
+
+
+#: The inventory.
 #:
 #: Keep this list honest rather than complete-looking. If you pin a claim,
-#: add it. If you delete a claim, delete the row. A row naming a test that
-#: does not exist is reported as an error below, which is the only automatic
-#: check this script performs.
+#: add it with the evidence that proves the test is looking at it. If you
+#: delete a claim, delete the row. Rows are verified by `verify()` below and
+#: by tests/unit/test_doc_claims.py, so a stale row is a red suite.
 PINNED_CLAIMS = [
-    (
+    pinned(
         'README.md',
         'The retired /unmanic/api/v2/ prefix answers 404, not a redirect',
         'tests/unit/test_doc_claims.py::TestTheRetiredApiPrefixIsATerminal404',
+        evidence=['/unmanic/api/v2/version', 'NotFoundHandler'],
     ),
-    (
+    pinned(
         'README.md',
         'http://<host>:8888/ redirects to /trawlarr/ui/dashboard/',
         'tests/unit/test_doc_claims.py::TestTheDocumentedConvenienceRedirects',
+        evidence=['/trawlarr/ui/dashboard/', 'RedirectHandler'],
     ),
-    (
+    pinned(
         'README.md',
         'The migration command block is what the application prints',
         'tests/unit/test_runtime_paths.py',
+        evidence=['README.md', 'legacy_config_migration_command_lines'],
     ),
-    (
+    pinned(
         'README.md',
         'The UNMANIC_* -> TRAWLARR_* table is the full inventory (eight)',
         'tests/unit/test_env_vars.py',
+        # This is the row that was certified pinned and was not. The
+        # evidence is the two things a real pin has to touch: the document
+        # the table is in, and the dict it has to equal.
+        evidence=['README.md', 'Renaming the environment variables',
+                  'RENAMED_ENV_VARS'],
     ),
-    (
+    pinned(
         'README.md',
-        'The quickstart pulls a tag FORK.md agrees exists',
+        'The quickstart pulls a tag the build workflow actually publishes',
         'tests/unit/test_doc_claims.py::TestTheImageTagTheReadmeTellsYouToPull',
+        evidence=['docker pull ghcr', 'build.yml'],
     ),
-    (
+    pinned(
         'README.md / docs/DEVELOPING.md',
         'Config dir, database, API prefix, env prefix in the rename tables',
         'tests/unit/test_doc_claims.py::TestTheDocumentedRuntimeNames',
+        evidence=['runtimepaths.APP_DIR_NAME', 'IGNORE_LEGACY_CONFIG_ENV_VAR'],
     ),
-    (
+    pinned(
         'docs/SECURITY_MODEL.md',
         'Nothing in the request path authenticates',
         'tests/unit/test_doc_claims.py::TestNothingInTheRequestPathAuthenticates',
+        evidence=['tornado.web.authenticated', 'get_current_user'],
     ),
-    (
+    pinned(
         'docs/SECURITY_MODEL.md',
         'No xsrf_cookies, no cookie_secret, no auth headers',
         'tests/unit/test_security_model_docs.py::TestDocumentedAuthBehaviour',
+        evidence=['xsrf_cookies', 'cookie_secret'],
     ),
-    (
+    pinned(
+        'docs/SECURITY_MODEL.md',
+        'Of the inherited v1 API only /session/* is retired; pending, history,'
+        ' plugins and filebrowser are live and unauthenticated',
+        'tests/unit/test_doc_claims.py::TestTheInheritedV1ApiSurface',
+        evidence=['api_v1', 'ApiPendingHandler', 'ApiFilebrowserHandler',
+                  'set_status(410'],
+    ),
+    pinned(
         'docs/SECURITY_MODEL.md',
         'ui_address defaults to \'\' and ui_port to 8888',
         'tests/unit/test_doc_claims.py::TestTheDocumentedDefaultBindAddress',
+        evidence=['ui_address', 'ui_port', '8888'],
     ),
-    (
+    pinned(
         'docs/SECURITY_MODEL.md',
         'The Caddy example publishes no Trawlarr port and authenticates *',
         'tests/unit/test_security_model_docs.py::TestReverseProxyExample',
+        evidence=['Caddyfile', 'basic_auth'],
     ),
-    (
+    pinned(
         'docs/SECURITY_MODEL.md',
         'docker-compose-ssl.yml binds to loopback only',
         'tests/unit/test_security_model_docs.py::TestTlsTestFixtureStaysLoopback',
+        evidence=['docker-compose-ssl.yml', '127.0.0.1'],
     ),
-    (
+    pinned(
         'docs/SECURITY_MODEL.md',
         'The plugin upload route path, and the Swagger UI path',
         'tests/unit/test_doc_claims.py::TestTheDocumentedRoutePaths',
+        evidence=['/upload/plugin/file', 'swagger'],
     ),
-    (
+    pinned(
         'docs/AUTOMATION.md',
         'busy is false only when every worker is idle and all counts are zero',
         'tests/unit/test_activity_api.py',
+        evidence=['busy', 'idle'],
     ),
-    (
+    pinned(
         'docs/AUTOMATION.md',
         'An undeterminable state is a 500, never {"busy": false}',
         'tests/unit/test_activity_api.py',
+        evidence=['500', 'busy'],
     ),
-    (
+    pinned(
         'docs/AUTOMATION.md',
         'The three supervised pipeline threads; giving up on one is terminal;'
         ' only the Foreman is checked live',
         'tests/unit/test_doc_claims.py::TestTheActivityGateThreadClaims',
+        evidence=['CRITICAL_THREADS', 'forget_restarts', 'PostProcessor'],
     ),
-    (
+    pinned(
         'docs/AUTOMATION.md',
         'The /activity/status and workers pause/all route paths',
         'tests/unit/test_doc_claims.py::TestTheDocumentedRoutePaths',
+        evidence=['/activity/status', '/workers/worker/pause/all'],
     ),
-    (
+    pinned(
         'docs/PLUGIN-DEPENDENCIES.md',
         'All four package-manager routes are behind the one flag',
-        'tests/unit/test_plugin_requirements_file_gate.py',
+        # Two files, because the claim is about four routes and the
+        # file-gate suite knows about three of them. The single-file version
+        # of this row passed the old "does a file with this name exist"
+        # check while `python_dependencies` -- the fourth route, and the one
+        # the document lists first -- appeared nowhere in it.
+        ['tests/unit/test_plugin_requirements_file_gate.py',
+         'tests/unit/test_plugin_declared_dependencies.py'],
+        evidence=['requirements.post-install.txt', 'defer_dependency_install',
+                  'package.json', 'python_dependencies'],
     ),
-    (
+    pinned(
         'docs/PLUGIN-DEPENDENCIES.md',
         'A requirements file naming nothing is a no-op, not a refusal',
         'tests/unit/test_plugin_requirements_file_gate.py',
+        evidence=['is_a_no_op'],
     ),
-    (
+    pinned(
         'docs/PLUGIN-DEPENDENCIES.md',
         'Failures are terminal: no plugin record is written',
         'tests/unit/test_plugin_requirements_file_gate.py',
+        evidence=['no plugin record'],
     ),
-    (
+    pinned(
         'docs/PLUGIN-DEPENDENCIES.md',
         'site-packages path and receipt filename, and the opt-in variable name',
         'tests/unit/test_doc_claims.py::TestThePluginDependencyPaths',
+        evidence=['site-packages', '.trawlarr-plugin-deps.json',
+                  'ALLOW_INSTALL_ENV_VAR'],
     ),
-    (
+    pinned(
         'docs/CONTRIBUTING.md',
         'The coverage floor values match the workflow and vitest.config.js',
         'tests/unit/test_doc_claims.py::TestTheCoverageFloorsInContributing',
+        evidence=['CONTRIBUTING.md', 'PYTHON_COVERAGE_FLOOR', 'vitest.config.js'],
     ),
-    (
+    pinned(
         'docs/CONTRIBUTING.md',
-        'The worked mutation_check.py invocation still mutates something',
+        'The worked mutation_check.py invocation is one that still applies,'
+        ' and the commands it tells you to run exist',
         'tests/unit/test_doc_claims.py::TestTheDocumentedToolInvocations',
+        evidence=['CONTRIBUTING.md', 'mutation_check.py', '--old'],
     ),
-    (
+    pinned(
+        'devops/doc_claims.py',
+        'Every row of this inventory names a test that pins what it claims',
+        'tests/unit/test_doc_claims.py::TestThisInventoryIsHonest',
+        evidence=['doc_claims', 'PINNED_CLAIMS', 'verify'],
+    ),
+    pinned(
         'trawlarr/libs/sanity.py',
         'What checked=False means, and which probe failures are a failure',
         'tests/unit/test_doc_claims.py::TestTheSanityCheckComments',
+        evidence=['sanity.evaluate', 'checked'],
     ),
-    (
-        'all six documents',
+    pinned(
+        'all seven documents',
         'Every relative link resolves to a file that exists',
         'tests/unit/test_doc_claims.py::TestEveryRelativeLinkInTheDocsResolves',
+        evidence=['SECURITY_MODEL.md', 'os.path.exists'],
     ),
 ]
 
@@ -222,9 +319,10 @@ UNPINNED_CLAIMS = [
     (
         'README.md / FORK.md',
         'Which image tags exist in GHCR right now',
-        'Registry state, not repository state. The cross-document consistency '
-        'of the tag the README recommends IS pinned; what is actually pushed '
-        'is not.',
+        'Registry state, not repository state -- and whether a GitHub Release '
+        'has ever fired is release state, which the repository cannot see '
+        'either. What IS pinned is that the tag the README quickstart hands a '
+        'new user is one build.yml pushes on every merge to main.',
     ),
     (
         'docs/DEVELOPING.md',
@@ -242,36 +340,112 @@ UNPINNED_CLAIMS = [
 ]
 
 
-def _relative_test_target(target):
-    return target.split('::', 1)[0]
+#: The result of checking one row. `status` is 'ok', 'unverified' or
+#: 'broken'; `detail` says what is wrong when it is not ok.
+Verdict = collections.namedtuple('Verdict', 'status detail')
+
+
+def _split_target(target):
+    """`path::ClassName` -> (path, 'ClassName' or None)."""
+    if '::' in target:
+        path, _, name = target.partition('::')
+        return path, name
+    return target, None
+
+
+def verify(claim):
+    """Check that the tests named by `claim` plausibly pin it.
+
+    Three things, in increasing order of usefulness:
+
+      1. The test file exists. (The old check, and the whole of it.)
+      2. If the row names a class, the file defines that class. A renamed
+         class leaves a row pointing at nothing.
+      3. Every evidence string appears somewhere in the named tests. This
+         is the one that matters: it is what tells the difference between a
+         test that reads README.md and a test that merely lives in a file
+         whose name mentions the same subject.
+
+    Necessary, not sufficient. Evidence proves the test is looking at the
+    right thing. Only mutation testing proves it would notice.
+    """
+    combined = []
+    for target in claim.tests:
+        relpath, class_name = _split_target(target)
+        path = os.path.join(PROJECT_ROOT, relpath)
+
+        if not os.path.isfile(path):
+            return Verdict('broken', 'no such test file: {}'.format(relpath))
+
+        with open(path, 'r', encoding='utf-8') as handle:
+            source = handle.read()
+
+        if class_name and not re.search(r'^class {}\b'.format(re.escape(class_name)),
+                                        source, re.MULTILINE):
+            return Verdict('broken', '{} defines no class {}'.format(relpath, class_name))
+
+        combined.append(source)
+
+    haystack = '\n'.join(combined)
+    absent = [token for token in claim.evidence if token not in haystack]
+    if absent:
+        return Verdict('broken', '{} never mention(s) {}'.format(
+            ', '.join(claim.tests), ', '.join(repr(token) for token in absent)))
+
+    if not claim.evidence:
+        return Verdict('unverified', claim.why)
+
+    return Verdict('ok', '')
+
+
+def verify_all():
+    """[(claim, verdict)] for the whole inventory."""
+    return [(claim, verify(claim)) for claim in PINNED_CLAIMS]
+
+
+_MARKER = {'ok': 'ok', 'unverified': '??', 'broken': '!!'}
 
 
 def print_inventory():
+    results = verify_all()
+
     print('Pinned documentation claims')
     print('=' * 78)
-    missing = []
-    for document, claim, test in PINNED_CLAIMS:
-        path = os.path.join(PROJECT_ROOT, _relative_test_target(test))
-        ok = os.path.isfile(path)
-        if not ok:
-            missing.append(test)
+    for claim, verdict in results:
         print('  [{}] {}\n        {}\n        {}'.format(
-            'ok' if ok else '!!', document, claim, test))
+            _MARKER[verdict.status], claim.document, claim.claim,
+            '\n        '.join(claim.tests)))
+        if verdict.detail:
+            print('        -> {}'.format(verdict.detail))
     print()
     print('Known-unpinned claims')
     print('=' * 78)
     for document, claim, why in UNPINNED_CLAIMS:
         print('  [--] {}\n        {}\n        {}'.format(document, claim, why))
     print()
-    print('{} pinned, {} deliberately unpinned.'.format(
-        len(PINNED_CLAIMS), len(UNPINNED_CLAIMS)))
-    if missing:
+
+    broken = [(claim, verdict) for claim, verdict in results
+              if verdict.status == 'broken']
+    unverified = [claim for claim, verdict in results
+                  if verdict.status == 'unverified']
+
+    print('{} pinned and verified, {} pinned but unverifiable, '
+          '{} deliberately unpinned.'.format(
+              len(results) - len(broken) - len(unverified),
+              len(unverified), len(UNPINNED_CLAIMS)))
+    print('"Verified" means the named test reads the document or the symbol the')
+    print('row claims it pins. It does not mean the assertion is a good one --')
+    print('for that, break the behaviour with devops/mutation_check.py.')
+
+    if broken:
         print()
-        print('ERROR: {} inventory row(s) name a test file that does not exist:'.format(
-            len(missing)))
-        for test in missing:
-            print('  {}'.format(test))
+        print('ERROR: {} inventory row(s) do not check what they claim:'.format(
+            len(broken)))
+        for claim, verdict in broken:
+            print('  {}\n    {}\n    {}'.format(
+                claim.claim, ', '.join(claim.tests), verdict.detail))
         return 1
+
     print('Run the pins:  pytest tests/unit/test_doc_claims.py')
     return 0
 

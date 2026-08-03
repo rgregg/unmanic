@@ -188,6 +188,107 @@ class TestTheDocumentedConvenienceRedirects:
         assert _handler_kwargs_for(app, path).get('permanent') is False
 
 
+class TestTheInheritedV1ApiSurface:
+    """
+    docs/SECURITY_MODEL.md: "Only its account routes are retired:
+    `/trawlarr/api/v1/session/*` answers `410 Gone`. The rest of v1 is live,
+    functional and just as unauthenticated as v2."
+
+    This is the claim that was wrong. An earlier draft of that bullet said
+    the inherited v1 routes "are retired and answer `410 Gone`" full stop,
+    which reads as "that whole surface is gone" -- in the one document whose
+    job is to tell an operator what an unauthenticated request can reach. It
+    can reach pending-task creation, a library rescan, plugin install and a
+    filesystem browser.
+
+    FORK.md is the bounded version and always was: only the v1 `/session/*`
+    account/login routes were retired. Pinned in both directions, because
+    both directions are dangerous: a live route the document calls retired
+    understates the attack surface, and a retired route the document calls
+    live sends an operator hunting for an exposure that is not there.
+    """
+
+    #: The v1 endpoints that still resolve to a working handler, and one
+    #: method on each that says what it does. Written out rather than
+    #: derived, because "which of these is reachable" is exactly the
+    #: question the security document answers and a derived list would
+    #: silently follow the code wherever it went.
+    LIVE = [
+        ('pending', 'pending_api', 'ApiPendingHandler',
+         ['create_task_from_path', 'trigger_library_rescan']),
+        ('history', 'history_api', 'ApiHistoryHandler',
+         ['manage_historic_tasks_list']),
+        ('plugins', 'plugins_api', 'ApiPluginsHandler',
+         ['install_plugin_by_id']),
+        ('filebrowser', 'filebrowser_api', 'ApiFilebrowserHandler',
+         ['fetch_directory_listing']),
+    ]
+
+    @pytest.mark.parametrize('endpoint, module, handler_name, methods', LIVE,
+                             ids=[row[0] for row in LIVE])
+    def test_the_v1_endpoint_is_reachable_and_does_what_the_document_says(
+            self, app, endpoint, module, handler_name, methods):
+        import importlib
+
+        from trawlarr.libs.uiserver import NotFoundHandler
+        from trawlarr.webserver.api_request_router import Handle404
+
+        handler = _handler_for(app, '/trawlarr/api/v1/{}/list'.format(endpoint))
+        expected = getattr(
+            importlib.import_module('trawlarr.webserver.api_v1.{}'.format(module)),
+            handler_name)
+
+        assert handler is expected, (
+            "/trawlarr/api/v1/{}/ no longer resolves to {} (got {}). If it has "
+            "been retired, docs/SECURITY_MODEL.md now lists an unauthenticated "
+            "capability that does not exist, and an operator reading it is "
+            "defending against the wrong thing.".format(endpoint, handler_name, handler)
+        )
+        assert handler not in (NotFoundHandler, Handle404)
+
+        for method in methods:
+            assert callable(getattr(expected, method, None)), (
+                "{}.{} is gone. docs/SECURITY_MODEL.md names it as something an "
+                "unauthenticated request can do.".format(handler_name, method)
+            )
+
+    def test_no_live_v1_endpoint_answers_the_retirement_410(self):
+        # "Live" has to mean more than "a handler exists": a handler that
+        # 410s everything would satisfy the dispatch check above while the
+        # document's list of capabilities was fiction.
+        import importlib
+
+        for endpoint, module, _handler, _methods in self.LIVE:
+            source = _read('trawlarr', 'webserver', 'api_v1', '{}.py'.format(module))
+            assert 'set_status(410' not in source, (
+                'v1 /{}/ now retires something. docs/SECURITY_MODEL.md says the '
+                'only retired v1 routes are the session ones.'.format(endpoint))
+            importlib.import_module('trawlarr.webserver.api_v1.{}'.format(module))
+
+    def test_the_v1_session_routes_are_the_retired_ones(self, app):
+        from trawlarr.webserver.api_v1 import session_api
+
+        handler = _handler_for(app, '/trawlarr/api/v1/session/unmanic-sign-out-url')
+        assert handler is session_api.ApiSessionHandler
+
+        # Every route this handler serves goes through write_retired().
+        source = _read('trawlarr', 'webserver', 'api_v1', 'session_api.py')
+        assert 'self.set_status(410' in source, (
+            'The v1 session routes stopped answering 410. Both FORK.md and '
+            'docs/SECURITY_MODEL.md say they are retired; if they now do '
+            'something, they do it unauthenticated.'
+        )
+
+    def test_the_v1_surface_is_not_in_the_swagger_contract(self):
+        # The other half of the same sentence: Swagger documents v2 only, so
+        # a reader auditing the API from Swagger alone sees none of the
+        # above. That is the reason the bullet exists.
+        spec = json.loads(_read('trawlarr', 'webserver', 'docs', 'api_schema_v2.json'))
+        served = json.dumps(spec.get('paths', {})) + json.dumps(spec.get('basePath', ''))
+
+        assert '/api/v1/' not in served
+
+
 class TestNothingInTheRequestPathAuthenticates:
     """
     docs/SECURITY_MODEL.md: "There is no login handler, no session cookie,
@@ -471,38 +572,206 @@ class TestTheDocumentedToolInvocations:
     Commands a contributor is told to run. A command that no longer works is
     a claim like any other, and it fails at the worst moment: when someone
     is trying to follow the instructions.
+
+    An earlier version of this class asserted that `devops/doc_claims.py`
+    exists and compiles, and that `devops/check_license_headers.sh` exists.
+    Both were decoration -- they restated that a file this same commit added
+    was still there, and counted as pins while pinning nothing. They are
+    replaced here by tests that read the invocation out of the document and
+    check that it would still do what the document says it does; the
+    inventory's own honesty is pinned by TestThisInventoryIsHonest below.
     """
 
-    def test_the_mutation_check_example_still_mutates_something(self):
-        # docs/CONTRIBUTING.md shows a worked mutation_check.py invocation.
-        # If the --old string no longer appears in the named file, the
-        # example reports SURVIVED for a substitution that never happened --
-        # which reads as "nothing tests this" when it means "nothing changed".
-        assert os.path.isfile(os.path.join(PROJECT_ROOT, 'devops', 'mutation_check.py'))
-        assert 'self.record_completed_file()' in _read('trawlarr', 'libs', 'postprocessor.py')
-        assert os.path.isfile(os.path.join(
-            PROJECT_ROOT, 'tests', 'unit', 'test_safety_mechanism_call_sites.py'))
+    @staticmethod
+    def _shell_blocks(*document):
+        """Every ```bash fenced block in a document, as one string each."""
+        return re.findall(r'```(?:bash|sh|console)\n(.*?)```',
+                          _read(*document), re.DOTALL)
 
-    def test_the_doc_claims_helper_exists_and_is_executable_python(self):
+    @classmethod
+    def _documented_commands(cls, *document):
+        """Shell command lines, with `\\`-continuations joined up."""
+        commands = []
+        for block in cls._shell_blocks(*document):
+            for line in block.replace('\\\n', ' ').splitlines():
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    commands.append(' '.join(line.split()))
+        return commands
+
+    def _mutation_check_example(self):
+        for command in self._documented_commands('docs', 'CONTRIBUTING.md'):
+            if 'mutation_check.py' in command and '--old' in command:
+                return command
+        raise AssertionError(
+            'docs/CONTRIBUTING.md no longer shows a worked mutation_check.py '
+            'invocation. "Break it and watch the test fail" is the section\'s '
+            'whole point; without an example nobody runs the tool.')
+
+    def test_the_mutation_check_example_would_still_mutate_something(self):
+        # Read the example out of the document rather than restating it
+        # here: an invocation this test hardcodes is one the document can
+        # drift away from silently. If the --old string no longer appears in
+        # the named --file, the example reports SURVIVED for a substitution
+        # that never happened -- which reads as "nothing tests this" when it
+        # means "nothing changed".
+        command = self._mutation_check_example()
+
+        target = re.search(r"--file\s+(\S+)", command)
+        old = re.search(r"--old\s+'([^']+)'", command)
+        tests = re.search(r"--tests\s+(\S+)", command)
+        assert target and old and tests, (
+            'The worked example no longer passes --file, --old and --tests: '
+            '{}'.format(command))
+
+        for path in (target.group(1), tests.group(1), 'devops/mutation_check.py'):
+            assert os.path.isfile(os.path.join(PROJECT_ROOT, path)), (
+                'The worked mutation_check.py example names {}, which does not '
+                'exist. A contributor following the section gets an error '
+                'instead of a demonstration.'.format(path))
+
+        with open(os.path.join(PROJECT_ROOT, target.group(1)), encoding='utf-8') as f:
+            source = f.read()
+        assert old.group(1) in source, (
+            "The example substitutes {!r} in {}, which no longer contains it. "
+            "mutation_check.py reports NOT APPLIED, and the one worked example of "
+            "the project's own verification tool does not work.".format(
+                old.group(1), target.group(1)))
+
+    @pytest.mark.parametrize('document', [
+        ('docs', 'CONTRIBUTING.md'),
+        ('docs', 'DEVELOPING.md'),
+    ], ids=lambda d: '/'.join(d))
+    def test_every_repo_script_a_document_tells_you_to_run_exists(self, document):
+        # Catches the whole class of "run devops/<script>" instructions,
+        # including the license-header one, without naming any of them here
+        # -- a hardcoded list goes stale the first time a script is added.
+        missing = []
+        for command in self._documented_commands(*document):
+            for token in command.split():
+                token = token.lstrip('./')
+                if re.match(r'^(devops|scripts)/[\w.\-]+$', token):
+                    if not os.path.isfile(os.path.join(PROJECT_ROOT, token)):
+                        missing.append((token, command))
+
+        assert not missing, '{} tells you to run {}'.format(
+            '/'.join(document),
+            '; '.join('{} (in `{}`), which does not exist'.format(t, c)
+                      for t, c in missing))
+
+
+class TestThisInventoryIsHonest:
+    """
+    devops/doc_claims.py is the map of which documented sentences are
+    pinned. Issue #95's review found it certifying a row that was not
+    pinned at all -- the README's `UNMANIC_*` table, named as defended by
+    tests/unit/test_env_vars.py, which had never read the README.
+
+    It printed `[ok]` because its only check was that a file with that name
+    existed. A check of "a file with this name exists" certifies anything,
+    and a map that certifies anything is worse than no map: it is the thing
+    a reviewer consults *instead of* reading the test.
+
+    So the inventory now carries evidence per row and verifies it, and that
+    verification runs here. A row that rots is a red suite rather than a
+    line of output nobody runs.
+    """
+
+    @staticmethod
+    def _module():
+        import importlib.util
+
         path = os.path.join(PROJECT_ROOT, 'devops', 'doc_claims.py')
-        assert os.path.isfile(path)
-        compile(_read('devops', 'doc_claims.py'), path, 'exec')
+        spec = importlib.util.spec_from_file_location('_doc_claims_under_test', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
-    def test_the_license_header_script_referenced_everywhere_exists(self):
-        assert os.path.isfile(os.path.join(PROJECT_ROOT, 'devops', 'check_license_headers.sh'))
+    def test_every_row_names_a_test_that_reads_what_it_claims_to_pin(self):
+        module = self._module()
+
+        broken = ['{}\n      {}\n      {}'.format(claim.claim, ', '.join(claim.tests),
+                                                  verdict.detail)
+                  for claim, verdict in module.verify_all()
+                  if verdict.status == 'broken']
+
+        assert not broken, (
+            'devops/doc_claims.py claims these sentences are pinned by tests that '
+            'do not look at them:\n    {}\nA row nobody can check is how the '
+            'env-var table came to be listed as pinned for a fortnight while '
+            'nothing pinned it.'.format('\n    '.join(broken)))
+
+    def test_no_row_is_silently_unverifiable(self):
+        module = self._module()
+
+        for claim, verdict in module.verify_all():
+            if verdict.status == 'unverified':
+                assert verdict.detail, (
+                    'Row "{}" is unverifiable and does not say why. "Unverified" '
+                    'without a reason is indistinguishable from an oversight; the '
+                    'inventory has a known-unpinned list for claims that cannot '
+                    'be checked.'.format(claim.claim))
+
+    def test_the_documents_it_names_exist(self):
+        module = self._module()
+
+        missing = []
+        for claim in module.PINNED_CLAIMS:
+            for part in claim.document.split(' / '):
+                if '/' in part or part.endswith('.md') or part.endswith('.py'):
+                    if not os.path.exists(os.path.join(PROJECT_ROOT, part)):
+                        missing.append(part)
+
+        assert not missing, (
+            'The inventory pins claims in documents that do not exist: {}'.format(
+                ', '.join(sorted(set(missing)))))
+
+    def test_the_verifier_rejects_a_row_whose_test_does_not_mention_it(self):
+        # The check that the check works. Without this, `verify()` could
+        # start returning ok unconditionally and every assertion above would
+        # pass -- which is exactly the failure it exists to prevent.
+        module = self._module()
+
+        fabricated = module.pinned(
+            'README.md', 'A claim nothing pins',
+            'tests/unit/test_env_vars.py',
+            evidence=['NoSuchSymbolAppearsInThatFile'])
+
+        assert module.verify(fabricated).status == 'broken'
+
+    def test_the_verifier_rejects_a_row_naming_a_class_that_is_gone(self):
+        module = self._module()
+
+        fabricated = module.pinned(
+            'README.md', 'A claim pinned by a class that does not exist',
+            'tests/unit/test_doc_claims.py::TestNoSuchClass',
+            evidence=['import os'])
+
+        assert module.verify(fabricated).status == 'broken'
 
 
 class TestTheImageTagTheReadmeTellsYouToPull:
     """
-    README.md's quickstart and FORK.md's build-pipeline section have to
-    agree about which tag exists. They did not: the quickstart said
-    `docker pull ghcr.io/rgregg/trawlarr:latest` while FORK.md said, in
-    terms, that `:latest` is a leftover from a retired policy and that
-    production tracks `:dev` until 1.0.0 is cut.
+    README.md's quickstart said `docker pull ghcr.io/rgregg/trawlarr:latest`
+    when no release had ever been cut, so `:latest` existed only as a frozen
+    leftover from the previous tag policy. The very first command in the
+    project README handed a new user a stale image.
 
-    This is a consistency pin rather than a truth pin -- nothing in this
-    tree knows what is in the registry. It fails when the two documents
-    disagree, which is what actually happened.
+    The authority for "which tags exist" is not FORK.md's prose -- it is
+    `.github/workflows/build.yml`, which is the only thing that pushes any
+    of them. On a push to `main` it publishes `:dev` and `:main-<sha>`, and
+    deliberately not `:latest`; the semver tags and `:latest` are published
+    only on a GitHub *Release* event. Whether one has ever fired is registry
+    and release state, not repository state -- it stays in doc_claims.py's
+    known-unpinned list. What IS pinnable is that the tag the README's first
+    command hands a new user is one CI pushes on every merge, which is the
+    property that was actually violated.
+
+    An earlier version of this class guarded its pin behind
+    ``if '`:latest` does not exist' in fork:`` -- a prose match, which is the
+    one thing docs/CONTRIBUTING.md says not to do. Rewording that sentence in
+    FORK.md would have silently switched the assertion off and left the class
+    green, which is how a pin becomes decoration.
     """
 
     @staticmethod
@@ -510,6 +779,35 @@ class TestTheImageTagTheReadmeTellsYouToPull:
         match = re.search(r'docker pull ghcr\.io/rgregg/trawlarr:(\S+)', _read('README.md'))
         assert match, 'README.md no longer shows a `docker pull` in its quickstart'
         return match.group(1)
+
+    @staticmethod
+    def _tags_published_from_main():
+        """The literal tags build.yml pushes on a push to `main`."""
+        workflow = _read('.github', 'workflows', 'build.yml')
+        # The `else` branch of the release/continuous split.
+        match = re.search(r'TAGS="\$\{IMAGE\}:([^"]+)"\s*\n\s*fi', workflow)
+        assert match, (
+            'build.yml no longer resolves its continuous-build tags in a single '
+            'TAGS= assignment. This pin reads that line to find out which tags '
+            'exist without a release; re-point it rather than deleting it.'
+        )
+        tags = set()
+        for part in ('${IMAGE}:' + match.group(1)).split(','):
+            name = part.split(':', 1)[1]
+            if '${' not in name:  # :main-${SHA_SHORT} is per-commit
+                tags.add(name)
+        assert tags, 'No fixed tag is published from main at all.'
+        return tags
+
+    @staticmethod
+    def _readme_tag_table():
+        """{tag: the 'Exists today' cell}, from README's tag table."""
+        rows = {}
+        for line in _read('README.md').splitlines():
+            match = re.match(r'^\|\s*`:([A-Za-z0-9.\-]+)`\s*\|(.+)\|(.+)\|\s*$', line)
+            if match:
+                rows[match.group(1)] = match.group(3).strip()
+        return rows
 
     def test_the_quickstart_and_the_run_command_pull_the_same_tag(self):
         readme = _read('README.md')
@@ -519,27 +817,48 @@ class TestTheImageTagTheReadmeTellsYouToPull:
             'wrong, the reader ends up running an image they did not choose.'
         )
 
-    def test_the_readme_does_not_recommend_a_tag_fork_md_says_is_stale(self):
-        fork = _read('FORK.md')
+    def test_the_quickstart_pulls_a_tag_the_build_workflow_actually_pushes(self):
         tag = self._readme_quickstart_tag()
+        published = self._tags_published_from_main()
 
-        if '`:latest` does not exist' in fork:
-            assert tag != 'latest', (
-                'FORK.md says `:latest` does not track releases yet, and the README '
-                'quickstart still tells a new user to pull it. The first command in '
-                'the project README hands them a frozen build from whenever the tag '
-                'policy changed.'
-            )
-
-    def test_the_readme_tag_table_marks_which_tags_exist(self):
-        # The table describes a policy that is not in effect yet. It has to
-        # say so, or every row of it is a claim about tags nobody can pull.
-        readme = _read('README.md')
-        assert 'Exists today' in readme, (
-            'The image-tag table no longer distinguishes the tags that exist from '
-            'the ones the release policy will create. Four of its five rows '
-            'describe tags that have never been published.'
+        assert tag in published, (
+            "README.md's quickstart pulls `:{}`, which build.yml does not publish "
+            "on a push to main (it publishes {}). Every other tag comes from a "
+            "GitHub Release event, and there has not been one -- so the first "
+            "command in the README hands a new user either nothing or a build "
+            "frozen at whenever the tag policy last changed.".format(
+                tag, ', '.join(':' + t for t in sorted(published)))
         )
+
+    def test_the_tag_table_marks_exactly_the_published_tags_as_existing(self):
+        # The table describes a policy that is not in effect yet, so its
+        # "Exists today" column is the only thing keeping four of its five
+        # rows from being claims about tags nobody can pull.
+        table = self._readme_tag_table()
+        assert table, 'The README image-tag table no longer parses as a table.'
+
+        marked = {tag for tag, cell in table.items()
+                  if re.match(r'^\**yes\b', cell, re.IGNORECASE)}
+
+        assert marked == self._tags_published_from_main(), (
+            'The README tag table says {} exist(s) today; build.yml publishes {} '
+            'without a release. A row marked "yes" for a tag nobody pushes sends '
+            'a reader to pull an image that is not there.'.format(
+                sorted(marked) or 'nothing', sorted(self._tags_published_from_main()))
+        )
+
+    def test_fork_md_documents_every_tag_the_readme_offers(self):
+        # Cross-document consistency, structurally: FORK.md's image-tag table
+        # is the reference list. A tag the README recommends and FORK.md has
+        # never heard of is one of the two documents being out of date.
+        fork_tags = set(re.findall(r'`ghcr\.io/rgregg/trawlarr:([A-Za-z0-9.\-]+)`',
+                                   _read('FORK.md')))
+        missing = sorted(set(self._readme_tag_table()) - fork_tags)
+
+        assert not missing, (
+            'README.md offers tag(s) {} that FORK.md does not document. The two '
+            'tag policies disagreed once already, and the reader following the '
+            'README got the losing side of it.'.format(', '.join(missing)))
 
 
 class TestTheSanityCheckComments:

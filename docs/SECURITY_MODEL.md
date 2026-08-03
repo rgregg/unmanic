@@ -32,11 +32,17 @@ Consequences worth stating explicitly:
 - **No CSRF protection.** Tornado's `xsrf_cookies` is not enabled, so
   a page in a user's browser can issue requests to a Trawlarr instance
   that browser can reach.
-- **The API surface is the whole application.** Swagger UI is served
-  at `/trawlarr/swagger` and documents the whole v2 API — which is
-  everything the web UI itself uses. (The inherited v1 routes are not in
-  it; they are retired and answer `410 Gone`. Not being documented is
-  not a protection either way.)
+- **The API surface is the whole application, and Swagger is not its
+  boundary.** Swagger UI is served at `/trawlarr/swagger` and documents
+  the whole v2 API — which is everything the web UI itself uses. The
+  inherited **v1** API is not in Swagger, and that is not a protection.
+  Only its account routes are retired: `/trawlarr/api/v1/session/*`
+  answers `410 Gone`. The rest of v1 is live, functional and just as
+  unauthenticated as v2 — `pending` (list, create a task from a path,
+  trigger a library rescan, delete, reorder), `history`, `plugins`
+  (including installing one by id) and `filebrowser` (browse the
+  container's filesystem). Anything below that treats "the API" as a
+  single surface means v1 as well as v2.
 - **The default bind address is every interface.** `ui_address`
   defaults to `''` and `ui_port` to `8888` (`trawlarr/config.py`), so
   an unconfigured install listens on `0.0.0.0:8888`. Publishing that

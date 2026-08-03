@@ -348,6 +348,20 @@ Like `mutation_check.py`, it is deliberately not a gate — the assertions
 themselves are ordinary unit tests and already run on every PR; this is the
 map, and the one measurement CI cannot make.
 
+**A row has to carry evidence.** Each entry names the strings its test must
+contain — the document it reads, the symbol it compares against — and the
+script verifies them, marking a row it cannot check `[??] unverified` rather
+than `ok`. The first version checked only that a file with the named path
+existed, which certified the README's environment-variable table as pinned by
+`test_env_vars.py` when nothing in that file had ever opened the README. If a
+claim genuinely cannot be checked this way, put it in `UNPINNED_CLAIMS` with
+the reason instead of writing a row that looks green.
+
+Evidence is a *necessary* condition, not a sufficient one: it proves the test
+is looking at the right thing, not that it would notice the right thing
+changing. For that, run `mutation_check.py` against the behaviour and confirm
+`KILLED`. Do that before adding the row, not after.
+
 ### Copyright and licensing of contributions
 
 **You keep the copyright in what you write.** There is no CLA and no copyright
