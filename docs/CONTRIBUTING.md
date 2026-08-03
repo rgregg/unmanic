@@ -85,7 +85,7 @@ Where the floors live:
 
 | Suite    | Floor                                                     | Value               |
 | -------- | --------------------------------------------------------- | ------------------- |
-| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 41 (lines)          |
+| Python   | `PYTHON_COVERAGE_FLOOR` in `.github/workflows/test.yml`    | 51 (lines)          |
 | Frontend | `test.coverage.thresholds` in `frontend/vitest.config.js`  | 20 (functions)      |
 
 The **Value** column is pinned to those two files by

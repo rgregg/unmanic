@@ -41,6 +41,7 @@ from .metadata_api import ApiMetadataHandler
 from .notifications_api import ApiNotificationsHandler
 from .pending_api import ApiPendingHandler
 from .plugins_api import ApiPluginsHandler
+from .reprocess_api import ApiReprocessHandler
 from .session_api import ApiSessionHandler
 from .settings_api import ApiSettingsHandler
 from .upload_api import ApiUploadHandler
@@ -58,6 +59,7 @@ __all__ = (
     'ApiNotificationsHandler',
     'ApiPendingHandler',
     'ApiPluginsHandler',
+    'ApiReprocessHandler',
     'ApiSessionHandler',
     'ApiSettingsHandler',
     'ApiUploadHandler',

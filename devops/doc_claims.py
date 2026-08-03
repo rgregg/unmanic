@@ -395,6 +395,23 @@ def verify(claim):
     if not claim.evidence:
         return Verdict('unverified', claim.why)
 
+    # The test must be looking at THIS document. Evidence alone is not enough:
+    # a row can cite tokens that happen to appear in some unrelated test and
+    # collect an [ok] for a claim nothing checks. That is not hypothetical --
+    # a review pinned an invented security guarantee ("Every request is
+    # rejected unless it carries a valid API token") to tests/unit/test_env_vars.py
+    # with evidence of 'README.md' and 'RENAMED_ENV_VARS', and this function
+    # certified it. An inventory that can rubber-stamp is worse than no
+    # inventory, because it converts "unchecked" into "checked".
+    # Only when the row names an actual file. A few rows describe a set
+    # ("all seven documents") rather than a path, and those are checked by
+    # the test itself walking the set.
+    document = os.path.basename(claim.document)
+    if document.endswith('.md') and document not in haystack:
+        return Verdict('broken', '{} never open(s) or name(s) {} - evidence can be '
+                                 'satisfied by an unrelated test'.format(
+                                     ', '.join(claim.tests), document))
+
     return Verdict('ok', '')
 
 

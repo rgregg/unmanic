@@ -97,6 +97,13 @@ auditing what we've changed:
   `unmanic-github-login-url`, `unmanic-discord-login-url`,
   `unmanic-patreon-page`). `GET /session/state` and `POST /session/reload`
   describe the local installation and are unaffected. See issue #21.
+- **Library reprocessing** (issue #41) — `POST /reprocess/preview` and
+  `POST /reprocess/apply` invalidate the completed-task history for a scoped
+  selection of files so the ordinary pipeline picks them up again under
+  changed rules. Upstream has no equivalent, because upstream has no
+  authoritative completed state to invalidate. Preview-then-confirm, a
+  per-file cooldown and an audit trail; API only, no UI. See
+  [`docs/REPROCESSING.md`](docs/REPROCESSING.md).
 - `trawlarr/webserver/frontend/` — footer bar, sign-in/sign-out UI,
   Unmanic Central nav entry, avatar/name/support button, and funding
   portal click handlers all stripped.
