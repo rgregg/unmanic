@@ -10,6 +10,13 @@
 """
     test_activity_api.py
 
+    These tests pin the two guarantees docs/AUTOMATION.md makes to external
+    callers: that `busy` is false only when every worker is idle and every
+    count is zero, and that an undeterminable state is a 500 rather than
+    `{"busy": false}`. An external maintenance script gates on both, so if
+    they change here, that document is wrong and must change with them.
+    See devops/doc_claims.py.
+
     Contract coverage for GET /trawlarr/api/v2/activity/status, see #42.
 
     This endpoint exists to replace a maintenance script that decided whether

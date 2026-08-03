@@ -194,8 +194,20 @@ CI also enforces a coverage floor (see `.github/workflows/test.yml`); coverage
 must not regress below it.
 
 The tests under `tests/unit/` are fork-authored and each pins an invariant this
-fork relies on. `tests/integration/` is inherited from upstream and is not part
-of the CI run.
+fork relies on. `tests/integration/` is a second suite, not a slower one — it
+needs no services and no network, every test builds its own migrated SQLite
+database under a temp `HOME`, and it contains the end-to-end test that follows
+a real file from the library to "done". **Both suites run in CI on every PR**
+(`.github/workflows/test.yml`, job `Unit tests + coverage`) and both must be
+green:
+
+```bash
+python3 -m pytest tests/integration/
+```
+
+Only the unit suite is measured for coverage; folding a second suite into the
+same number would move the ratchet for reasons unrelated to anyone's
+test-writing.
 
 ### Testing the frontend
 

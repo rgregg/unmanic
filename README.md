@@ -68,8 +68,10 @@ Shipped, as of now:
   removed before the cache copy succeeds, and a scheduler fix that was
   killing the task-management thread at startup.
 - **A test suite and CI that means something.** Build, test, smoke and
-  FFmpeg-release-watch workflows, plus 311 unit tests pinning the
-  behaviours this fork depends on so they can't quietly regress.
+  FFmpeg-release-watch workflows, plus a unit suite and an end-to-end
+  suite pinning the behaviours this fork depends on so they can't
+  quietly regress. Both run on every PR under a coverage floor that only
+  ratchets upwards.
 - **Its own name, all the way down.** The Python package, the config
   directory, the database, the API path, the console script and the
   environment variables all say `trawlarr`. Community plugins that
@@ -87,15 +89,24 @@ A detailed audit of what differs from upstream, and why, is in
 
 ## Installing
 
+> **No release has been cut yet, so use `:dev` for now.** The versioned
+> tags in [Choosing a tag](#choosing-a-tag) come only from a GitHub
+> Release, and there are none. `ghcr.io/rgregg/trawlarr:latest` does
+> exist, but only as a leftover from when it moved on every push to
+> `main` — it is frozen at that changeover and is not the newest build.
+> `:dev` is the newest build from `main` and is what the maintainer's own
+> instance runs; see
+> [FORK.md § Production deployment](FORK.md#production-deployment).
+
 ```bash
-docker pull ghcr.io/rgregg/trawlarr:latest
+docker pull ghcr.io/rgregg/trawlarr:dev
 docker run -d --name trawlarr --restart unless-stopped \
     -p 8888:8888 \
     -e PUID=1000 -e PGID=1000 -e TZ=America/Los_Angeles \
     -v /your/config/path:/config \
     -v /your/library:/library \
     -v /your/cache:/tmp/unmanic \
-    ghcr.io/rgregg/trawlarr:latest
+    ghcr.io/rgregg/trawlarr:dev
 ```
 
 The mount points and the port are the same as upstream Unmanic: `/config`,
@@ -151,15 +162,23 @@ first-party local authentication is separate future work, tracked in
 ### Choosing a tag
 
 Trawlarr releases follow semver, and the image tags let you decide how
-much change you want to take automatically:
+much change you want to take automatically. **Everything in this table
+except `:dev` describes what happens once the first release is cut**;
+`.github/workflows/build.yml` publishes the semver tags only on a GitHub
+Release event, and there has not been one yet.
 
-| Tag | You get |
-|---|---|
-| `:1` | Every release in the 1.x line — fixes and new features, never a breaking change without you opting in. **Good default.** |
-| `:1.2` | Patch fixes only within 1.2. Conservative. |
-| `:1.2.3` | Exactly that release, forever. Fully reproducible. |
-| `:latest` | The newest stable release, including across major versions. Convenient, but it will eventually carry you across a breaking change. |
-| `:dev` | The newest build from `main`. Unreleased and untested by a release cycle — for trying things out, not for your real library. |
+| Tag | You get | Exists today |
+|---|---|---|
+| `:1` | Every release in the 1.x line — fixes and new features, never a breaking change without you opting in. **Good default, once there is a 1.x.** | no |
+| `:1.2` | Patch fixes only within 1.2. Conservative. | no |
+| `:1.2.3` | Exactly that release, forever. Fully reproducible. | no |
+| `:latest` | The newest stable release, including across major versions. Convenient, but it will eventually carry you across a breaking change. | only as a stale leftover — see [Installing](#installing) |
+| `:dev` | The newest build from `main`. Unreleased and untested by a release cycle. | **yes — use this for now** |
+
+Every `:dev` build has passed the test and smoke workflows; "unreleased"
+is not "unbuilt". Prereleases (a `X.Y.Z-rc1` tag, or the GitHub
+prerelease checkbox) publish only their exact version and never move
+`:1`, `:1.2` or `:latest`.
 
 A MAJOR bump means something needs your attention before upgrading: a
 config migration, a changed API contract, or a break in the plugin

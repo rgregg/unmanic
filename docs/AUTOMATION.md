@@ -38,8 +38,11 @@ $ curl -s http://trawlarr.local:8888/trawlarr/api/v2/activity/status
 is idle **and** all three task counts are zero.
 
 The endpoint is subject to the same authentication as the rest of the v2
-API. It is documented in the OpenAPI contract served at
-`/trawlarr/api/v2/docs/`.
+API, which is **none** — see
+[`SECURITY_MODEL.md`](SECURITY_MODEL.md). It is documented in the
+OpenAPI contract, browsable at `/trawlarr/swagger` and checked into this
+repository at
+[`trawlarr/webserver/docs/api_schema_v2.json`](../trawlarr/webserver/docs/api_schema_v2.json).
 
 ## The two guarantees, and why they are shaped that way
 
@@ -81,14 +84,25 @@ of `pending`. Reported as `{"busy": false}`, the second is the worst
 answer this endpoint could give — the gate would open precisely because
 Trawlarr had broken.
 
-So it does not report it. If one of the threads that make up the
-processing pipeline (the Foreman, the post-processor, or the task
-handler) is not running, `/activity/status` returns **HTTP 500** naming
-the thread, for as long as the condition lasts. Trawlarr supervises
-those threads and will restart one a bounded number of times; a thread
-that will not stay up is reported here, in the log, and as a UI
-notification, and the endpoint keeps returning 500 until Trawlarr is
-restarted.
+So it does not report it. Trawlarr supervises the three threads that
+make up the processing pipeline — the Foreman, the PostProcessor and the
+TaskHandler — and will restart one a bounded number of times. A thread it
+has **given up on** is reported here as **HTTP 500** naming the thread,
+as well as in the log and as a UI notification, and that is terminal: the
+endpoint keeps returning 500 until Trawlarr is restarted.
+
+Two bounds on that, because the difference matters to a gate:
+
+- **The Foreman is additionally checked live**, on every request. A
+  missing or dead Foreman is a 500 immediately, without waiting for the
+  supervisor to notice, because it is the only thing that ever claims a
+  pending task.
+- **The PostProcessor and the TaskHandler are not.** Between one of them
+  dying and the supervisor either restarting it or giving up on it, this
+  endpoint answers from the task counts as normal. That window is a
+  supervision interval, not an outage — but it is a window, and if you
+  need to close it, gate on a run of consecutive `busy: false` readings
+  rather than a single one.
 
 The `curl -sf ... || exit 1` above already handles this correctly, and
 so does a refused connection from a dead web server. That is the whole

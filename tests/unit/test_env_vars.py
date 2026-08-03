@@ -21,10 +21,19 @@
     Property 2 is the one worth having tests for. A fallback that quietly
     stops working is indistinguishable from a fallback that never existed,
     and the only evidence an operator gets is the warning.
+
+    A third property lives here because issue #95 found the inventory in
+    devops/doc_claims.py certifying it as pinned by this file when it was
+    not: README.md's `UNMANIC_*` -> `TRAWLARR_*` table is the same list as
+    `envvars.RENAMED_ENV_VARS`. Everything above parametrises over that
+    dict, so it tests whatever the dict happens to contain -- adding
+    `UNMANIC_FAKE_XYZZY` to it left the whole suite green. See
+    TestTheReadmeTableIsTheRealInventory.
 """
 import importlib
 import importlib.util
 import os
+import re
 from unittest import mock
 
 import pytest
@@ -32,6 +41,8 @@ import pytest
 from trawlarr import metadata, service
 from trawlarr.libs import envvars
 from trawlarr.libs.plugins import PluginsHandler
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 
 def _fresh_session_module():
@@ -168,6 +179,129 @@ class TestLegacyEnvVarDetection:
 
     def test_replacement_name_for_unrelated_variable_is_none(self):
         assert envvars.replacement_env_var_name('PATH') is None
+
+
+class TestTheReadmeTableIsTheRealInventory:
+    """
+    README.md, "Renaming the environment variables": a table of every
+    legacy name and its replacement, introduced as the full list and
+    sourced to `trawlarr/libs/envvars.py`.
+
+    Nothing pinned it. The tests above parametrise over
+    `envvars.RENAMED_ENV_VARS`, so they follow the dict wherever it goes:
+    inserting `'UNMANIC_FAKE_XYZZY': 'TRAWLARR_FAKE_XYZZY'` left them at 27
+    passed and the unit suite green, with the README silently one row short.
+
+    So: read the table out of the document and compare it to the dict in
+    BOTH directions. A new variable that never reached the README and a
+    stale row for one that no longer exists are the same defect from
+    opposite ends -- an operator renames a variable the code does not read,
+    or never learns to rename one it does.
+    """
+
+    SECTION_HEADING = '#### Renaming the environment variables'
+
+    NUMBER_WORDS = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6,
+        'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11,
+        'twelve': 12,
+    }
+
+    @classmethod
+    def _section(cls):
+        with open(os.path.join(PROJECT_ROOT, 'README.md'), encoding='utf-8') as handle:
+            text = handle.read()
+
+        start = text.find(cls.SECTION_HEADING)
+        assert start != -1, (
+            "README.md no longer has a '{}' section. Either the rename table moved "
+            "and this pin needs to follow it, or the table is gone and eight "
+            "documented variable renames now have nothing describing "
+            "them.".format(cls.SECTION_HEADING)
+        )
+        rest = text[start + len(cls.SECTION_HEADING):]
+        end = rest.find('\n#')
+        return rest if end == -1 else rest[:end]
+
+    @classmethod
+    def _documented_renames(cls):
+        """{legacy: replacement} as the README's table states it."""
+        renames = {}
+        row = re.compile(r'^\|\s*`([A-Z0-9_]+)`\s*\|\s*`([A-Z0-9_]+)`\s*\|')
+        for line in cls._section().splitlines():
+            match = row.match(line.strip())
+            if match:
+                renames[match.group(1)] = match.group(2)
+        return renames
+
+    def test_the_table_is_parseable_at_all(self):
+        # Guard against this whole class passing vacuously: an empty parse
+        # would make every set comparison below compare {} with {} only if
+        # the dict were empty too, but a silent parser change is exactly the
+        # failure mode that lets a pin rot.
+        assert self._documented_renames(), (
+            'No `LEGACY` | `REPLACEMENT` rows parsed out of the README rename '
+            'section. The table changed shape and this pin is now checking '
+            'nothing -- fix the parser, do not delete the test.'
+        )
+
+    def test_every_renamed_variable_is_in_the_readme(self):
+        documented = self._documented_renames()
+        missing = sorted(set(envvars.RENAMED_ENV_VARS) - set(documented))
+
+        assert not missing, (
+            'envvars.RENAMED_ENV_VARS names {} that README.md does not: {}. The '
+            'application warns about them at startup and points at a document '
+            'that has never heard of them.'.format(len(missing), ', '.join(missing))
+        )
+
+    def test_the_readme_invents_no_renames(self):
+        documented = self._documented_renames()
+        extra = sorted(set(documented) - set(envvars.RENAMED_ENV_VARS))
+
+        assert not extra, (
+            'README.md documents {} that envvars.RENAMED_ENV_VARS does not: {}. A '
+            'stale row tells an operator to rename a variable nothing reads, and '
+            'no startup warning will ever contradict it.'.format(
+                len(extra), ', '.join(extra))
+        )
+
+    def test_each_row_names_the_replacement_the_code_uses(self):
+        documented = self._documented_renames()
+        wrong = sorted(
+            '{}: README says {}, code says {}'.format(
+                legacy, documented[legacy], replacement)
+            for legacy, replacement in envvars.RENAMED_ENV_VARS.items()
+            if legacy in documented and documented[legacy] != replacement
+        )
+
+        assert not wrong, (
+            'The README names a replacement the startup warning does not: {}. The '
+            'operator sets the name the document gave them and the setting stays '
+            'unapplied.'.format('; '.join(wrong))
+        )
+
+    def test_the_stated_count_matches(self):
+        # The section opens "There are eight, defined in ...". A count is a
+        # claim like any other and it is the first thing a reader checks the
+        # table against.
+        match = re.search(r'There are (\w+),', self._section())
+        assert match, (
+            'README.md no longer states how many renamed variables there are. '
+            'Restore the count or delete this assertion -- do not leave it '
+            'silently skipped.'
+        )
+        stated = self.NUMBER_WORDS.get(match.group(1).lower())
+        assert stated == len(envvars.RENAMED_ENV_VARS), (
+            'README.md says there are {} renamed variables; there are {}.'.format(
+                match.group(1), len(envvars.RENAMED_ENV_VARS))
+        )
+
+    def test_the_readme_sources_the_table_to_the_module_that_owns_it(self):
+        # The whole point of the pin is that the table is derived. If the
+        # document stops naming envvars.py, the next person to add a
+        # variable has nothing telling them where the list lives.
+        assert 'trawlarr/libs/envvars.py' in self._section()
 
 
 class TestStartupWarning:
