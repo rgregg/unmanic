@@ -804,3 +804,52 @@ class TestTheDocumentedClaims:
         # test is the reminder to say so here.
         doc = _read_doc().lower()
         assert 'there is no user interface for this' in doc
+
+
+@pytest.mark.unittest
+class TestTheScopeCheckCannotBeSpelledAround:
+    """The scope check asks whether a glob matches everything, not what it is
+    made of.
+
+    The first version tested that every character was a wildcard or a
+    separator. `'[/]*'` walked straight through it -- three literal
+    characters, and it still fnmatch-matches every absolute path there is. A
+    review probe confirmed it: preview reported 9 files across 3 libraries
+    from a single "scoped" request.
+
+    Asking the question semantically closes the whole class rather than that
+    one spelling, which matters because fnmatch's grammar is not ours to
+    freeze: `?`, `[!x]` negation and anything it grows later are covered
+    without being enumerated.
+    """
+
+    @pytest.mark.parametrize('path_glob', [
+        '*',            # the obvious one
+        '/*',
+        '*/*',
+        '[/]*',         # the review's bypass: literal characters, matches everything
+        '?*',           # one-or-more, still everything
+        '*[!zzzz]*',    # negated class, still everything
+        '**',
+        '/**/*',
+        '*/*/*',
+    ])
+    def test_a_glob_that_matches_everything_is_not_a_scope(self, path_glob):
+        assert reprocess._glob_restricts_nothing(path_glob) is True, (
+            "{!r} matches every path, so a request scoped only by it is the "
+            "'everything ever processed' request under another name".format(path_glob)
+        )
+
+    @pytest.mark.parametrize('path_glob', [
+        '*.mkv',                  # wide, but names an extension
+        '/library/*',             # names a directory
+        '[ab]*',                  # a real character class
+        '/mnt/tv/**',
+        'S01*',
+        '/library/Show/*.mkv',
+    ])
+    def test_a_glob_that_names_a_real_subset_is_allowed_however_wide(self, path_glob):
+        assert reprocess._glob_restricts_nothing(path_glob) is False, (
+            "{!r} excludes something, so it is a scope. The bound on wide-but-real "
+            "selections is MAX_SELECTION and the preview, not this check.".format(path_glob)
+        )

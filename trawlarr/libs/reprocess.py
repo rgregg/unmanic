@@ -203,6 +203,17 @@ _ACTIVE_TASK_STATUSES = ('creating', 'pending', 'in_progress', 'processed')
 #: Characters that restrict nothing when they are all a glob is made of.
 _GLOB_WILDCARDS = '*?/' + os.sep
 
+#: Synthetic absolute paths sharing no component, extension or letter pattern.
+#: A glob matching ALL of them restricts nothing, whatever characters it is
+#: spelled with. Used by _glob_restricts_nothing(); see its docstring for why
+#: the question is asked this way rather than by inspecting the glob text.
+_UNRELATED_PROBE_PATHS = (
+    '/zzq/unlikely-dir/episode.mkv',
+    '/other-root/9/thing.bin',
+    '/m/n/o/p/q/r/deep.avi',
+)
+
+
 # Why a candidate was not selected. Reported per file by the preview.
 SKIP_MISSING = 'file_missing'
 SKIP_QUEUED = 'already_queued'
@@ -293,21 +304,29 @@ def describe_filter(library_id=None, path_glob=None, match_file_test=False, incl
 
 def _glob_restricts_nothing(path_glob):
     """
-    Is this glob made entirely of wildcards and separators?
+    Does this glob match everything, whatever it is made of?
 
     `'*'`, `'/*'`, `'*/*'` all match every absolute path on the machine, so a
     request scoped only by one of them is the "everything this installation
     has ever processed" request under another name - which is the one request
     this module will not carry out in a single call.
 
-    Anything with a literal character in it - `'*.mkv'`, `'/library/*'`, even
-    a character class like `'[ab]*'` - names a real subset, and is allowed
-    however wide it is. The bound on wide-but-real selections is MAX_SELECTION
-    and the preview, not this check.
+    Asked SEMANTICALLY, by matching the glob against synthetic paths that share
+    nothing with each other, rather than by inspecting its characters. An
+    earlier version tested that every character was a wildcard or a separator,
+    and `'[/]*'` walked straight through it: three literal characters, and it
+    still matches every absolute path there is. A character class, a `?`, a
+    `[!x]` negation and anything else fnmatch grows later are all covered by
+    asking the question the check actually cares about.
+
+    A glob that names a real subset - `'*.mkv'`, `'/library/*'`, `'[ab]*'` -
+    fails to match at least one of the probes and is allowed, however wide it
+    is. The bound on wide-but-real selections is MAX_SELECTION and the
+    preview, not this check.
     """
     if not path_glob:
         return True
-    return all(char in _GLOB_WILDCARDS for char in path_glob)
+    return all(fnmatch.fnmatch(probe, path_glob) for probe in _UNRELATED_PROBE_PATHS)
 
 
 def selection_digest(paths):
