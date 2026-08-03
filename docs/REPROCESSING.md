@@ -33,11 +33,20 @@ The full request and response schemas are in the OpenAPI contract served at
 [`trawlarr/webserver/docs/`](../trawlarr/webserver/docs).
 
 `preview` reports what a filter would act on and changes nothing. `apply`
-carries it out, and **requires** a `confirm_count` equal to the number
-`preview` reported for the same filter. If the two disagree — because
-something completed, failed or was queued in between — the request is refused
-and nothing is changed. Previewing is therefore not an optional first step:
-it is the only way to obtain the number the second call has to quote.
+carries it out, and **requires** both a `confirm_count` equal to the
+`counts.selected` `preview` reported and a `confirm_digest` equal to the
+`digest` it reported. If either disagrees — because something completed,
+failed, was queued or was deleted in between — the request is refused and
+nothing is changed. Previewing is therefore not an optional first step: it is
+the only way to obtain the two values the second call has to quote.
+
+The digest is a fingerprint of the exact selected paths, and it is there
+because the count alone is not a description of a set. A file completing and
+another file vanishing between the two calls leaves the count identical and
+the membership different, and both are ordinary events in a running pipeline;
+without the digest, `apply` would then invalidate a file that never appeared
+in any preview. The digest covers the whole selection even when the per-file
+listings are capped by `limit`.
 
 ### Choosing files
 
@@ -47,9 +56,17 @@ it is the only way to obtain the number the second call has to quote.
 | `path_glob`       | `fnmatch` pattern over the absolute path. `*` crosses `/`, so `/tv/*.mkv` matches nested files |
 | `match_file_test` | Additionally require that the library's file-test plugins want the file today |
 
-At least one of `library_id` and `path_glob` is required. A request with
-neither is refused — "everything this installation has ever processed" is not
-expressible in one call.
+At least one of `library_id` and `path_glob` is required, and the `path_glob`
+has to name something. A glob made only of wildcards and separators — `*`,
+`/*`, `*/*` — matches every absolute path on the machine, so on its own it is
+the unscoped request in disguise and it is refused by the same check. A glob
+with any literal character in it (`*.mkv`, `/library/*`) is allowed however
+wide it is: wide is a legitimate thing to ask for, and what bounds it is the
+`5000`-file ceiling and the preview.
+
+So "everything this installation has ever processed" is not expressible in one
+call — not as an empty filter, and not as `path_glob: "*"` either. Adding a
+`library_id` makes a bare `*` legal, because the library is then the scope.
 
 `match_file_test` is the filter that answers the question a rule change
 actually raises: *which of these already-processed files would the new rules
@@ -81,11 +98,30 @@ are always complete even when the per-file lists are capped.
 | `skip_reason`                 | Meaning                                                                    |
 | ----------------------------- | -------------------------------------------------------------------------- |
 | `file_missing`                | Nothing at that path any more. The stale record is left alone.             |
-| `already_queued`              | A pending or in-progress task already exists; it will run under the current rules regardless. |
+| `already_queued`              | A task already exists in the `creating`, `pending`, `in_progress` or `processed` state; it will run under the current rules regardless. See below. |
 | `blocked_by_failed_history`   | See below.                                                                 |
 | `recently_reprocessed`        | Invalidated within the cooldown window. Use `force` to override.           |
 | `file_test_no_match`          | `match_file_test` was set and the plugins do not want this file.           |
 | `file_test_error`             | A file-test plugin raised, so there is no verdict. An unanswered question is never read as "yes". |
+
+### Files already in the pipeline
+
+`already_queued` covers every state a live task row can hold, not just the two
+obvious ones:
+
+- `creating` — a task being set up. A **remote** task stays here until a remote
+  trigger moves it on, which can be a long time; it is a real queued task
+  throughout.
+- `pending`, `in_progress` — waiting for, or on, a worker.
+- `processed` — encoding is finished and the post-processor has not run yet.
+  This is the one that bites. The post-processor is what writes the
+  completed-successfully record, so invalidating one here deletes a record that
+  is written back moments later: the operator is told the file was reprocessed,
+  nothing changes, and the 24-hour cooldown then refuses the correct retry.
+
+`complete` is deliberately **not** in that set. A finished remote task's row is
+left in that state permanently, and treating it as live would make every
+remotely-processed file un-reprocessable for ever.
 
 ### Files that failed
 
@@ -126,7 +162,11 @@ prevent, and this operation is the sanctioned exception to it. So:
   nightly does nothing at all on nights 2..n, and the count says how many
   times it tried.
 - **It is loud.** Every applied request logs a warning naming the filter and
-  the number of files.
+  the number of files. The filter is rendered from everything that changes
+  what the request does, including `cooldown_hours` whenever it is not the
+  default — `cooldown_hours: 0` switches the cooldown off exactly as `force`
+  does, so it is named in the log line and in the audit row as
+  `cooldown_hours=0 (no cooldown)` rather than bypassing the guard silently.
 
 None of this makes deliberate misuse impossible — `force` exists. The goal is
 that a loop cannot be created by accident, cannot be created by leaving the
@@ -162,15 +202,19 @@ curl -sX POST "$BASE/reprocess/preview" -H 'Content-Type: application/json' -d '
   "match_file_test": true
 }'
 # -> {"counts": {"candidates": 812, "selected": 137, ...},
+#     "digest": "3f8a1c94b2d70e6a",
 #     "skipped_reasons": {"file_test_no_match": 673, "already_queued": 2}, ...}
 
-# 2. Read the list. Then act on it, quoting the count.
+# 2. Read the list. Then act on it, quoting the count AND the digest.
 curl -sX POST "$BASE/reprocess/apply" -H 'Content-Type: application/json' -d '{
   "library_id": 1,
   "path_glob": "/library/TV/*.mkv",
   "match_file_test": true,
-  "confirm_count": 137
+  "confirm_count": 137,
+  "confirm_digest": "3f8a1c94b2d70e6a"
 }'
+# If anything moved in between, this is refused and nothing is changed.
+# Preview again and read what changed before re-sending.
 
 # 3. Nothing is queued until a scan runs. Ask for one.
 curl -sX POST "$BASE/pending/rescan"

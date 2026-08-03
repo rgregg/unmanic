@@ -21,9 +21,11 @@
       POST /reprocess/apply     act on it, quoting the count the preview gave
 
     The split is not politeness. `/reprocess/apply` refuses any request whose
-    `confirm_count` does not equal what the same filter selects at that moment,
-    so `/reprocess/preview` is not an optional first step - it is the only way
-    to learn the number the second call has to quote.
+    `confirm_count` and `confirm_digest` do not both match what the same filter
+    selects at that moment, so `/reprocess/preview` is not an optional first
+    step - it is the only way to learn the two values the second call has to
+    quote. The digest is there because a count alone cannot tell "the 12 files
+    you previewed" apart from "12 files, one of which you have never seen".
 
     Neither endpoint queues anything. `/reprocess/apply` deletes recorded
     state, and the next library scan (or `/pending/rescan`) is what actually
@@ -86,11 +88,13 @@ class ApiReprocessHandler(BaseApiHandler):
             and recorded rather than offered as a switch.
 
             A request must be scoped by `library_id`, `path_glob`, or both; an unscoped
-            request is refused with 400. So is a filter matching more files than the
-            operation will consider at once - it is refused rather than truncated.
+            request is refused with 400, and so is one whose only scope is a `path_glob`
+            made entirely of wildcards, because that matches every path there is. So is a
+            filter matching more files than the operation will consider at once - it is
+            refused rather than truncated.
 
-            The `selected` count returned here is the value `/reprocess/apply` requires as
-            its `confirm_count`.
+            The `counts.selected` and `digest` values returned here are what
+            `/reprocess/apply` requires as its `confirm_count` and `confirm_digest`.
         requestBody:
             description: The filter to preview.
             required: True
@@ -161,16 +165,17 @@ class ApiReprocessHandler(BaseApiHandler):
             file the current rules do not want is not processed just because it was selected
             here.
 
-            `confirm_count` must equal the `counts.selected` value returned by
-            `/reprocess/preview` for the same filter. If the selection has changed in the
-            meantime the request is refused and nothing is changed.
+            `confirm_count` and `confirm_digest` must equal the `counts.selected` and
+            `digest` values returned by `/reprocess/preview` for the same filter. If the
+            selection has changed in the meantime - in size OR in membership - the request
+            is refused and nothing is changed.
 
             Files reprocessed within the last `cooldown_hours` are skipped unless `force` is
             set, and every applied request is written to a per-file audit trail carrying a
             count - repeatedly invalidating the same files is what a reprocess loop looks
             like, and this is what makes one visible.
         requestBody:
-            description: The filter to act on, and the count the preview reported.
+            description: The filter to act on, and the count and digest the preview reported.
             required: True
             content:
                 application/json:
@@ -211,6 +216,7 @@ class ApiReprocessHandler(BaseApiHandler):
         try:
             json_request = self.read_json_request(RequestReprocessApplySchema())
             result = reprocess.apply_selection(json_request.get('confirm_count'),
+                                               confirm_digest=json_request.get('confirm_digest'),
                                                **self._filter_kwargs(json_request))
             self.write_success(self.build_response(ReprocessAppliedResultSchema(), result))
             return

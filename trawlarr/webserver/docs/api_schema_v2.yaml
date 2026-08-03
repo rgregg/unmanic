@@ -1627,6 +1627,9 @@ components:
           type: string
           description: fnmatch pattern applied to the absolute path. `*` crosses directory
             separators, so '/library/TV/*.mkv' also matches files in sub-directories.
+            A glob made only of wildcards ('*', '/*') is not a scope - it matches
+            every path there is - and is refused unless a `library_id` is given as
+            well.
           example: /library/TV/*.mkv
           nullable: true
         match_file_test:
@@ -1814,6 +1817,12 @@ components:
           $ref: '#/components/schemas/ReprocessFilter'
         counts:
           $ref: '#/components/schemas/ReprocessCounts'
+        digest:
+          type: string
+          description: Fingerprint of the exact set of selected paths, covering the
+            whole selection even when the listings below are capped. This is the value
+            `/reprocess/apply` requires as its `confirm_digest`.
+          example: 3f8a1c94b2d70e6a
         skipped_reasons:
           type: object
           description: Skipped file counts grouped by reason
@@ -1841,6 +1850,7 @@ components:
           example: 200
       required:
       - counts
+      - digest
       - filter
       - listing_limit
       - listing_limited
@@ -1863,6 +1873,9 @@ components:
           type: string
           description: fnmatch pattern applied to the absolute path. `*` crosses directory
             separators, so '/library/TV/*.mkv' also matches files in sub-directories.
+            A glob made only of wildcards ('*', '/*') is not a scope - it matches
+            every path there is - and is refused unless a `library_id` is given as
+            well.
           example: /library/TV/*.mkv
           nullable: true
         match_file_test:
@@ -1914,12 +1927,21 @@ components:
         confirm_count:
           type: integer
           minimum: 0
-          description: The number of files the preview reported as selected. The request
+          description: The `counts.selected` value the preview reported. The request
             is refused unless this matches what the same filter selects now, so nothing
             can be invalidated without having been previewed first.
           example: 12
+        confirm_digest:
+          type: string
+          description: 'The `digest` value the preview reported: a fingerprint of
+            the exact set of selected paths. Required alongside `confirm_count` because
+            a count alone cannot tell ''the 12 files you previewed'' apart from ''12
+            files, one of which you have never seen'' - one file completing while
+            another is deleted leaves the count identical and the set different.'
+          example: 3f8a1c94b2d70e6a
       required:
       - confirm_count
+      - confirm_digest
       additionalProperties: false
     ReprocessApplied:
       type: object
@@ -1957,6 +1979,12 @@ components:
           $ref: '#/components/schemas/ReprocessFilter'
         counts:
           $ref: '#/components/schemas/ReprocessCounts'
+        digest:
+          type: string
+          description: Fingerprint of the exact set of selected paths, covering the
+            whole selection even when the listings below are capped. This is the value
+            `/reprocess/apply` requires as its `confirm_digest`.
+          example: 3f8a1c94b2d70e6a
         skipped_reasons:
           type: object
           description: Skipped file counts grouped by reason
@@ -1986,6 +2014,7 @@ components:
       required:
       - applied
       - counts
+      - digest
       - filter
       - listing_limit
       - listing_limited
@@ -4188,15 +4217,19 @@ paths:
 
         A request must be scoped by `library_id`, `path_glob`, or both; an unscoped
 
-        request is refused with 400. So is a filter matching more files than the
+        request is refused with 400, and so is one whose only scope is a `path_glob`
 
-        operation will consider at once - it is refused rather than truncated.
+        made entirely of wildcards, because that matches every path there is. So is
+        a
+
+        filter matching more files than the operation will consider at once - it is
+
+        refused rather than truncated.
 
 
-        The `selected` count returned here is the value `/reprocess/apply` requires
-        as
+        The `counts.selected` and `digest` values returned here are what
 
-        its `confirm_count`.
+        `/reprocess/apply` requires as its `confirm_count` and `confirm_digest`.
 
         '
       requestBody:
@@ -4256,12 +4289,13 @@ paths:
         here.
 
 
-        `confirm_count` must equal the `counts.selected` value returned by
+        `confirm_count` and `confirm_digest` must equal the `counts.selected` and
 
-        `/reprocess/preview` for the same filter. If the selection has changed in
-        the
+        `digest` values returned by `/reprocess/preview` for the same filter. If the
 
-        meantime the request is refused and nothing is changed.
+        selection has changed in the meantime - in size OR in membership - the request
+
+        is refused and nothing is changed.
 
 
         Files reprocessed within the last `cooldown_hours` are skipped unless `force`
@@ -4276,7 +4310,7 @@ paths:
 
         '
       requestBody:
-        description: The filter to act on, and the count the preview reported.
+        description: The filter to act on, and the count and digest the preview reported.
         required: true
         content:
           application/json:

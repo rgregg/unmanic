@@ -1648,7 +1648,9 @@ class RequestReprocessSelectionSchema(BaseSchema):
         allow_none=True,
         description=(
             "fnmatch pattern applied to the absolute path. `*` crosses directory separators, "
-            "so '/library/TV/*.mkv' also matches files in sub-directories."
+            "so '/library/TV/*.mkv' also matches files in sub-directories. A glob made only of "
+            "wildcards ('*', '/*') is not a scope - it matches every path there is - and is "
+            "refused unless a `library_id` is given as well."
         ),
         example="/library/TV/*.mkv",
     )
@@ -1716,12 +1718,23 @@ class RequestReprocessApplySchema(RequestReprocessSelectionSchema):
     confirm_count = fields.Int(
         required=True,
         description=(
-            "The number of files the preview reported as selected. The request is refused unless "
+            "The `counts.selected` value the preview reported. The request is refused unless "
             "this matches what the same filter selects now, so nothing can be invalidated without "
             "having been previewed first."
         ),
         example=12,
         validate=validate.Range(min=0),
+    )
+    confirm_digest = fields.Str(
+        required=True,
+        description=(
+            "The `digest` value the preview reported: a fingerprint of the exact set of selected "
+            "paths. Required alongside `confirm_count` because a count alone cannot tell 'the 12 "
+            "files you previewed' apart from '12 files, one of which you have never seen' - one "
+            "file completing while another is deleted leaves the count identical and the set "
+            "different."
+        ),
+        example="3f8a1c94b2d70e6a",
     )
 
 
@@ -1815,6 +1828,8 @@ class ReprocessCountsSchema(BaseSchema):
         description="Files that would be (or were) invalidated. This is the number `confirm_count` must equal.",
         example=12,
     )
+    # NOTE: `digest` lives on the response root, not here, because it
+    # fingerprints the selection rather than counting anything.
     skipped = fields.Int(
         required=True,
         example=28,
@@ -1850,6 +1865,15 @@ class ReprocessSelectionSchema(BaseSuccessSchema):
 
     filter = fields.Nested(ReprocessFilterSchema, required=True)
     counts = fields.Nested(ReprocessCountsSchema, required=True)
+    digest = fields.Str(
+        required=True,
+        description=(
+            "Fingerprint of the exact set of selected paths, covering the whole selection even when "
+            "the listings below are capped. This is the value `/reprocess/apply` requires as its "
+            "`confirm_digest`."
+        ),
+        example="3f8a1c94b2d70e6a",
+    )
     skipped_reasons = fields.Dict(
         required=True,
         keys=fields.Str(),

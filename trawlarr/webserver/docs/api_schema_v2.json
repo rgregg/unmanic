@@ -2097,7 +2097,7 @@
                     },
                     "path_glob": {
                         "type": "string",
-                        "description": "fnmatch pattern applied to the absolute path. `*` crosses directory separators, so '/library/TV/*.mkv' also matches files in sub-directories.",
+                        "description": "fnmatch pattern applied to the absolute path. `*` crosses directory separators, so '/library/TV/*.mkv' also matches files in sub-directories. A glob made only of wildcards ('*', '/*') is not a scope - it matches every path there is - and is refused unless a `library_id` is given as well.",
                         "example": "/library/TV/*.mkv",
                         "nullable": true
                     },
@@ -2307,6 +2307,11 @@
                     "counts": {
                         "$ref": "#/components/schemas/ReprocessCounts"
                     },
+                    "digest": {
+                        "type": "string",
+                        "description": "Fingerprint of the exact set of selected paths, covering the whole selection even when the listings below are capped. This is the value `/reprocess/apply` requires as its `confirm_digest`.",
+                        "example": "3f8a1c94b2d70e6a"
+                    },
                     "skipped_reasons": {
                         "type": "object",
                         "description": "Skipped file counts grouped by reason",
@@ -2343,6 +2348,7 @@
                 },
                 "required": [
                     "counts",
+                    "digest",
                     "filter",
                     "listing_limit",
                     "listing_limited",
@@ -2364,7 +2370,7 @@
                     },
                     "path_glob": {
                         "type": "string",
-                        "description": "fnmatch pattern applied to the absolute path. `*` crosses directory separators, so '/library/TV/*.mkv' also matches files in sub-directories.",
+                        "description": "fnmatch pattern applied to the absolute path. `*` crosses directory separators, so '/library/TV/*.mkv' also matches files in sub-directories. A glob made only of wildcards ('*', '/*') is not a scope - it matches every path there is - and is refused unless a `library_id` is given as well.",
                         "example": "/library/TV/*.mkv",
                         "nullable": true
                     },
@@ -2409,12 +2415,18 @@
                     "confirm_count": {
                         "type": "integer",
                         "minimum": 0,
-                        "description": "The number of files the preview reported as selected. The request is refused unless this matches what the same filter selects now, so nothing can be invalidated without having been previewed first.",
+                        "description": "The `counts.selected` value the preview reported. The request is refused unless this matches what the same filter selects now, so nothing can be invalidated without having been previewed first.",
                         "example": 12
+                    },
+                    "confirm_digest": {
+                        "type": "string",
+                        "description": "The `digest` value the preview reported: a fingerprint of the exact set of selected paths. Required alongside `confirm_count` because a count alone cannot tell 'the 12 files you previewed' apart from '12 files, one of which you have never seen' - one file completing while another is deleted leaves the count identical and the set different.",
+                        "example": "3f8a1c94b2d70e6a"
                     }
                 },
                 "required": [
-                    "confirm_count"
+                    "confirm_count",
+                    "confirm_digest"
                 ],
                 "additionalProperties": false
             },
@@ -2466,6 +2478,11 @@
                     "counts": {
                         "$ref": "#/components/schemas/ReprocessCounts"
                     },
+                    "digest": {
+                        "type": "string",
+                        "description": "Fingerprint of the exact set of selected paths, covering the whole selection even when the listings below are capped. This is the value `/reprocess/apply` requires as its `confirm_digest`.",
+                        "example": "3f8a1c94b2d70e6a"
+                    },
                     "skipped_reasons": {
                         "type": "object",
                         "description": "Skipped file counts grouped by reason",
@@ -2506,6 +2523,7 @@
                 "required": [
                     "applied",
                     "counts",
+                    "digest",
                     "filter",
                     "listing_limit",
                     "listing_limited",
@@ -5869,7 +5887,7 @@
         },
         "/reprocess/preview": {
             "post": {
-                "description": "Returns the files a reprocess request would act on, and the files it would not,\nwith a reason for every one it would not. Nothing is changed.\n\nCompleted-task history is what stops a file being processed a second time. This\noperation deletes that history for a chosen set of files so the ordinary pipeline\npicks them up again under the current rules - which is exactly the thing the\nplatform otherwise goes to some trouble to prevent, so it is scoped, previewed\nand recorded rather than offered as a switch.\n\nA request must be scoped by `library_id`, `path_glob`, or both; an unscoped\nrequest is refused with 400. So is a filter matching more files than the\noperation will consider at once - it is refused rather than truncated.\n\nThe `selected` count returned here is the value `/reprocess/apply` requires as\nits `confirm_count`.\n",
+                "description": "Returns the files a reprocess request would act on, and the files it would not,\nwith a reason for every one it would not. Nothing is changed.\n\nCompleted-task history is what stops a file being processed a second time. This\noperation deletes that history for a chosen set of files so the ordinary pipeline\npicks them up again under the current rules - which is exactly the thing the\nplatform otherwise goes to some trouble to prevent, so it is scoped, previewed\nand recorded rather than offered as a switch.\n\nA request must be scoped by `library_id`, `path_glob`, or both; an unscoped\nrequest is refused with 400, and so is one whose only scope is a `path_glob`\nmade entirely of wildcards, because that matches every path there is. So is a\nfilter matching more files than the operation will consider at once - it is\nrefused rather than truncated.\n\nThe `counts.selected` and `digest` values returned here are what\n`/reprocess/apply` requires as its `confirm_count` and `confirm_digest`.\n",
                 "requestBody": {
                     "description": "The filter to preview.",
                     "required": true,
@@ -5937,9 +5955,9 @@
         },
         "/reprocess/apply": {
             "post": {
-                "description": "Deletes the recorded completed state for every file the filter selects, so that\nthe next library scan tests them again under the current rules.\n\nThis endpoint queues nothing. It removes records; discovery, the file test and\nevery plugin vote then run exactly as they do for a newly discovered file, so a\nfile the current rules do not want is not processed just because it was selected\nhere.\n\n`confirm_count` must equal the `counts.selected` value returned by\n`/reprocess/preview` for the same filter. If the selection has changed in the\nmeantime the request is refused and nothing is changed.\n\nFiles reprocessed within the last `cooldown_hours` are skipped unless `force` is\nset, and every applied request is written to a per-file audit trail carrying a\ncount - repeatedly invalidating the same files is what a reprocess loop looks\nlike, and this is what makes one visible.\n",
+                "description": "Deletes the recorded completed state for every file the filter selects, so that\nthe next library scan tests them again under the current rules.\n\nThis endpoint queues nothing. It removes records; discovery, the file test and\nevery plugin vote then run exactly as they do for a newly discovered file, so a\nfile the current rules do not want is not processed just because it was selected\nhere.\n\n`confirm_count` and `confirm_digest` must equal the `counts.selected` and\n`digest` values returned by `/reprocess/preview` for the same filter. If the\nselection has changed in the meantime - in size OR in membership - the request\nis refused and nothing is changed.\n\nFiles reprocessed within the last `cooldown_hours` are skipped unless `force` is\nset, and every applied request is written to a per-file audit trail carrying a\ncount - repeatedly invalidating the same files is what a reprocess loop looks\nlike, and this is what makes one visible.\n",
                 "requestBody": {
-                    "description": "The filter to act on, and the count the preview reported.",
+                    "description": "The filter to act on, and the count and digest the preview reported.",
                     "required": true,
                     "content": {
                         "application/json": {

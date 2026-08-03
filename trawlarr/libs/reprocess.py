@@ -89,16 +89,25 @@
         entry, no plugin hook, no post-processor path. The only caller is the
         API handler, which means a human or something a human wrote and
         pointed at this installation.
-      * It must be scoped. `library_id` or `path_glob` is required;
-        "everything, everywhere" is not expressible. A selection larger than
+      * It must be scoped, and scoped *to something*. `library_id` or
+        `path_glob` is required, and a `path_glob` made only of wildcards is
+        not a scope: `path_glob='*'` matches every absolute path there is, so
+        on its own it is the unscoped request wearing a hat, and it is refused
+        by the same check for the same reason. A glob with any literal
+        character in it ('*.mkv', '/library/*') selects a real subset and is
+        allowed however wide, because "wide" is a legitimate thing to ask for
+        and the preview is what makes it legible. A selection larger than
         MAX_SELECTION is refused outright with a message asking for a
         narrower filter, rather than truncated - truncating would do most of
         an unintended thing quietly.
-      * It must be previewed. `apply_selection()` requires `confirm_count`,
-        and refuses unless it equals the number of files the same filter
-        selects right now. A caller therefore cannot act without having asked
-        what it would act on, and a filter whose result has changed since the
-        preview fails closed instead of acting on the new set.
+      * It must be previewed. `apply_selection()` requires `confirm_count`
+        *and* `confirm_digest`, and refuses unless both match what the same
+        filter selects right now. The count alone is not enough: two files
+        completing and one file vanishing between the preview and the apply
+        leaves the count identical and the set different, and both events are
+        ordinary in a running pipeline. The digest is over the selected paths,
+        so a caller whose selection has changed at all fails closed instead of
+        acting on files it never saw.
       * It is remembered. Every invalidated path gets a `file_reprocess_state`
         row carrying a count and a timestamp, and a path invalidated within
         `cooldown_hours` is skipped unless `force` is passed. A script that
@@ -133,10 +142,24 @@
 
     WHAT IS DELIBERATELY SKIPPED
     ----------------------------
-      * A file with a pending or in-progress task. It is already going to be
-        processed, under the current rules, and invalidating its done-state
-        would achieve nothing except to confuse the record it writes when it
-        finishes.
+      * A file with a task anywhere in the pipeline - 'creating', 'pending',
+        'in_progress' or 'processed'. It is already going to be processed,
+        under the current rules, and invalidating its done-state would achieve
+        nothing except to confuse the record it writes when it finishes.
+
+        'processed' matters as much as 'pending' and is the less obvious of
+        the two: a task in that state has finished encoding and is waiting for
+        the post-processor, which calls `donestate.record_completion()`. Treat
+        such a file as reprocessable and the sequence is - delete the record,
+        report the file as reprocessed, watch the post-processor write the
+        record straight back, and then have the 24h cooldown refuse the
+        correct retry. 'creating' matters for the mirror-image reason: a
+        remote task sits in it until a remote trigger moves it on, which can
+        be a long time, and it is a real queued task throughout.
+
+        'complete' is NOT in that set. A remote task ends there and its row
+        stays, so counting it as active would make every remotely-processed
+        file permanently un-reprocessable.
       * A file that is not on disk. Whatever the record says, there is
         nothing to reprocess.
       * A file invalidated within the cooldown window (see above).
@@ -150,6 +173,7 @@
 
 import datetime
 import fnmatch
+import hashlib
 import os
 
 from trawlarr.libs import convergence, donestate
@@ -171,8 +195,13 @@ DEFAULT_COOLDOWN_HOURS = 24
 #: SQLite's default variable limit is 999; stay well under it.
 _QUERY_BATCH = 400
 
-#: Task statuses that mean "this file is already on its way through".
-_ACTIVE_TASK_STATUSES = ('pending', 'in_progress')
+#: Task statuses that mean "this file is already on its way through". Every
+#: status a task row can hold except 'complete', which is where a finished
+#: remote task's row is left for good. See the module docstring.
+_ACTIVE_TASK_STATUSES = ('creating', 'pending', 'in_progress', 'processed')
+
+#: Characters that restrict nothing when they are all a glob is made of.
+_GLOB_WILDCARDS = '*?/' + os.sep
 
 # Why a candidate was not selected. Reported per file by the preview.
 SKIP_MISSING = 'file_missing'
@@ -229,9 +258,16 @@ def _stamp(value):
 
 
 def describe_filter(library_id=None, path_glob=None, match_file_test=False, include_failed=False,
-                    clear_convergence=False, force=False):
+                    clear_convergence=False, force=False, cooldown_hours=DEFAULT_COOLDOWN_HOURS):
     """
     Render a filter as one line, for the log and for the audit row.
+
+    Anything that changes what the request does has to appear here, because
+    this string is the whole of what the warning log and the audit row say
+    about why a file was invalidated. `cooldown_hours=0` is the case that
+    makes the point: it switches the cooldown off exactly as `force` does, so
+    leaving it out would let the guard be bypassed without either the log or
+    the audit trail recording that it had been.
 
     :return: str
     """
@@ -248,7 +284,46 @@ def describe_filter(library_id=None, path_glob=None, match_file_test=False, incl
         parts.append('clear_convergence=True')
     if force:
         parts.append('force=True')
+    if not cooldown_hours:
+        parts.append('cooldown_hours=0 (no cooldown)')
+    elif cooldown_hours != DEFAULT_COOLDOWN_HOURS:
+        parts.append('cooldown_hours={}'.format(cooldown_hours))
     return ', '.join(parts) if parts else '<no filter>'
+
+
+def _glob_restricts_nothing(path_glob):
+    """
+    Is this glob made entirely of wildcards and separators?
+
+    `'*'`, `'/*'`, `'*/*'` all match every absolute path on the machine, so a
+    request scoped only by one of them is the "everything this installation
+    has ever processed" request under another name - which is the one request
+    this module will not carry out in a single call.
+
+    Anything with a literal character in it - `'*.mkv'`, `'/library/*'`, even
+    a character class like `'[ab]*'` - names a real subset, and is allowed
+    however wide it is. The bound on wide-but-real selections is MAX_SELECTION
+    and the preview, not this check.
+    """
+    if not path_glob:
+        return True
+    return all(char in _GLOB_WILDCARDS for char in path_glob)
+
+
+def selection_digest(paths):
+    """
+    A short, stable fingerprint of an exact set of selected paths.
+
+    This is what `apply_selection()` confirms, and the reason it confirms it
+    rather than a count is in the module docstring: a count cannot tell "the
+    12 files you previewed" apart from "12 files, one of which you have never
+    seen". Not a security boundary - a caller who wants to act blind can
+    preview and immediately apply - so a truncated digest is plenty.
+
+    :return: str
+    """
+    joined = '\0'.join(paths)
+    return hashlib.sha256(joined.encode('utf-8', 'surrogatepass')).hexdigest()[:16]
 
 
 def _library_path(library_id):
@@ -439,18 +514,22 @@ def build_selection(library_id=None, path_glob=None, match_file_test=False, incl
     :param now:              injection point for the cooldown clock.
     :param cooldown_hours:   how recently invalidated is "too recently".
     :param file_test_factory: injection point for the predicate's FileTest.
-    :raises ReprocessRefused: no filter was given, or the selection is too big.
+    :raises ReprocessRefused: no filter was given, the only filter given
+            restricts nothing, or the selection is too big.
     :return: dict
     """
-    if not library_id and not path_glob:
+    if not library_id and _glob_restricts_nothing(path_glob):
         raise ReprocessRefused(
-            "A reprocess request must be scoped: give a library_id, a path_glob, or both. Invalidating the "
-            "completed state of every file this installation has ever processed is not something this API "
-            "will do in one call.")
+            "A reprocess request must be scoped: give a library_id, a path_glob that names something, or "
+            "both. {} Invalidating the completed state of every file this installation has ever processed "
+            "is not something this API will do in one call.".format(
+                "A path_glob of '{}' matches every path there is, which is the same request.".format(path_glob)
+                if path_glob else "No filter was given."))
 
     filter_description = describe_filter(library_id=library_id, path_glob=path_glob,
                                          match_file_test=match_file_test, include_failed=include_failed,
-                                         clear_convergence=clear_convergence, force=force)
+                                         clear_convergence=clear_convergence, force=force,
+                                         cooldown_hours=cooldown_hours)
 
     completed = _completed_records(library_id, path_glob)
     failed = _failed_records(library_id, path_glob)
@@ -565,6 +644,9 @@ def build_selection(library_id=None, path_glob=None, match_file_test=False, incl
             'failed_history_rows': sum(e['failed_history_rows'] for e in selected),
         },
         'skipped_reasons': skipped_counts,
+        # Over the whole selection, never the truncated listing: a preview
+        # asked for with limit=2 must still confirm all 137 files.
+        'digest':          selection_digest([e['abspath'] for e in selected]),
         'selected':        selected[:limit],
         'skipped':         skipped[:limit],
         'listing_limited': len(selected) > limit or len(skipped) > limit,
@@ -574,20 +656,28 @@ def build_selection(library_id=None, path_glob=None, match_file_test=False, incl
 
 def apply_selection(confirm_count, library_id=None, path_glob=None, match_file_test=False, include_failed=False,
                     clear_convergence=False, force=False, limit=DEFAULT_LIST_LIMIT, now=None,
-                    cooldown_hours=DEFAULT_COOLDOWN_HOURS, file_test_factory=None):
+                    cooldown_hours=DEFAULT_COOLDOWN_HOURS, file_test_factory=None, confirm_digest=None):
     """
     Invalidate the recorded state for everything the filter selects.
 
     `confirm_count` must equal the number of files this filter selects at the
-    moment of the call. That is the whole preview requirement: a caller that
-    has not looked cannot supply the number, and a caller whose selection has
-    changed since it looked is refused rather than acting on a set it has not
-    seen.
+    moment of the call, and `confirm_digest` must equal the digest the same
+    preview reported. That is the whole preview requirement: a caller that has
+    not looked can supply neither, and a caller whose selection has changed
+    since it looked is refused rather than acting on a set it has not seen.
+
+    The digest is what makes that second half true. Confirming the count alone
+    would accept any set of the same size, and "the same size, different
+    files" is not a corner case here: one file completing and one file being
+    deleted between the preview and the apply is a Tuesday in a running
+    pipeline, and the operator would then invalidate a file they never saw
+    listed. `confirm_digest` is therefore required; None is a mismatch, not a
+    waiver.
 
     Never queues anything. See the module docstring.
 
     :raises ReprocessRefused: the request was scoped wrongly, is too large, or
-            confirm_count does not match.
+            the confirmation does not match the selection.
     :return: the selection dict, with an 'applied' section added
     """
     # Selected once, with the listing cap wound right off, so that the set
@@ -600,6 +690,7 @@ def apply_selection(confirm_count, library_id=None, path_glob=None, match_file_t
                                 file_test_factory=file_test_factory)
     entries = selection['selected']
     actual = selection['counts']['selected']
+    actual_digest = selection['digest']
     try:
         confirmed = int(confirm_count)
     except (TypeError, ValueError):
@@ -607,8 +698,18 @@ def apply_selection(confirm_count, library_id=None, path_glob=None, match_file_t
     if confirmed is None or confirmed != actual:
         raise ReprocessRefused(
             "This filter now selects {} file(s), but the request confirmed {}. Nothing has been changed. "
-            "Preview the selection again and re-send the request with the count it reports.".format(
-                actual, confirm_count))
+            "Preview the selection again and re-send the request with the count and digest it "
+            "reports.".format(actual, confirm_count))
+    if not confirm_digest or str(confirm_digest) != actual_digest:
+        # Same size, different files - or a caller that never previewed at
+        # all. Both act on a set nobody has read, which is the one thing the
+        # preview exists to prevent.
+        raise ReprocessRefused(
+            "This filter selects {} file(s) as confirmed, but they are not the same {} files: the selection "
+            "digest is now '{}' and the request confirmed '{}'. Something completed, failed, was queued or "
+            "was deleted since the preview. Nothing has been changed. Preview the selection again and "
+            "re-send the request with the digest it reports.".format(
+                actual, actual, actual_digest, confirm_digest or '<none>'))
 
     filter_description = selection['filter']['description']
     if actual == 0:
