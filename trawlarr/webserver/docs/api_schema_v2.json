@@ -2086,6 +2086,454 @@
                 ],
                 "additionalProperties": false
             },
+            "RequestReprocessSelection": {
+                "type": "object",
+                "properties": {
+                    "library_id": {
+                        "type": "integer",
+                        "description": "Restrict the selection to files completed by this library. Either this or `path_glob` is required - an unscoped reprocess request is refused.",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "path_glob": {
+                        "type": "string",
+                        "description": "fnmatch pattern applied to the absolute path. `*` crosses directory separators, so '/library/TV/*.mkv' also matches files in sub-directories. A glob made only of wildcards ('*', '/*') is not a scope - it matches every path there is - and is refused unless a `library_id` is given as well.",
+                        "example": "/library/TV/*.mkv",
+                        "nullable": true
+                    },
+                    "match_file_test": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Additionally require that the library's file-test plugins currently want the file. This is what answers 'which of these already-processed files would the NEW rules pick up?'. It runs those plugins - which probe - against every candidate, so it is much slower than the other filters.",
+                        "example": false
+                    },
+                    "include_failed": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Also act on files blacklisted by a failed history entry. The file test checks failed history independently of the completed state, so those files are otherwise reported as blocked and left alone. Acting on them DELETES the failed history rows, which deletes their diagnostics and resets the retry guard's consecutive-failure count for the file.",
+                        "example": false
+                    },
+                    "clear_convergence": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Also clear any non-convergence records for the selected files. Off by default: the occurrence count on those records only advances across deliberate reprocesses, so clearing it every time would stop it ever reporting a file that never converges.",
+                        "example": false
+                    },
+                    "force": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Ignore the cooldown that skips files reprocessed within the last `cooldown_hours`. Repeatedly invalidating the same files is what a reprocess loop looks like, so this is opt-in and every use is logged.",
+                        "example": false
+                    },
+                    "cooldown_hours": {
+                        "type": "integer",
+                        "default": 24,
+                        "minimum": 0,
+                        "description": "How recently a file must have been reprocessed to be skipped. 0 disables the cooldown.",
+                        "example": 24
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "default": 200,
+                        "minimum": 1,
+                        "description": "How many selected and skipped files to list individually. The counts are always complete.",
+                        "example": 200
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ReprocessFilter": {
+                "type": "object",
+                "properties": {
+                    "library_id": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "path_glob": {
+                        "type": "string",
+                        "example": "/library/TV/*.mkv",
+                        "nullable": true
+                    },
+                    "match_file_test": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "include_failed": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "clear_convergence": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "force": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "cooldown_hours": {
+                        "type": "integer",
+                        "example": 24,
+                        "nullable": true
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The filter rendered as one line, as it appears in the log and in the audit trail",
+                        "example": "library_id=1, path_glob='/library/TV/*.mkv'"
+                    }
+                },
+                "required": [
+                    "clear_convergence",
+                    "description",
+                    "force",
+                    "include_failed",
+                    "match_file_test"
+                ],
+                "additionalProperties": false
+            },
+            "ReprocessCounts": {
+                "type": "object",
+                "properties": {
+                    "candidates": {
+                        "type": "integer",
+                        "description": "Files with recorded state that the filter matched, before any file was ruled out",
+                        "example": 40
+                    },
+                    "selected": {
+                        "type": "integer",
+                        "description": "Files that would be (or were) invalidated. This is the number `confirm_count` must equal.",
+                        "example": 12
+                    },
+                    "skipped": {
+                        "type": "integer",
+                        "example": 28
+                    },
+                    "completion_records": {
+                        "type": "integer",
+                        "description": "Of the selected files, how many have a completed-successfully record",
+                        "example": 12
+                    },
+                    "failed_history_rows": {
+                        "type": "integer",
+                        "description": "Of the selected files, how many failed history rows would be deleted",
+                        "example": 0
+                    }
+                },
+                "required": [
+                    "candidates",
+                    "completion_records",
+                    "failed_history_rows",
+                    "selected",
+                    "skipped"
+                ],
+                "additionalProperties": false
+            },
+            "ReprocessFile": {
+                "type": "object",
+                "properties": {
+                    "abspath": {
+                        "type": "string",
+                        "description": "Absolute path of the file",
+                        "example": "/library/TV/Show/S01E01.mkv"
+                    },
+                    "library_id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "completed_at": {
+                        "type": "number",
+                        "description": "When the completion record being invalidated was written",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "task_id": {
+                        "type": "integer",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "has_completion_state": {
+                        "type": "boolean",
+                        "description": "Whether this file has a completed-successfully record to invalidate",
+                        "example": true
+                    },
+                    "failed_history_rows": {
+                        "type": "integer",
+                        "description": "How many failed history entries blacklist this file",
+                        "example": 0
+                    },
+                    "previous_reprocesses": {
+                        "type": "integer",
+                        "description": "How many times this file has already been reprocessed. A number that keeps climbing is a loop.",
+                        "example": 0
+                    },
+                    "last_reprocessed_at": {
+                        "type": "number",
+                        "example": 1627392616.6400812,
+                        "nullable": true
+                    },
+                    "skip_reason": {
+                        "type": "string",
+                        "description": "Why this file was not selected: file_missing, already_queued, blocked_by_failed_history, recently_reprocessed, file_test_no_match or file_test_error. Null for selected files.",
+                        "example": "blocked_by_failed_history",
+                        "nullable": true
+                    },
+                    "skip_detail": {
+                        "type": "string",
+                        "description": "The same reason written out for a human",
+                        "example": "",
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "abspath",
+                    "failed_history_rows",
+                    "has_completion_state",
+                    "library_id",
+                    "previous_reprocesses"
+                ],
+                "additionalProperties": false
+            },
+            "ReprocessSelection": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "This is always \"True\" when a request succeeds",
+                        "example": true
+                    },
+                    "filter": {
+                        "$ref": "#/components/schemas/ReprocessFilter"
+                    },
+                    "counts": {
+                        "$ref": "#/components/schemas/ReprocessCounts"
+                    },
+                    "digest": {
+                        "type": "string",
+                        "description": "Fingerprint of the exact set of selected paths, covering the whole selection even when the listings below are capped. This is the value `/reprocess/apply` requires as its `confirm_digest`.",
+                        "example": "3f8a1c94b2d70e6a"
+                    },
+                    "skipped_reasons": {
+                        "type": "object",
+                        "description": "Skipped file counts grouped by reason",
+                        "example": {
+                            "blocked_by_failed_history": 2
+                        },
+                        "additionalProperties": {
+                            "type": "integer"
+                        }
+                    },
+                    "selected": {
+                        "type": "array",
+                        "description": "The files that would be invalidated, capped at `listing_limit`",
+                        "items": {
+                            "$ref": "#/components/schemas/ReprocessFile"
+                        }
+                    },
+                    "skipped": {
+                        "type": "array",
+                        "description": "The files that would not be, and why, capped at `listing_limit`",
+                        "items": {
+                            "$ref": "#/components/schemas/ReprocessFile"
+                        }
+                    },
+                    "listing_limited": {
+                        "type": "boolean",
+                        "description": "True when one of the lists above was truncated. The counts are still complete.",
+                        "example": false
+                    },
+                    "listing_limit": {
+                        "type": "integer",
+                        "example": 200
+                    }
+                },
+                "required": [
+                    "counts",
+                    "digest",
+                    "filter",
+                    "listing_limit",
+                    "listing_limited",
+                    "selected",
+                    "skipped",
+                    "skipped_reasons",
+                    "success"
+                ],
+                "additionalProperties": false
+            },
+            "RequestReprocessApply": {
+                "type": "object",
+                "properties": {
+                    "library_id": {
+                        "type": "integer",
+                        "description": "Restrict the selection to files completed by this library. Either this or `path_glob` is required - an unscoped reprocess request is refused.",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "path_glob": {
+                        "type": "string",
+                        "description": "fnmatch pattern applied to the absolute path. `*` crosses directory separators, so '/library/TV/*.mkv' also matches files in sub-directories. A glob made only of wildcards ('*', '/*') is not a scope - it matches every path there is - and is refused unless a `library_id` is given as well.",
+                        "example": "/library/TV/*.mkv",
+                        "nullable": true
+                    },
+                    "match_file_test": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Additionally require that the library's file-test plugins currently want the file. This is what answers 'which of these already-processed files would the NEW rules pick up?'. It runs those plugins - which probe - against every candidate, so it is much slower than the other filters.",
+                        "example": false
+                    },
+                    "include_failed": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Also act on files blacklisted by a failed history entry. The file test checks failed history independently of the completed state, so those files are otherwise reported as blocked and left alone. Acting on them DELETES the failed history rows, which deletes their diagnostics and resets the retry guard's consecutive-failure count for the file.",
+                        "example": false
+                    },
+                    "clear_convergence": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Also clear any non-convergence records for the selected files. Off by default: the occurrence count on those records only advances across deliberate reprocesses, so clearing it every time would stop it ever reporting a file that never converges.",
+                        "example": false
+                    },
+                    "force": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Ignore the cooldown that skips files reprocessed within the last `cooldown_hours`. Repeatedly invalidating the same files is what a reprocess loop looks like, so this is opt-in and every use is logged.",
+                        "example": false
+                    },
+                    "cooldown_hours": {
+                        "type": "integer",
+                        "default": 24,
+                        "minimum": 0,
+                        "description": "How recently a file must have been reprocessed to be skipped. 0 disables the cooldown.",
+                        "example": 24
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "default": 200,
+                        "minimum": 1,
+                        "description": "How many selected and skipped files to list individually. The counts are always complete.",
+                        "example": 200
+                    },
+                    "confirm_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "The `counts.selected` value the preview reported. The request is refused unless this matches what the same filter selects now, so nothing can be invalidated without having been previewed first.",
+                        "example": 12
+                    },
+                    "confirm_digest": {
+                        "type": "string",
+                        "description": "The `digest` value the preview reported: a fingerprint of the exact set of selected paths. Required alongside `confirm_count` because a count alone cannot tell 'the 12 files you previewed' apart from '12 files, one of which you have never seen' - one file completing while another is deleted leaves the count identical and the set different.",
+                        "example": "3f8a1c94b2d70e6a"
+                    }
+                },
+                "required": [
+                    "confirm_count",
+                    "confirm_digest"
+                ],
+                "additionalProperties": false
+            },
+            "ReprocessApplied": {
+                "type": "object",
+                "properties": {
+                    "completion_records_cleared": {
+                        "type": "integer",
+                        "example": 12
+                    },
+                    "failed_history_rows_deleted": {
+                        "type": "integer",
+                        "example": 0
+                    },
+                    "convergence_records_cleared": {
+                        "type": "integer",
+                        "example": 0
+                    },
+                    "files": {
+                        "type": "array",
+                        "description": "Every path whose recorded state was invalidated",
+                        "example": [
+                            "/library/TV/Show/S01E01.mkv"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "completion_records_cleared",
+                    "convergence_records_cleared",
+                    "failed_history_rows_deleted",
+                    "files"
+                ],
+                "additionalProperties": false
+            },
+            "ReprocessAppliedResult": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "This is always \"True\" when a request succeeds",
+                        "example": true
+                    },
+                    "filter": {
+                        "$ref": "#/components/schemas/ReprocessFilter"
+                    },
+                    "counts": {
+                        "$ref": "#/components/schemas/ReprocessCounts"
+                    },
+                    "digest": {
+                        "type": "string",
+                        "description": "Fingerprint of the exact set of selected paths, covering the whole selection even when the listings below are capped. This is the value `/reprocess/apply` requires as its `confirm_digest`.",
+                        "example": "3f8a1c94b2d70e6a"
+                    },
+                    "skipped_reasons": {
+                        "type": "object",
+                        "description": "Skipped file counts grouped by reason",
+                        "example": {
+                            "blocked_by_failed_history": 2
+                        },
+                        "additionalProperties": {
+                            "type": "integer"
+                        }
+                    },
+                    "selected": {
+                        "type": "array",
+                        "description": "The files that would be invalidated, capped at `listing_limit`",
+                        "items": {
+                            "$ref": "#/components/schemas/ReprocessFile"
+                        }
+                    },
+                    "skipped": {
+                        "type": "array",
+                        "description": "The files that would not be, and why, capped at `listing_limit`",
+                        "items": {
+                            "$ref": "#/components/schemas/ReprocessFile"
+                        }
+                    },
+                    "listing_limited": {
+                        "type": "boolean",
+                        "description": "True when one of the lists above was truncated. The counts are still complete.",
+                        "example": false
+                    },
+                    "listing_limit": {
+                        "type": "integer",
+                        "example": 200
+                    },
+                    "applied": {
+                        "$ref": "#/components/schemas/ReprocessApplied"
+                    }
+                },
+                "required": [
+                    "applied",
+                    "counts",
+                    "digest",
+                    "filter",
+                    "listing_limit",
+                    "listing_limited",
+                    "selected",
+                    "skipped",
+                    "skipped_reasons",
+                    "success"
+                ],
+                "additionalProperties": false
+            },
             "SessionStateSuccess": {
                 "type": "object",
                 "properties": {
@@ -5390,6 +5838,142 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/PluginsDataPanelTypesData"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request; Check `messages` for any validation errors",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadRequest"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Bad request; Requested endpoint not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadEndpoint"
+                                }
+                            }
+                        }
+                    },
+                    "405": {
+                        "description": "Bad request; Requested method is not allowed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadMethod"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error; Check `error` for exception",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InternalError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/reprocess/preview": {
+            "post": {
+                "description": "Returns the files a reprocess request would act on, and the files it would not,\nwith a reason for every one it would not. Nothing is changed.\n\nCompleted-task history is what stops a file being processed a second time. This\noperation deletes that history for a chosen set of files so the ordinary pipeline\npicks them up again under the current rules - which is exactly the thing the\nplatform otherwise goes to some trouble to prevent, so it is scoped, previewed\nand recorded rather than offered as a switch.\n\nA request must be scoped by `library_id`, `path_glob`, or both; an unscoped\nrequest is refused with 400, and so is one whose only scope is a `path_glob`\nmade entirely of wildcards, because that matches every path there is. So is a\nfilter matching more files than the operation will consider at once - it is\nrefused rather than truncated.\n\nThe `counts.selected` and `digest` values returned here are what\n`/reprocess/apply` requires as its `confirm_count` and `confirm_digest`.\n",
+                "requestBody": {
+                    "description": "The filter to preview.",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RequestReprocessSelection"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sample response: Returns what the filter would act on.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReprocessSelection"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request; Check `messages` for any validation errors",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadRequest"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Bad request; Requested endpoint not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadEndpoint"
+                                }
+                            }
+                        }
+                    },
+                    "405": {
+                        "description": "Bad request; Requested method is not allowed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BadMethod"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error; Check `error` for exception",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InternalError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/reprocess/apply": {
+            "post": {
+                "description": "Deletes the recorded completed state for every file the filter selects, so that\nthe next library scan tests them again under the current rules.\n\nThis endpoint queues nothing. It removes records; discovery, the file test and\nevery plugin vote then run exactly as they do for a newly discovered file, so a\nfile the current rules do not want is not processed just because it was selected\nhere.\n\n`confirm_count` and `confirm_digest` must equal the `counts.selected` and\n`digest` values returned by `/reprocess/preview` for the same filter. If the\nselection has changed in the meantime - in size OR in membership - the request\nis refused and nothing is changed.\n\nFiles reprocessed within the last `cooldown_hours` are skipped unless `force` is\nset, and every applied request is written to a per-file audit trail carrying a\ncount - repeatedly invalidating the same files is what a reprocess loop looks\nlike, and this is what makes one visible.\n",
+                "requestBody": {
+                    "description": "The filter to act on, and the count and digest the preview reported.",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RequestReprocessApply"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sample response: Returns what was invalidated.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReprocessAppliedResult"
                                 }
                             }
                         }
