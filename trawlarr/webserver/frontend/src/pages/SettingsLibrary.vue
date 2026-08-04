@@ -438,7 +438,6 @@ export default {
       libraryScanFollowSymlinks: ref(null),
       concurrentFileTesters: ref(null),
       runLibraryScanOnStart: ref(null),
-      enableLibraryFileMonitor: ref(null),
       clearPendingTasksOnStart: ref(null),
       autoManageCompletedTasks: ref(null),
       compressCompletedTasksLogs: ref(null),
@@ -569,7 +568,6 @@ export default {
         this.libraryScanFollowSymlinks = response.data.settings.follow_symlinks
         this.concurrentFileTesters = response.data.settings.concurrent_file_testers
         this.runLibraryScanOnStart = response.data.settings.run_full_scan_on_start
-        this.enableLibraryFileMonitor = response.data.settings.enable_inotify
         this.clearPendingTasksOnStart = response.data.settings.clear_pending_tasks_on_restart
         this.autoManageCompletedTasks = response.data.settings.auto_manage_completed_tasks
         this.compressCompletedTasksLogs = response.data.settings.compress_completed_tasks_logs
@@ -591,15 +589,14 @@ export default {
         settings: {
           library_path: this.libraryPath,
           enable_library_scanner: this.enableLibraryScanner,
-          schedule_full_scan_minutes: this.libraryScanSchedule,
+          schedule_full_scan_minutes: Number(this.libraryScanSchedule),
           follow_symlinks: this.libraryScanFollowSymlinks,
-          concurrent_file_testers: this.concurrentFileTesters,
+          concurrent_file_testers: Number(this.concurrentFileTesters),
           run_full_scan_on_start: this.runLibraryScanOnStart,
-          enable_inotify: this.enableLibraryFileMonitor,
           clear_pending_tasks_on_restart: this.clearPendingTasksOnStart,
           auto_manage_completed_tasks: this.autoManageCompletedTasks,
           compress_completed_tasks_logs: this.compressCompletedTasksLogs,
-          max_age_of_completed_tasks: this.maxAgeOfCompletedTasks,
+          max_age_of_completed_tasks: Number(this.maxAgeOfCompletedTasks),
           always_keep_failed_tasks: this.alwaysKeepFailedTasks,
         }
       }

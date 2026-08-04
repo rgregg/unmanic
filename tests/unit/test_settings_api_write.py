@@ -27,9 +27,11 @@
         lowercases keys before matching them;
       - ordinary settings are still persisted, and exactly what the caller
         asked for is what gets written;
-      - unknown keys are passed through deliberately (the UI posts
-        library-scoped keys such as enable_inotify alongside application ones,
-        and Config drops them silently).
+      - unknown keys and values of the wrong type are refused with a
+        field-level message, and nothing from that request is saved (#24).
+        The UI used to post a library-scoped `enable_inotify` here, which
+        Config dropped in silence; the field it read has not existed since
+        #52, and the page no longer sends it.
 
     write_settings() is exercised directly on an un-initialised handler
     instance with the Tornado plumbing stubbed out. That is deliberate: a test
@@ -152,20 +154,104 @@ def test_ordinary_settings_are_persisted_unchanged():
     assert handler.config.saved == [requested]
 
 
-def test_unknown_keys_are_passed_through_rather_than_refused():
-    """
-    Documented contract: unknown keys are ignored, not rejected. The UI posts
-    library-scoped keys (enable_inotify) to this endpoint; Config discards
-    anything that is not one of its own fields.
-    """
-    handler = run_write_settings({'library_path': '/library', 'enable_inotify': True})
-
-    assert handler.status == 200
-    assert handler.config.saved == [{'library_path': '/library', 'enable_inotify': True}]
-
-
 def test_empty_request_persists_an_empty_dict():
     handler = run_write_settings({})
 
     assert handler.status == 200
     assert handler.config.saved == [{}]
+
+
+# ---------------------------------------------------------------------------
+# #24: a write that names nothing, or carries an unusable value, is refused
+# ---------------------------------------------------------------------------
+
+def test_an_unknown_key_is_refused_and_nothing_is_saved():
+    handler = run_write_settings({'enable_libary_scanner': True})
+
+    assert handler.status == 400
+    assert handler.errors_written == 1
+    assert handler.config.saved == []
+    # Field-level, and it names the field the caller most likely meant
+    message = handler.error_messages['enable_libary_scanner'][0]
+    assert 'Unknown setting' in message
+    assert 'enable_library_scanner' in message
+
+
+def test_a_value_of_the_wrong_type_is_refused_and_nothing_is_saved():
+    handler = run_write_settings({'worker_stall_timeout': 'as long as it takes'})
+
+    assert handler.status == 400
+    assert handler.config.saved == []
+    assert 'worker_stall_timeout' in handler.error_messages
+
+
+def test_a_value_outside_the_allowed_range_is_refused():
+    handler = run_write_settings({'worker_stall_timeout': 5})
+
+    assert handler.status == 400
+    assert handler.config.saved == []
+    assert str(config.MINIMUM_WORKER_STALL_TIMEOUT) in handler.error_messages['worker_stall_timeout'][0]
+
+
+def test_one_bad_key_refuses_the_whole_request():
+    """
+    Same rule as the protected keys: no partial saves. A caller that got a
+    400 must not have to work out which half of its request applied.
+    """
+    handler = run_write_settings({
+        'library_path': '/library',
+        'debugging':    'yes please',
+    })
+
+    assert handler.status == 400
+    assert handler.config.saved == []
+    assert 'debugging' in handler.error_messages
+    assert 'library_path' not in handler.error_messages
+
+
+def test_every_offending_field_is_reported_not_just_the_first():
+    handler = run_write_settings({
+        'debugging':          'yes please',
+        'nonsense':           1,
+        'ui_port':            999999,
+        'enable_library_scanner': True,
+    })
+
+    assert handler.status == 400
+    assert sorted(handler.error_messages) == ['debugging', 'nonsense', 'ui_port']
+
+
+def test_a_valid_bulk_update_is_saved_with_its_values_typed():
+    """
+    The success path, including the conversion: a number sent as a string
+    (an HTML number input, an older client) is stored as a number.
+    """
+    handler = run_write_settings({
+        'library_path':               '/library',
+        'enable_library_scanner':     True,
+        'schedule_full_scan_minutes': '720',
+        'concurrent_file_testers':    2,
+        'worker_stall_timeout':       120,
+    })
+
+    assert handler.status == 200
+    assert handler.errors_written == 0
+    assert handler.config.saved == [{
+        'library_path':               '/library',
+        'enable_library_scanner':     True,
+        'schedule_full_scan_minutes': 720,
+        'concurrent_file_testers':    2,
+        'worker_stall_timeout':       120,
+    }]
+
+
+def test_a_protected_key_is_still_refused_as_protected_not_as_unknown():
+    """
+    The two checks are separate and the protected one runs first. A read-only
+    field is a real field; saying "unknown setting" about it would be a lie.
+    """
+    handler = run_write_settings({'config_path': '/tmp/attacker-controlled'})
+
+    assert handler.status == 400
+    assert handler.config.saved == []
+    assert 'read-only' in handler.error_messages['settings'][0]

@@ -30,6 +30,7 @@
 
 """
 
+import difflib
 import os
 import json
 
@@ -96,6 +97,210 @@ DEFAULT_WORKER_STALL_TIMEOUT = 300
 #: not having a stall detector at all, so the value is clamped rather than
 #: trusted.
 MINIMUM_WORKER_STALL_TIMEOUT = 60
+
+#: String spellings of a boolean accepted from clients and environment
+#: variables, which have no JSON types to lose.
+_TRUE_STRINGS = ('true', 'yes', 'on', '1')
+_FALSE_STRINGS = ('false', 'no', 'off', '0')
+
+
+def _describe(value):
+    """Render a rejected value for an error message, with its type"""
+    return "{!r} ({})".format(value, type(value).__name__)
+
+
+class ConfigFieldSpec(object):
+    """
+    What one configuration field is allowed to hold.
+
+    `coerce()` returns the value to store, or raises `ValueError` carrying a
+    message written for whoever sent the value.
+
+    Coercion is deliberately narrow. A numeric string becomes a number
+    because environment variables and HTML number inputs have no other way
+    to say 1440; a boolean does NOT become the integer 1, because a caller
+    that sent `true` for `worker_stall_timeout` made a mistake and silently
+    arming a one-second stall detector is exactly the failure this file is
+    supposed to stop.
+    """
+
+    #: Fields whose value is passed through untouched. Used only for the
+    #: deprecated worker settings, which exist to be read once by the
+    #: worker-group migration in `trawlarr.libs.worker_group` and then set to
+    #: None. Rejecting an odd value there would discard a migration rather
+    #: than protect anything.
+    ANY = 'any'
+
+    def __init__(self, kind, minimum=None, maximum=None, nullable=False):
+        self.kind = kind
+        self.minimum = minimum
+        self.maximum = maximum
+        self.nullable = nullable
+
+    def coerce(self, value, enforce_range=True):
+        if self.kind == self.ANY:
+            return value
+        if value is None:
+            if self.nullable:
+                return None
+            raise ValueError("Expected {}, got no value".format(self.kind))
+        value = getattr(self, '_coerce_{}'.format(self.kind))(value)
+        if enforce_range:
+            if self.minimum is not None and value < self.minimum:
+                raise ValueError("Must be {} or greater, got {}".format(self.minimum, value))
+            if self.maximum is not None and value > self.maximum:
+                raise ValueError("Must be {} or less, got {}".format(self.maximum, value))
+        return value
+
+    @staticmethod
+    def _coerce_bool(value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in _TRUE_STRINGS:
+                return True
+            if lowered in _FALSE_STRINGS:
+                return False
+        raise ValueError("Expected true or false, got {}".format(_describe(value)))
+
+    @staticmethod
+    def _coerce_int(value):
+        if isinstance(value, bool):
+            raise ValueError("Expected an integer, got {}".format(_describe(value)))
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        if isinstance(value, str):
+            try:
+                return int(value.strip())
+            except ValueError:
+                pass
+        raise ValueError("Expected an integer, got {}".format(_describe(value)))
+
+    @staticmethod
+    def _coerce_float(value):
+        if isinstance(value, bool):
+            raise ValueError("Expected a number, got {}".format(_describe(value)))
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value.strip())
+            except ValueError:
+                pass
+        raise ValueError("Expected a number, got {}".format(_describe(value)))
+
+    @staticmethod
+    def _coerce_str(value):
+        if isinstance(value, str):
+            return value
+        raise ValueError("Expected a string, got {}".format(_describe(value)))
+
+
+#: The type, and where it is meaningful the range, of every configuration
+#: field. `Config` fields and this table are kept in step by
+#: `tests/unit/test_config_validation.py`, which fails when a field is added
+#: to one and not the other — an unspecified field would otherwise silently
+#: opt itself out of validation, which is the bug class this table exists to
+#: close (#24).
+#:
+#: The four `DERIVED_PATH_CONFIG_KEYS` are listed because the table is meant
+#: to be total over the config object. They are still never settable over the
+#: API; `API_PROTECTED_CONFIG_KEYS` refuses them before validation is reached.
+CONFIG_FIELD_SPECS = {
+    'always_keep_failed_tasks':        ConfigFieldSpec('bool'),
+    'auto_manage_completed_tasks':     ConfigFieldSpec('bool'),
+    'cache_path':                      ConfigFieldSpec('str'),
+    'clear_pending_tasks_on_restart':  ConfigFieldSpec('bool'),
+    'compress_completed_tasks_logs':   ConfigFieldSpec('bool'),
+    'concurrent_file_testers':         ConfigFieldSpec('int', minimum=1),
+    'config_path':                     ConfigFieldSpec('str'),
+    'convergence_check_enabled':       ConfigFieldSpec('bool'),
+    'debugging':                       ConfigFieldSpec('bool'),
+    'enable_library_scanner':          ConfigFieldSpec('bool'),
+    'first_run':                       ConfigFieldSpec('bool'),
+    'follow_symlinks':                 ConfigFieldSpec('bool'),
+    'installation_name':               ConfigFieldSpec('str'),
+    'library_path':                    ConfigFieldSpec('str'),
+    'log_buffer_retention':            ConfigFieldSpec('int', minimum=0),
+    'log_path':                        ConfigFieldSpec('str'),
+    'max_age_of_completed_tasks':      ConfigFieldSpec('int', minimum=1),
+    'max_consecutive_task_failures':   ConfigFieldSpec('int', minimum=1),
+    'number_of_workers':               ConfigFieldSpec(ConfigFieldSpec.ANY),
+    'plugins_path':                    ConfigFieldSpec('str'),
+    'release_notes_viewed':            ConfigFieldSpec('str', nullable=True),
+    'run_full_scan_on_start':          ConfigFieldSpec('bool'),
+    'sanity_check_duplicate_audio':    ConfigFieldSpec('bool'),
+    'sanity_check_growth_repeats':     ConfigFieldSpec('int', minimum=1),
+    'sanity_check_size_growth_ratio':  ConfigFieldSpec('float', minimum=1.0),
+    'sanity_checks_enabled':           ConfigFieldSpec('bool'),
+    'schedule_full_scan_minutes':      ConfigFieldSpec('int', minimum=1),
+    'ssl_certfilepath':                ConfigFieldSpec('str', nullable=True),
+    'ssl_enabled':                     ConfigFieldSpec('bool'),
+    'ssl_keyfilepath':                 ConfigFieldSpec('str', nullable=True),
+    'trial_welcome_viewed':            ConfigFieldSpec('bool', nullable=True),
+    'ui_address':                      ConfigFieldSpec('str'),
+    'ui_port':                         ConfigFieldSpec('int', minimum=1, maximum=65535),
+    'userdata_path':                   ConfigFieldSpec('str'),
+    'worker_event_schedules':          ConfigFieldSpec(ConfigFieldSpec.ANY),
+    'worker_stall_detection_enabled':  ConfigFieldSpec('bool'),
+    'worker_stall_timeout':            ConfigFieldSpec('int', minimum=MINIMUM_WORKER_STALL_TIMEOUT),
+}
+
+
+def validate_config_items(items, enforce_ranges=True):
+    """
+    Check proposed configuration values against `CONFIG_FIELD_SPECS`.
+
+    Returns ``(values, errors)``:
+
+      * ``values`` maps field name -> the value to store, converted to the
+        field's type (so ``"1440"`` is stored as the number 1440 rather than
+        as a string that every later reader has to cope with);
+      * ``errors`` maps the *key as it was given* -> one sentence saying what
+        is wrong with it. A key with no spec is an error here: only callers
+        that want the tolerant behaviour skip validation entirely.
+
+    This function decides nothing about what happens next. The API refuses
+    the whole request; the settings.json reader keeps its default for the
+    offending field and carries on. Deciding here would force one of those
+    two policies onto the other.
+
+    :param items: mapping of requested key -> value
+    :param enforce_ranges: when False, only types are checked. Used when
+        reading settings.json, where a value that is merely out of range was
+        accepted by an earlier build and is still handled by the getters.
+    :return: tuple of (values dict, errors dict)
+    """
+    values = {}
+    errors = {}
+    for key, value in items.items():
+        spec = CONFIG_FIELD_SPECS.get(key)
+        if spec is None:
+            errors[key] = _unknown_key_message(key)
+            continue
+        try:
+            values[key] = spec.coerce(value, enforce_range=enforce_ranges)
+        except ValueError as e:
+            errors[key] = str(e)
+    return values, errors
+
+
+def _unknown_key_message(key):
+    """
+    Say that a key is not a setting, and where possible what was probably meant.
+
+    The suggestion is the whole point of reporting unknown keys at all: the
+    failure being fixed is a typo that saved successfully.
+    """
+    message = "Unknown setting."
+    if isinstance(key, str):
+        suggestions = difflib.get_close_matches(key, CONFIG_FIELD_SPECS, n=1)
+        if suggestions:
+            message = "{} Did you mean '{}'?".format(message, suggestions[0])
+    return message
 
 
 class Config(object, metaclass=SingletonType):
@@ -285,8 +490,20 @@ class Config(object, metaclass=SingletonType):
             # any written by an older build) carry absolute paths in them; the
             # values already computed for this process are authoritative.
             data = {key: value for key, value in data.items() if key not in DERIVED_PATH_CONFIG_KEYS}
+            # Type-check what is left. A settings.json written by an older
+            # build may name settings this version has since removed (#49,
+            # #52) or hold a value of the wrong type. Neither is a reason to
+            # refuse to start - a good install must keep starting - but both
+            # are worth saying out loud, and a value this version cannot use
+            # is better replaced by the default it would have fallen back to
+            # anyway. Ranges are not enforced here: an out-of-range value was
+            # accepted by the build that wrote it, and the getters that care
+            # (`get_worker_stall_timeout`) already clamp it.
+            values, errors = validate_config_items(data, enforce_ranges=False)
+            for key in sorted(errors):
+                logger.warning("Ignoring setting '%s' read from %s: %s", key, settings_file, errors[key])
             # Set data to Config class
-            self.set_bulk_config_items(data, save_settings=False)
+            self.set_bulk_config_items(values, save_settings=False)
 
     def reload(self):
         """
@@ -352,13 +569,18 @@ class Config(object, metaclass=SingletonType):
             return
 
         # If in a special config list, execute that command
-        if hasattr(self, "set_{}".format(key)):
-            setter = getattr(self, "set_{}".format(key))
+        #
+        # NOTE: everything from here on uses `field_id`, not `key`. The check
+        # above accepts a key in any case, so assigning `key` would answer
+        # "Debugging" by creating a second, unread attribute of that name -
+        # a write that reports success and changes nothing.
+        if hasattr(self, "set_{}".format(field_id)):
+            setter = getattr(self, "set_{}".format(field_id))
             if callable(setter):
                 setter(value)
         else:
             # Assign value directly to class attribute
-            setattr(self, key, value)
+            setattr(self, field_id, value)
 
         # Save settings (if requested)
         if save_settings:
