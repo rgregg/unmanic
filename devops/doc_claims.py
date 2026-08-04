@@ -285,6 +285,22 @@ PINNED_CLAIMS = [
         evidence=['CONTRIBUTING.md', 'mutation_check.py', '--old'],
     ),
     pinned(
+        'docs/CONTRIBUTING.md',
+        'Every Python file that is not fork-authored carries upstream\'s'
+        ' MIT-style permission grant, bar one grandfathered exception',
+        'tests/unit/test_packaging_metadata.py::TestTheDocumentedLicenceHeaderSituation',
+        # The document the test reads, the checker it reads the exception
+        # list out of, and the tree it walks.
+        evidence=['CONTRIBUTING.md', 'check_license_headers.sh', 'git', 'ls-files'],
+    ),
+    pinned(
+        'FORK.md',
+        'The distribution name and both console scripts are defined in'
+        ' pyproject.toml, and the Dockerfile and build workflow agree',
+        'tests/unit/test_packaging_metadata.py::TestPackagingCallSites',
+        evidence=['pyproject.toml', 'docker', 'Dockerfile', 'build.yml'],
+    ),
+    pinned(
         'devops/doc_claims.py',
         'Every row of this inventory names a test that pins what it claims',
         'tests/unit/test_doc_claims.py::TestThisInventoryIsHonest',

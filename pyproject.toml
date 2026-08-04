@@ -1,2 +1,89 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Ryan Gregg
+#
+# This file is part of Trawlarr, a fork of Unmanic.
+# See LICENSE for the full license text.
+#
+# Packaging metadata for the Trawlarr distribution.
+#
+# The wheel built from this file is what the Docker image installs --
+# docker/Dockerfile pip-installs `/src/trawlarr-*.whl` by glob and
+# .github/workflows/build.yml asserts that glob matches exactly one file --
+# so several values below are load-bearing rather than cosmetic:
+#
+#   * the distribution name `trawlarr`, which those globs match;
+#   * both console scripts: `trawlarr`, which the container's
+#     /usr/bin/trawlarr invokes, and `unmanic`, kept for existing installs
+#     and wrapper scripts;
+#   * both top-level packages: `trawlarr` and the legacy `unmanic`
+#     namespace alias shim that community plugins import through.
+#
+# tests/unit/test_packaging_metadata.py reads this file and pins all of
+# them, including against the globs in the Dockerfile and build workflow.
+#
+# setup.py still exists and is still run by the setuptools backend. It now
+# holds only the two things PEP 621 cannot express: the version derived
+# from `git describe`, and the custom build commands that compile the
+# Quasar frontend into trawlarr/webserver/public.
+
+[build-system]
+requires = ["setuptools>=77.0.0", "wheel>=0.42.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trawlarr"
+description = "A simple tool for optimising your video library to a single format"
+readme = "README.md"
+requires-python = ">=3.8"
+# Inherited from upstream's setup.py, which declared GPL-3.0-only while
+# docs/CONTRIBUTING.md asks new fork files for GPL-3.0-or-later. Left as
+# upstream declared it -- see the licensing note in docs/CONTRIBUTING.md.
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Josh.5", email = "jsunnex@gmail.com" }]
+classifiers = [
+    # Static, and deliberately not "5 - Production/Stable" as the previous
+    # version-sniffing heuristic produced: the newest tag in this repo is
+    # upstream's 0.4.0 and Trawlarr's own version line has not reached
+    # 1.0.0 yet (see FORK.md, "Versioning").
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Unix",
+    "Topic :: Multimedia :: Video :: Conversion",
+    "Topic :: Internet :: WWW/HTTP",
+]
+# `version` is supplied by setup.py from `git describe`; the two
+# requirement files stay the single source of truth for dependencies.
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/rgregg/trawlarr"
+
+[project.scripts]
+trawlarr = "trawlarr.service:main"
+unmanic = "trawlarr.service:main"
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["trawlarr*", "unmanic*"]
+namespaces = true
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = { file = ["requirements-dev.txt"] }
+
 [tool.black]
 line-length = 120

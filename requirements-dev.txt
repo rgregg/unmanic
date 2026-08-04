@@ -3,7 +3,12 @@ pycodestyle>=2.9.1      # Note: Highest supporting Py 3.7
 pytest>=7.4.3           # Note: Highest supporting Py 3.7
 pytest-cov>=4.1.0       # Coverage measurement for the local fork's CI
 wheel>=0.42.0
+# Note: BUILDING the wheel needs setuptools>=77 for the PEP 639 license
+# expression in pyproject.toml, which is why [build-system] requires says so.
+# This floor stays low because it is an install-time floor, not a build-host
+# one; building with an older setuptools fails loudly at metadata validation.
 setuptools>=68.0.0      # Note: Highest supporting Py 3.7
+tomli>=2.0.1; python_version < "3.11"   # tests/unit/test_packaging_metadata.py reads pyproject.toml; tomllib is 3.11+
 build>=0.10.0           # Note: Highest supporting Py 3.7
 yappi>=1.6.0            # Thread-aware profiler for dev profiling
 

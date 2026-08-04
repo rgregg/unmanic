@@ -130,8 +130,8 @@ section is the end state, not the sequence.
 | | Unmanic | Trawlarr | Defined in |
 |---|---|---|---|
 | Python package | `unmanic/` | `trawlarr/` | the tree |
-| Distribution / wheel | `unmanic` | `trawlarr` | `setup.cfg`, `versioninfo.py` |
-| Console script | `unmanic` | `trawlarr` | `setup.py` `entry_points` |
+| Distribution / wheel | `unmanic` | `trawlarr` | `pyproject.toml` `[project] name` |
+| Console script | `unmanic` | `trawlarr` | `pyproject.toml` `[project.scripts]` |
 | Config directory | `~/.unmanic/` | `~/.trawlarr/` | `runtimepaths.APP_DIR_NAME` |
 | Database | `unmanic.db` | `trawlarr.db` | `runtimepaths.DATABASE_FILE_NAME` |
 | URL prefix | `/unmanic` | `/trawlarr` | `runtimepaths.URL_PREFIX` |

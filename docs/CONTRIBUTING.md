@@ -418,3 +418,43 @@ devops/check_license_headers.sh
 
 Non-Python files (workflows, shell scripts, Dockerfiles) are not checked, but
 an SPDX comment on new fork-authored ones is appreciated.
+
+### Why upstream's files carry an MIT-style notice
+
+Three notices in this repo do not say the same thing.
+[`LICENSE`](../LICENSE) is the GNU General Public License version 3.
+[`pyproject.toml`](../pyproject.toml) declares the distribution as
+`GPL-3.0-only`. And upstream's per-file blocks read `Copyright (C) Josh
+Sunnex - All Rights Reserved` followed by the permission grant the MIT
+license uses, opening `Permission is hereby granted, free of charge`.
+*Every* Python file in this repo that is not fork-authored carries that
+grant, with the single grandfathered exception named in
+`devops/check_license_headers.sh`.
+
+Issue #58 raised this and deliberately changed no header, because none of the
+available changes are this fork's to make:
+
+- **Stripping the MIT-style block** from upstream's files is not an option.
+  The grant is Josh Sunnex's to give or withdraw, not a downstream fork's,
+  and the notice-retention condition inside that very block asks copies to
+  keep it.
+- **Replacing it with a GPL header** would assert terms over someone else's
+  copyright.
+- **Adding a GPL header alongside it** would make a fourth notice without
+  removing any ambiguity.
+
+What the fork can say for itself, it says: everything written here is
+GPL-3.0-or-later under its author's own copyright, marked with an SPDX
+identifier, and the work as distributed — wheel, sdist and container image —
+goes out under the GPL.
+
+None of this is legal advice. A recipient who needs certainty about the terms
+on a specific upstream file should ask upstream, not this repo.
+
+**Open, and not decided by #58:** whether the fork's declared license should
+stay `GPL-3.0-only`, which is what upstream's `setup.py` declared and what
+`pyproject.toml` still declares, or become `GPL-3.0-or-later`, which is what
+every fork-authored SPDX header says and what the section above asks of new
+contributions. Those are different licenses. Changing the one a project
+declares is a maintainer's decision, so it is recorded here rather than
+guessed at.

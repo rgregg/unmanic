@@ -6,6 +6,7 @@
  
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     04 May 2020, (10:52 AM)
+    Modified 2026 by Ryan Gregg as part of Trawlarr.
  
     Copyright:
            Copyright (C) Josh Sunnex - All Rights Reserved
@@ -28,16 +29,24 @@
            OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
            OR OTHER DEALINGS IN THE SOFTWARE.
 
+    ---
+
+    The only reason this module exists is that the distribution version is
+    derived from `git describe` and so cannot be a static string in
+    pyproject.toml. setup.py calls `version()` and `full_version()`; the
+    latter is also what ends up in the `version` file the app reads back at
+    runtime through `trawlarr.metadata.read_version_string()`.
+
+    Issue #58 removed the leftovers: a module-scope `DESCRIPTION = "TEST"`,
+    a `changes()` that parsed a CHANGES.txt this repo has never contained,
+    and `dev_status()` / `is_pre_release()` / `branch_version()`, which
+    nothing called once the Trove classifiers became static.
 """
 
-import io
 import os
 import subprocess
-import sys
 
 import trawlarr.metadata as version_info
-
-DESCRIPTION = "TEST"
 
 
 def name():
@@ -58,81 +67,6 @@ def full_version():
         return git_version_info['long']
     else:
         return str(version_info.__version__)
-
-
-def description():
-    return str(version_info.__description__)
-
-
-def author():
-    return str(version_info.__author)
-
-
-def email():
-    return str(version_info.__email)
-
-
-def url():
-    """
-    Fetch the URL from the project version_info
-
-    :return:
-    """
-    return str(version_info.__website__)
-
-
-def branch_version():
-    return version()[:3]
-
-
-def is_pre_release():
-    """
-    Returns either true if this is a alpha or beta release
-
-    :return:
-    """
-    full_version_string = full_version()
-    return "alpha" in full_version_string.lower() or "beta" in full_version_string.lower()
-
-
-def dev_status():
-    """
-    Returns the python module Development Status classifier
-    based on if the version string is alpha/beta or stable
-
-    :return:
-    """
-    full_version_string = full_version()
-    if 'alpha' in full_version_string.lower():
-        return 'Development Status :: 3 - Alpha'
-    elif 'beta' in full_version_string or 'rc' in full_version_string.lower():
-        return 'Development Status :: 4 - Beta'
-    else:
-        return 'Development Status :: 5 - Production/Stable'
-
-
-def changes():
-    """
-    Extract part of changelog pertaining to version.
-
-    :return:
-    """
-    _version = version_info.__version__
-    with io.open(os.path.join(get_base_dir(), "CHANGES.txt"), 'r', encoding='utf8') as f:
-        lines = []
-        for line in f:
-            if line.startswith('====='):
-                if len(lines) > 1:
-                    break
-            if lines:
-                lines.append(line)
-            elif line.startswith(_version):
-                lines.append(line)
-    return ''.join(lines[:-1])
-
-
-def get_base_dir():
-    return os.path.abspath(os.path.dirname(sys.argv[0]))
 
 
 def is_git_vcs():
