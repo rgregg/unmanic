@@ -302,6 +302,24 @@ PINNED_CLAIMS = [
         'tests/unit/test_doc_claims.py::TestEveryRelativeLinkInTheDocsResolves',
         evidence=['SECURITY_MODEL.md', 'os.path.exists'],
     ),
+    pinned(
+        'docker/README.md',
+        'The three build stages it names are the stages docker/Dockerfile'
+        ' defines, and the directories it says the shared-library check walks'
+        ' are the ones the check walks',
+        'tests/unit/test_dockerfile_runtime_stage.py'
+        '::TestTheDockerReadmeDescribesTheImageThatIsBuilt',
+        evidence=['README.md', 'btbn-ffmpeg', 'verify_runtime_libs.sh',
+                  'How the image is built'],
+    ),
+    pinned(
+        'docker/Dockerfile',
+        'The runtime stage ships no compiler and no *-dev headers, and it runs'
+        ' the shared-library check that makes that safe',
+        'tests/unit/test_dockerfile_runtime_stage.py',
+        evidence=['docker/Dockerfile', 'build-essential', 'BUILD_ONLY_PACKAGES',
+                  'verify_runtime_libs.sh'],
+    ),
 ]
 
 
