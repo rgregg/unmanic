@@ -493,11 +493,13 @@ singleton bare via `__new__`, mock collaborators, assert.
 
 ## Possible follow-ups
 
-Tracked in [the issue tracker](https://github.com/rgregg/trawlarr/issues):
+Tracked in [the issue tracker](https://github.com/rgregg/trawlarr/issues).
 
-- **[#5 Multi-stage Dockerfile](https://github.com/rgregg/trawlarr/issues/5)**
-  — split build-time from runtime to shrink image size and speed cold
-  builds. Needs careful runtime-soname iteration.
+[#5 Multi-stage Dockerfile](https://github.com/rgregg/trawlarr/issues/5) is
+done — `docker/Dockerfile` now builds in three stages and the toolchain
+never reaches the shipped image. See
+[`docker/README.md`](docker/README.md#how-the-image-is-built) for the stage
+list and the two behaviour changes it carries.
 
 ## Audit notes
 

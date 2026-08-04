@@ -26,6 +26,42 @@ Run this command from the root of the project:
 docker build -f ./docker/Dockerfile -t ghcr.io/rgregg/trawlarr:dev .
 ```
 
+### How the image is built
+
+`docker/Dockerfile` is a multi-stage build ([#5](https://github.com/rgregg/trawlarr/issues/5)).
+The stages:
+
+| Stage | What it produces |
+|---|---|
+| `btbn-ffmpeg` | BtbN's prebuilt static FFmpeg, unpacked into `/usr/lib/btbn-ffmpeg` |
+| `builder` | `/opt/venv` — `requirements.txt` plus the Trawlarr wheel |
+| `runtime` | The image that ships |
+
+Only `runtime` reaches the registry; the other two are copied from and
+discarded. Nothing in this Dockerfile compiles FFmpeg — it comes from the
+Jellyfin apt repository and from BtbN — so the compile toolchain that used
+to be installed alongside it now lives in `builder` only.
+
+Two consequences worth knowing before you file a bug:
+
+- **The runtime stage has no C compiler and no `*-dev` headers.** A plugin
+  that opts in to dependency installation and declares a Python package
+  with no prebuilt wheel for the container's interpreter will fail its
+  install with a compiler error rather than building from source. The
+  failure is loud and aborts the plugin install. If you need one of these,
+  a `/config/startup.sh` that `apt-get install`s `build-essential` runs
+  before the application starts.
+- **`docker/verify_runtime_libs.sh` runs during the build.** It walks every
+  ELF object the image ships under `/opt/venv`, `/usr/lib/btbn-ffmpeg` and
+  `/usr/lib/jellyfin-ffmpeg`, and fails the build if any of them has an
+  unresolved shared library. That is what keeps the trimmed runtime package
+  list honest. It cannot see libraries opened with `dlopen()` — VAAPI and
+  Vulkan drivers, `libcuda` from the NVIDIA container runtime — which is
+  why the driver packages are still installed by name.
+
+`tests/unit/test_dockerfile_runtime_stage.py` pins both the stage list
+above and the toolchain staying out of `runtime`.
+
 ### Running the image
 
 The container mounts `/config`, `/library` and `/tmp/unmanic` (encode cache)
