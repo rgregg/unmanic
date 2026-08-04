@@ -31,7 +31,6 @@
 """
 import os.path
 
-import tornado.log
 from trawlarr.libs.library import Library
 from trawlarr.libs import session
 from trawlarr.libs.uiserver import TrawlarrDataQueues
@@ -184,11 +183,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def delete_pending_tasks(self):
         """
@@ -260,11 +258,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def trigger_library_rescan(self):
         """
@@ -317,11 +314,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def reorder_pending_tasks(self):
         """
@@ -393,11 +389,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def create_task_from_path(self):
         """
@@ -477,11 +472,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def test_task_from_path(self):
         """
@@ -584,11 +578,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_pending_status_of_tasks(self):
         """
@@ -652,11 +645,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def set_pending_status_as_ready(self):
         """
@@ -713,11 +705,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def set_pending_library_by_name(self):
         """
@@ -777,11 +768,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def gen_download_link_pending_task_file(self, task_id=None):
         """
@@ -848,11 +838,10 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def gen_download_link_pending_task_data(self, task_id=None):
         """
@@ -925,8 +914,7 @@ class ApiPendingHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)

@@ -110,6 +110,20 @@
                         "description": "Return status code and reason",
                         "example": "400: Failed request schema validation"
                     },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "BAD_REQUEST",
+                            "ENDPOINT_NOT_FOUND",
+                            "ENDPOINT_RETIRED",
+                            "INTERNAL_ERROR",
+                            "INVALID_JSON",
+                            "METHOD_NOT_ALLOWED",
+                            "VALIDATION_FAILED"
+                        ],
+                        "description": "Stable, machine-readable classification of the failure. This is the field a client should branch on; `error` is prose and may change. Each code maps to exactly one HTTP status: `BAD_REQUEST` (400), `ENDPOINT_NOT_FOUND` (404), `ENDPOINT_RETIRED` (410), `INTERNAL_ERROR` (500), `INVALID_JSON` (400), `METHOD_NOT_ALLOWED` (405), `VALIDATION_FAILED` (400).",
+                        "example": "VALIDATION_FAILED"
+                    },
                     "messages": {
                         "type": "object",
                         "description": "Attached request body validation errors",
@@ -135,6 +149,7 @@
                 },
                 "required": [
                     "error",
+                    "error_code",
                     "messages"
                 ],
                 "additionalProperties": false
@@ -146,34 +161,20 @@
                         "type": "string",
                         "description": "Return status code and reason",
                         "example": "404: Endpoint not found"
-                    }
-                },
-                "required": [
-                    "error"
-                ],
-                "additionalProperties": false
-            },
-            "BadMethod": {
-                "type": "object",
-                "properties": {
-                    "error": {
+                    },
+                    "error_code": {
                         "type": "string",
-                        "description": "Return status code and reason",
-                        "example": "405: Method 'GET' not allowed"
-                    }
-                },
-                "required": [
-                    "error"
-                ],
-                "additionalProperties": false
-            },
-            "InternalError": {
-                "type": "object",
-                "properties": {
-                    "error": {
-                        "type": "string",
-                        "description": "Return status code and reason",
-                        "example": "500: Caught exception message"
+                        "enum": [
+                            "BAD_REQUEST",
+                            "ENDPOINT_NOT_FOUND",
+                            "ENDPOINT_RETIRED",
+                            "INTERNAL_ERROR",
+                            "INVALID_JSON",
+                            "METHOD_NOT_ALLOWED",
+                            "VALIDATION_FAILED"
+                        ],
+                        "description": "Stable, machine-readable classification of the failure. This is the field a client should branch on; `error` is prose and may change. Each code maps to exactly one HTTP status: `BAD_REQUEST` (400), `ENDPOINT_NOT_FOUND` (404), `ENDPOINT_RETIRED` (410), `INTERNAL_ERROR` (500), `INVALID_JSON` (400), `METHOD_NOT_ALLOWED` (405), `VALIDATION_FAILED` (400).",
+                        "example": "ENDPOINT_NOT_FOUND"
                     },
                     "messages": {
                         "type": "object",
@@ -200,6 +201,111 @@
                 },
                 "required": [
                     "error",
+                    "error_code",
+                    "messages"
+                ],
+                "additionalProperties": false
+            },
+            "BadMethod": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Return status code and reason",
+                        "example": "405: Method 'GET' not allowed"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "BAD_REQUEST",
+                            "ENDPOINT_NOT_FOUND",
+                            "ENDPOINT_RETIRED",
+                            "INTERNAL_ERROR",
+                            "INVALID_JSON",
+                            "METHOD_NOT_ALLOWED",
+                            "VALIDATION_FAILED"
+                        ],
+                        "description": "Stable, machine-readable classification of the failure. This is the field a client should branch on; `error` is prose and may change. Each code maps to exactly one HTTP status: `BAD_REQUEST` (400), `ENDPOINT_NOT_FOUND` (404), `ENDPOINT_RETIRED` (410), `INTERNAL_ERROR` (500), `INVALID_JSON` (400), `METHOD_NOT_ALLOWED` (405), `VALIDATION_FAILED` (400).",
+                        "example": "METHOD_NOT_ALLOWED"
+                    },
+                    "messages": {
+                        "type": "object",
+                        "description": "Attached request body validation errors",
+                        "example": {
+                            "name": [
+                                "The thing that went wrong."
+                            ]
+                        },
+                        "additionalProperties": {}
+                    },
+                    "traceback": {
+                        "type": "array",
+                        "description": "Attached exception traceback (if developer mode is enabled)",
+                        "example": [
+                            "Traceback (most recent call last):\n",
+                            "...",
+                            "json.decoder.JSONDecodeError: Expecting value: line 3 column 14 (char 45)\n"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "error",
+                    "error_code",
+                    "messages"
+                ],
+                "additionalProperties": false
+            },
+            "InternalError": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "description": "Return status code and reason",
+                        "example": "500: Caught exception message"
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "BAD_REQUEST",
+                            "ENDPOINT_NOT_FOUND",
+                            "ENDPOINT_RETIRED",
+                            "INTERNAL_ERROR",
+                            "INVALID_JSON",
+                            "METHOD_NOT_ALLOWED",
+                            "VALIDATION_FAILED"
+                        ],
+                        "description": "Stable, machine-readable classification of the failure. This is the field a client should branch on; `error` is prose and may change. Each code maps to exactly one HTTP status: `BAD_REQUEST` (400), `ENDPOINT_NOT_FOUND` (404), `ENDPOINT_RETIRED` (410), `INTERNAL_ERROR` (500), `INVALID_JSON` (400), `METHOD_NOT_ALLOWED` (405), `VALIDATION_FAILED` (400).",
+                        "example": "INTERNAL_ERROR"
+                    },
+                    "messages": {
+                        "type": "object",
+                        "description": "Attached request body validation errors",
+                        "example": {
+                            "name": [
+                                "The thing that went wrong."
+                            ]
+                        },
+                        "additionalProperties": {}
+                    },
+                    "traceback": {
+                        "type": "array",
+                        "description": "Attached exception traceback (if developer mode is enabled)",
+                        "example": [
+                            "Traceback (most recent call last):\n",
+                            "...",
+                            "json.decoder.JSONDecodeError: Expecting value: line 3 column 14 (char 45)\n"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "error",
+                    "error_code",
                     "messages"
                 ],
                 "additionalProperties": false
@@ -2582,6 +2688,20 @@
                         "description": "Return status code and reason",
                         "example": "410: This endpoint has been retired. Trawlarr has no central account service."
                     },
+                    "error_code": {
+                        "type": "string",
+                        "enum": [
+                            "BAD_REQUEST",
+                            "ENDPOINT_NOT_FOUND",
+                            "ENDPOINT_RETIRED",
+                            "INTERNAL_ERROR",
+                            "INVALID_JSON",
+                            "METHOD_NOT_ALLOWED",
+                            "VALIDATION_FAILED"
+                        ],
+                        "description": "Stable, machine-readable classification of the failure. This is the field a client should branch on; `error` is prose and may change. Each code maps to exactly one HTTP status: `BAD_REQUEST` (400), `ENDPOINT_NOT_FOUND` (404), `ENDPOINT_RETIRED` (410), `INTERNAL_ERROR` (500), `INVALID_JSON` (400), `METHOD_NOT_ALLOWED` (405), `VALIDATION_FAILED` (400).",
+                        "example": "ENDPOINT_RETIRED"
+                    },
                     "messages": {
                         "type": "object",
                         "description": "Always empty for retired endpoints. Present for envelope compatibility.",
@@ -2596,6 +2716,7 @@
                 },
                 "required": [
                     "error",
+                    "error_code",
                     "messages",
                     "retired"
                 ],

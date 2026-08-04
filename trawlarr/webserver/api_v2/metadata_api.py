@@ -30,7 +30,6 @@
 
 """
 
-import tornado.log
 from datetime import datetime
 
 from trawlarr.libs.metadata import TrawlarrFileMetadata
@@ -149,11 +148,10 @@ class ApiMetadataHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_metadata_by_task(self):
         try:
@@ -161,21 +159,19 @@ class ApiMetadataHandler(BaseApiHandler):
             task_id = json_request.get('task_id')
             await self._get_metadata_by_task_id(task_id)
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_metadata_by_task_id(self, task_id):
         try:
             await self._get_metadata_by_task_id(int(task_id))
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def _get_metadata_by_task_id(self, task_id):
         try:
@@ -255,11 +251,10 @@ class ApiMetadataHandler(BaseApiHandler):
             response = self.build_response(BaseSuccessSchema(), {"success": True})
             self.write_success(response)
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def delete_metadata(self):
         try:
@@ -276,11 +271,10 @@ class ApiMetadataHandler(BaseApiHandler):
             response = self.build_response(BaseSuccessSchema(), {"success": True})
             self.write_success(response)
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_metadata_by_fingerprint(self):
         try:
@@ -318,8 +312,7 @@ class ApiMetadataHandler(BaseApiHandler):
             )
             self.write_success(response)
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)

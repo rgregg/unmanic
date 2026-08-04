@@ -31,7 +31,6 @@
 """
 import os
 
-import tornado.log
 from trawlarr.libs import session
 from trawlarr.libs.uiserver import TrawlarrDataQueues
 from trawlarr.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
@@ -121,11 +120,10 @@ class ApiDocsHandler(BaseApiHandler):
                 self.write_success(response)
                 return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_logs_as_zip(self):
         """
@@ -176,8 +174,7 @@ class ApiDocsHandler(BaseApiHandler):
             self.set_header('Content-Disposition', 'attachment; filename=UnmanicLogs.zip')
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)

@@ -30,7 +30,6 @@
 
 """
 
-import tornado.log
 from trawlarr import config
 from trawlarr.libs import session
 from trawlarr.libs.uiserver import TrawlarrDataQueues
@@ -107,8 +106,7 @@ class ApiVersionHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)

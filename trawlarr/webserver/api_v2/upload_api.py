@@ -32,7 +32,6 @@
 import os
 import time
 
-import tornado.log
 import tornado.web
 
 from trawlarr import config
@@ -183,8 +182,7 @@ class ApiUploadHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
