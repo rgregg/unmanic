@@ -205,10 +205,16 @@ class ApiSettingsHandler(BaseApiHandler):
         description: >
             Save a given dictionary of settings.
 
-            Keys that do not name a configuration field are deliberately ignored
-            rather than refused. The UI posts library-scoped keys alongside
-            application ones, and older clients may post fields that no longer
-            exist.
+            Every key must name an application setting and every value must
+            suit that setting's type and range. A request that breaks either
+            rule is refused with a 400 and *nothing* from it is saved; the
+            `messages` object of the response names each offending key and
+            says what is wrong with it. Numeric strings are accepted for
+            numeric settings and stored as numbers.
+
+            This endpoint carries application settings only. Library settings
+            go to /settings/library/write and plugin settings to
+            /plugins/settings/write, and neither is affected by this check.
 
             Keys naming a protected, read-only field (config_path, log_path,
             plugins_path, userdata_path) are refused with a 400 and *nothing*
@@ -268,11 +274,24 @@ class ApiSettingsHandler(BaseApiHandler):
                 self.write_error()
                 return
 
+            # Check every remaining key and value before anything is persisted (#24).
+            # An unknown key used to be dropped in silence, so a typo saved successfully
+            # and changed nothing; a value of the wrong type used to be stored as sent
+            # and failed somewhere else, much later.
+            validated_settings, field_errors = config.validate_config_items(writable_settings)
+            if field_errors:
+                # As with the protected keys above: refuse the request whole. A caller
+                # that got a 400 must not have to guess which half of it applied.
+                self.error_messages = {key: [message] for key, message in field_errors.items()}
+                self.set_status(self.STATUS_ERROR_EXTERNAL, reason="Request contained invalid settings")
+                self.write_error()
+                return
+
             # Save settings - writing to file.
             # Throws exception if settings fail to save.
-            # NOTE: Persist the filtered dictionary. Filtering a copy and then persisting the
+            # NOTE: Persist the checked dictionary. Filtering a copy and then persisting the
             # original request payload is how this protection was silently defeated before (#18).
-            self.config.set_bulk_config_items(writable_settings)
+            self.config.set_bulk_config_items(validated_settings)
 
             self.write_success()
             return

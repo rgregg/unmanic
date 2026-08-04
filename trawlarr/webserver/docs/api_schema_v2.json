@@ -6366,7 +6366,7 @@
         },
         "/settings/write": {
             "post": {
-                "description": "Save a given dictionary of settings.\nKeys that do not name a configuration field are deliberately ignored rather than refused. The UI posts library-scoped keys alongside application ones, and older clients may post fields that no longer exist.\nKeys naming a protected, read-only field (config_path, log_path, plugins_path, userdata_path) are refused with a 400 and *nothing* from the request is saved. These are resolved at startup from the command line and environment; changing them over the API would only desynchronise the running process from its own files.\n",
+                "description": "Save a given dictionary of settings.\nEvery key must name an application setting and every value must suit that setting's type and range. A request that breaks either rule is refused with a 400 and *nothing* from it is saved; the `messages` object of the response names each offending key and says what is wrong with it. Numeric strings are accepted for numeric settings and stored as numbers.\nThis endpoint carries application settings only. Library settings go to /settings/library/write and plugin settings to /plugins/settings/write, and neither is affected by this check.\nKeys naming a protected, read-only field (config_path, log_path, plugins_path, userdata_path) are refused with a 400 and *nothing* from the request is saved. These are resolved at startup from the command line and environment; changing them over the API would only desynchronise the running process from its own files.\n",
                 "requestBody": {
                     "description": "Requested a dictionary of settings to save.",
                     "required": true,
