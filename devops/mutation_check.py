@@ -199,6 +199,11 @@ def run_tests(root, tests, extra_args):
 #: missing test that is probably there.
 KILLED = 'KILLED'
 SURVIVED = 'SURVIVED'
+#: The suite could not run in the copy at all, so NO outcome from it is
+#: meaningful -- not even a KILLED. Kept distinct from SURVIVED and
+#: NOT_APPLIED because it is a fault in the harness or the suite, not a
+#: finding about the code under test.
+HARNESS_BROKEN = 'HARNESS BROKEN'
 NOT_APPLIED = 'NOT_APPLIED'
 
 
@@ -218,6 +223,28 @@ def check_one(mutation, extra_args, verbose=False):
     root = tempfile.mkdtemp(prefix='trawlarr-mutation-')
     try:
         copy_working_tree(root)
+
+        # Control run, on the UNMUTATED copy, before touching anything.
+        #
+        # Without it, a suite that cannot run in the copy at all reports
+        # KILLED for every mutation -- including a literal no-op -- and the
+        # harness looks like it is working while proving nothing.
+        #
+        # That is not hypothetical. A test calling `git ls-files` with no
+        # fallback raised CalledProcessError here, because copy_working_tree()
+        # deliberately omits .git; every mutation on that branch came back
+        # KILLED and the results were cited as evidence that the tests were
+        # real. A tool that cannot tell "detected" from "broken" fails in the
+        # direction that looks like success, which is the exact failure this
+        # script exists to expose.
+        control_passed, control = run_tests(root, mutation.get('tests') or DEFAULT_TESTS, extra_args)
+        if not control_passed:
+            print('    HARNESS BROKEN  the tests do not pass on the UNMUTATED copy, so a')
+            print('                    KILLED result here would mean nothing. Fix the suite')
+            print('                    or the mutation target before trusting any outcome.')
+            sys.stdout.write(control.stdout.decode(errors='replace')[-4000:])
+            return HARNESS_BROKEN
+
         occurrences = apply_mutation(root, mutation['file'], mutation['old'], mutation['new'])
         if not occurrences:
             print('    NOT APPLIED  the text to mutate was not found in {}.'.format(mutation['file']))
@@ -268,15 +295,23 @@ def main():
     results = [(m, check_one(m, args.pytest_args, verbose=args.verbose)) for m in mutations]
     survivors = [m for m, outcome in results if outcome == SURVIVED]
     not_applied = [m for m, outcome in results if outcome == NOT_APPLIED]
+    broken = [m for m, outcome in results if outcome == HARNESS_BROKEN]
 
     print('\n{} mutation(s) checked: {} killed, {} survived, {} not applied.'.format(
-        len(mutations), len(mutations) - len(survivors) - len(not_applied),
+        len(mutations),
+        len(mutations) - len(survivors) - len(not_applied) - len(broken),
         len(survivors), len(not_applied)))
+    if broken:
+        print('  {} produced NO usable result: the suite does not pass on an '
+              'unmutated copy, so nothing it reported means anything.'.format(len(broken)))
     for mutation in survivors:
         print('  SURVIVED:    {}'.format(mutation.get('label') or mutation['file']))
     for mutation in not_applied:
         print('  NOT APPLIED: {}'.format(mutation.get('label') or mutation['file']))
-    return 1 if (survivors or not_applied) else 0
+    for mutation in broken:
+        print('  HARNESS BROKEN: {}'.format(mutation.get('label') or mutation['file']))
+
+    return 1 if (survivors or not_applied or broken) else 0
 
 
 if __name__ == '__main__':
