@@ -36,7 +36,6 @@ import json
 import os
 import time
 
-import tornado.log
 from trawlarr import config as unmanic_config
 from trawlarr.libs import session
 from trawlarr.libs.uiserver import TrawlarrDataQueues
@@ -224,11 +223,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def enable_plugins(self):
         """
@@ -277,11 +275,10 @@ class ApiPluginsHandler(BaseApiHandler):
         try:
             raise Exception('Endpoint is deprecated. Plugins are now enabled by assigning them to a library')
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def disable_plugins(self):
         """
@@ -330,11 +327,10 @@ class ApiPluginsHandler(BaseApiHandler):
         try:
             raise Exception('Endpoint is deprecated. Plugins are now enabled by assigning them to a library')
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def update_plugins(self):
         """
@@ -391,11 +387,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def remove_plugins(self):
         """
@@ -452,11 +447,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_plugin_info(self):
         """
@@ -531,11 +525,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def update_plugin_settings(self):
         """
@@ -596,11 +589,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def reset_plugin_settings(self):
         """
@@ -660,11 +652,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_installable_plugin_list(self):
         """
@@ -715,11 +706,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def install_plugin_by_id(self):
         """
@@ -776,11 +766,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_plugin_types_with_flows(self):
         """
@@ -830,11 +819,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_enabled_plugins_flow_by_type(self):
         """
@@ -894,11 +882,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def save_enabled_plugin_flow(self):
         """
@@ -957,11 +944,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def update_repo_list(self):
         """
@@ -1018,11 +1004,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_repo_list(self):
         """
@@ -1073,11 +1058,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def reload_repo_data(self):
         """
@@ -1125,11 +1109,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_community_repos(self):
         """
@@ -1157,11 +1140,10 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success({'repos': []})
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def get_enabled_panel_plugins_list(self):
         """
@@ -1226,8 +1208,7 @@ class ApiPluginsHandler(BaseApiHandler):
             self.write_success(response)
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)

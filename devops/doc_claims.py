@@ -297,6 +297,18 @@ PINNED_CLAIMS = [
         evidence=['sanity.evaluate', 'checked'],
     ),
     pinned(
+        'trawlarr/webserver/api_v2/README.md',
+        'The error taxonomy table: every code, and the status it maps to',
+        'tests/unit/test_api_error_contract.py::TestTheDocumentedErrorContract',
+        evidence=['README.md', 'API_ERROR_CODES'],
+    ),
+    pinned(
+        'trawlarr/webserver/api_v2/README.md',
+        'The example 500 body is the envelope the code actually builds',
+        'tests/unit/test_api_error_contract.py::TestTheDocumentedErrorContract',
+        evidence=['README.md', 'build_error_envelope'],
+    ),
+    pinned(
         'all seven documents',
         'Every relative link resolves to a file that exists',
         'tests/unit/test_doc_claims.py::TestEveryRelativeLinkInTheDocsResolves',

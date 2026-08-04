@@ -83,9 +83,15 @@ class TestRetiredEndpointsAreDocumented:
         assert description.lower().startswith('retired')
 
     def test_retired_endpoint_schema_shape(self, checked_in_json):
+        # #23 added error_code to every error envelope. The #21 contract is
+        # unchanged underneath it: error, messages and the retired flag stay.
         schema = checked_in_json['components']['schemas']['RetiredEndpoint']
-        assert sorted(schema['required']) == ['error', 'messages', 'retired']
+        assert sorted(schema['required']) == ['error', 'error_code', 'messages', 'retired']
         assert schema['properties']['retired']['type'] == 'boolean'
+
+    def test_retired_endpoint_is_classified_as_retired_not_as_a_generic_error(self, checked_in_json):
+        schema = checked_in_json['components']['schemas']['RetiredEndpoint']
+        assert schema['properties']['error_code']['example'] == 'ENDPOINT_RETIRED'
 
     def test_device_auth_code_schema_is_gone(self, checked_in_json):
         """

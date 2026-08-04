@@ -30,7 +30,6 @@
 
 """
 
-import tornado.log
 
 from trawlarr.libs import session
 from trawlarr.libs.logs import TrawlarrLogging
@@ -144,11 +143,10 @@ class ApiSessionHandler(BaseApiHandler):
                 self.write_success(response)
                 return
         except BaseApiError as bae:
-            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def session_reload(self):
         """
@@ -196,11 +194,10 @@ class ApiSessionHandler(BaseApiHandler):
                 self.write_success()
                 return
         except BaseApiError as bae:
-            self.logger.error("BaseApiError.%s: %s", self.route.get('call_method'), str(bae))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def session_logout(self):
         """

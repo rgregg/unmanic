@@ -39,6 +39,7 @@
 
 import asyncio
 import json
+from unittest import mock
 
 import pytest
 from peewee import SqliteDatabase
@@ -175,6 +176,18 @@ class TestUnknownIsNeverIdle:
         assert handler.successes_written == 0
         assert handler.errors_written == 1
 
+    def test_the_unknown_state_500_carries_the_internal_error_code(self, no_foreman, empty_task_queue):
+        """
+        #23 normalised the error envelope. The state-unknown answer documented
+        in docs/AUTOMATION.md must stay a 500, and must classify as a server
+        failure rather than as anything a caller could read as "not busy".
+        """
+        handler = build_handler()
+        asyncio.run(handler.activity_status())
+        assert handler.written['error_code'] == 'INTERNAL_ERROR'
+        assert handler.written['error'].startswith('500: ')
+        assert 'busy' not in handler.written
+
 
 class TestTheResponseShapeIsAContract:
 
@@ -262,6 +275,9 @@ def build_handler():
     handler = ApiActivityHandler.__new__(ApiActivityHandler)
     handler.route = {'call_method': 'activity_status'}
     handler.error_messages = {}
+    # RequestHandler.settings proxies the application; the error envelope reads
+    # it to decide whether to attach a traceback.
+    handler.application = mock.Mock(settings={})
     handler.status = None
     handler.reason = None
     handler.written = None
@@ -272,8 +288,13 @@ def build_handler():
         handler.status = status_code
         handler.reason = reason
 
-    def write_error(status_code=None, **kwargs):
+    def finish_once(response):
+        # The real error path runs; only the last step - handing the body to
+        # Tornado - is captured, so the status, envelope and error_code under
+        # test are the ones the handler really produces.
         handler.errors_written += 1
+        handler.written = response
+        return True
 
     def write_success(response=None):
         handler.successes_written += 1
@@ -281,6 +302,6 @@ def build_handler():
         handler.written = json.loads(response) if isinstance(response, str) else response
 
     handler.set_status = set_status
-    handler.write_error = write_error
+    handler.finish_once = finish_once
     handler.write_success = write_success
     return handler

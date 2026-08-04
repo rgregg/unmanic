@@ -31,6 +31,18 @@
 """
 from marshmallow import Schema, fields, validate
 
+from trawlarr.webserver.api_v2.base_api_handler import API_ERROR_CODES
+
+# The documented list of error codes is generated from the taxonomy the
+# handlers actually use, so the contract cannot drift away from the code.
+ERROR_CODE_VALUES = sorted(API_ERROR_CODES)
+ERROR_CODE_DESCRIPTION = (
+    "Stable, machine-readable classification of the failure. This is the field a client should "
+    "branch on; `error` is prose and may change. Each code maps to exactly one HTTP status: "
+    + ", ".join("`{}` ({})".format(code, API_ERROR_CODES[code]) for code in ERROR_CODE_VALUES)
+    + "."
+)
+
 
 class BaseSchema(Schema):
     class Meta:
@@ -49,9 +61,22 @@ class BaseSuccessSchema(BaseSchema):
 
 
 class BaseErrorSchema(BaseSchema):
+    """
+    The envelope every v2 error response is returned in.
+
+    `error`, `error_code` and `messages` are always present. `traceback` is
+    present only when the server runs with developer mode enabled. Individual
+    error responses may add fields (`retired` on a 410) but never drop these.
+    """
     error = fields.Str(
         required=True,
         description="Return status code and reason",
+    )
+    error_code = fields.Str(
+        required=True,
+        description=ERROR_CODE_DESCRIPTION,
+        validate=validate.OneOf(ERROR_CODE_VALUES),
+        example="INTERNAL_ERROR",
     )
     messages = fields.Dict(
         required=True,
@@ -77,23 +102,41 @@ class BadRequestSchema(BaseErrorSchema):
         description="Return status code and reason",
         example="400: Failed request schema validation",
     )
+    error_code = fields.Str(
+        required=True,
+        description=ERROR_CODE_DESCRIPTION,
+        validate=validate.OneOf(ERROR_CODE_VALUES),
+        example="VALIDATION_FAILED",
+    )
 
 
-class BadEndpointSchema(BaseSchema):
+class BadEndpointSchema(BaseErrorSchema):
     """STATUS_ERROR_ENDPOINT_NOT_FOUND = 404"""
     error = fields.Str(
         required=True,
         description="Return status code and reason",
         example="404: Endpoint not found",
     )
+    error_code = fields.Str(
+        required=True,
+        description=ERROR_CODE_DESCRIPTION,
+        validate=validate.OneOf(ERROR_CODE_VALUES),
+        example="ENDPOINT_NOT_FOUND",
+    )
 
 
-class BadMethodSchema(BaseSchema):
+class BadMethodSchema(BaseErrorSchema):
     """STATUS_ERROR_METHOD_NOT_ALLOWED = 405"""
     error = fields.Str(
         required=True,
         description="Return status code and reason",
         example="405: Method 'GET' not allowed",
+    )
+    error_code = fields.Str(
+        required=True,
+        description=ERROR_CODE_DESCRIPTION,
+        validate=validate.OneOf(ERROR_CODE_VALUES),
+        example="METHOD_NOT_ALLOWED",
     )
 
 
@@ -111,6 +154,12 @@ class RetiredEndpointSchema(BaseSchema):
         required=True,
         description="Return status code and reason",
         example="410: This endpoint has been retired. Trawlarr has no central account service.",
+    )
+    error_code = fields.Str(
+        required=True,
+        description=ERROR_CODE_DESCRIPTION,
+        validate=validate.OneOf(ERROR_CODE_VALUES),
+        example="ENDPOINT_RETIRED",
     )
     messages = fields.Dict(
         required=True,
@@ -130,6 +179,12 @@ class InternalErrorSchema(BaseErrorSchema):
         required=True,
         description="Return status code and reason",
         example="500: Caught exception message",
+    )
+    error_code = fields.Str(
+        required=True,
+        description=ERROR_CODE_DESCRIPTION,
+        validate=validate.OneOf(ERROR_CODE_VALUES),
+        example="INTERNAL_ERROR",
     )
 
 

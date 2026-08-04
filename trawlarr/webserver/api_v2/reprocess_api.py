@@ -32,7 +32,6 @@
     queues the files.
 """
 
-import tornado.log
 
 from trawlarr.libs import reprocess
 from trawlarr.webserver.api_v2.base_api_handler import BaseApiHandler, BaseApiError
@@ -146,11 +145,10 @@ class ApiReprocessHandler(BaseApiHandler):
             self.write_error()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
 
     async def apply_reprocess_selection(self):
         """
@@ -225,8 +223,7 @@ class ApiReprocessHandler(BaseApiHandler):
             self.write_error()
             return
         except BaseApiError as bae:
-            tornado.log.app_log.error("BaseApiError.{}: {}".format(self.route.get('call_method'), str(bae)))
+            self.handle_api_error(bae)
             return
         except Exception as e:
-            self.set_status(self.STATUS_ERROR_INTERNAL, reason=str(e))
-            self.write_error()
+            self.handle_unexpected_error(e)
