@@ -149,6 +149,65 @@ class TestRegisterUnmanicPinsLevel:
         s.requests_session.post.assert_not_called()
 
 
+class TestRegisterUnmanicSkipsRedundantWorkWhenSessionIsValid:
+    """plugins.get_enabled_plugin_modules_by_type() calls
+    session.register_unmanic() with no argument on every invocation, and
+    that runs on every Foreman monitor pass -- every 2 seconds while idle
+    (see foreman.py's validate_worker_config() -> configuration_changed()
+    -> get_current_library_configuration() -> library.get_plugin_flow()
+    chain). Before this fix, register_unmanic() ignored the
+    __check_session_valid() gate it was written to update, so every one of
+    those passes re-ran __fetch_installation_data(),
+    __store_installation_data() and __configure_log_forwarding() -- the
+    last of which logs "Remote logging disabled." on every call, turning a
+    stub meant to run once every 40 minutes into a multiple-times-a-second
+    log spam and a steady stream of unnecessary DB writes."""
+
+    def test_second_call_within_the_validity_window_does_no_work(self):
+        s = _bare_session()
+        s.created = 1000.0
+        s.last_check = 1000.0  # "just checked" -- well inside the 2400s window
+        with mock.patch.object(s, "_Session__fetch_installation_data") as fetch, \
+                mock.patch.object(s, "_Session__store_installation_data") as store, \
+                mock.patch.object(s, "_Session__configure_log_forwarding") as configure_logs, \
+                mock.patch.object(s, "_Session__update_created_timestamp"), \
+                mock.patch.object(s, "_Session__trigger_plugin_repo_refresh_for_level_change"), \
+                mock.patch("trawlarr.libs.session.time.time", return_value=1001.0):
+            assert s.register_unmanic() is True
+        fetch.assert_not_called()
+        store.assert_not_called()
+        configure_logs.assert_not_called()
+
+    def test_force_true_always_does_the_full_registration(self):
+        s = _bare_session()
+        s.created = 1000.0
+        s.last_check = 1000.0
+        with mock.patch.object(s, "_Session__fetch_installation_data") as fetch, \
+                mock.patch.object(s, "_Session__store_installation_data") as store, \
+                mock.patch.object(s, "_Session__configure_log_forwarding") as configure_logs, \
+                mock.patch.object(s, "_Session__update_created_timestamp"), \
+                mock.patch.object(s, "_Session__trigger_plugin_repo_refresh_for_level_change"), \
+                mock.patch("trawlarr.libs.session.time.time", return_value=1001.0):
+            assert s.register_unmanic(force=True) is True
+        fetch.assert_called_once()
+        store.assert_called_once()
+        configure_logs.assert_called_once()
+
+    def test_first_call_ever_still_registers(self):
+        # last_check is None -- never registered -- so even a bare call
+        # (no force) must do the full registration once.
+        s = _bare_session()
+        with mock.patch.object(s, "_Session__fetch_installation_data") as fetch, \
+                mock.patch.object(s, "_Session__store_installation_data") as store, \
+                mock.patch.object(s, "_Session__configure_log_forwarding") as configure_logs, \
+                mock.patch.object(s, "_Session__update_created_timestamp"), \
+                mock.patch.object(s, "_Session__trigger_plugin_repo_refresh_for_level_change"):
+            assert s.register_unmanic() is True
+        fetch.assert_called_once()
+        store.assert_called_once()
+        configure_logs.assert_called_once()
+
+
 class TestLoginUrlsReturnEmpty:
     """Upstream returned URLs into api.unmanic.app's OAuth flows. Local
     fork: empty strings so the frontend renders the buttons as no-ops

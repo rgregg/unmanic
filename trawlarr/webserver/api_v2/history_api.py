@@ -467,6 +467,7 @@ class ApiHistoryHandler(BaseApiHandler):
             response = self.build_response(
                 TaskFailureSummarySchema(),
                 {
+                    'success':                  True,
                     'total':                    summary.get('total', 0),
                     'categories':               summary.get('categories', {}),
                     'oldest':                   summary.get('oldest'),
