@@ -538,7 +538,20 @@ class Session(object, metaclass=SingletonType):
         local installation row from the DB, pins the session level to
         LOCAL_SESSION_LEVEL so every feature stays unlocked, and refreshes
         the timestamp so __check_session_valid() never expires.
+
+        Callers that only want to make sure a session exists -- notably
+        plugins.get_enabled_plugin_modules_by_type(), which runs on every
+        Foreman monitor pass (every 2 seconds while idle) -- pass no
+        argument. Without this gate, every one of those passes repeated the
+        full DB read/write and re-ran __configure_log_forwarding(), which
+        logs "Remote logging disabled." on every call; that turned a stub
+        meant to run once every 40 minutes into a multiple-times-per-second
+        log spam and a steady stream of unnecessary installation-row writes.
+        `force=True` (session/reload, a plugin repo 401, a level change)
+        still always re-registers.
         """
+        if not force and self.__check_session_valid():
+            return True
         self.last_check = time.time()
         self.__fetch_installation_data()
         previous_level = self.level

@@ -381,6 +381,7 @@ def outstanding_summary():
     :return: dict
     """
     summary = {
+        'success':      True,
         'total':        0,
         'repeated':     0,
         'plugins':      {},

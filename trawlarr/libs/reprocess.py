@@ -645,6 +645,7 @@ def build_selection(library_id=None, path_glob=None, match_file_test=False, incl
         selected.append(entry)
 
     return {
+        'success':         True,
         'filter':          {
             'library_id':        library_id,
             'path_glob':         path_glob,
