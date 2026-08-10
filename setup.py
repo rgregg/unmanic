@@ -3,23 +3,24 @@
 
 """
     trawlarr.setup.py
- 
+
     Written by:               Josh.5 <jsunnex@gmail.com>
     Date:                     04 May 2020, (10:47 AM)
- 
+    Modified 2026 by Ryan Gregg as part of Trawlarr.
+
     Copyright:
            Copyright (C) Josh Sunnex - All Rights Reserved
- 
+
            Permission is hereby granted, free of charge, to any person obtaining a copy
            of this software and associated documentation files (the "Software"), to deal
            in the Software without restriction, including without limitation the rights
            to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
            copies of the Software, and to permit persons to whom the Software is
            furnished to do so, subject to the following conditions:
-  
+
            The above copyright notice and this permission notice shall be included in all
            copies or substantial portions of the Software.
-  
+
            THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
            EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
            MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -28,6 +29,20 @@
            OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
            OR OTHER DEALINGS IN THE SOFTWARE.
 
+    ---
+
+    Static packaging metadata now lives in pyproject.toml (issue #58). What
+    is left here is what PEP 621 has no way to express:
+
+      * `version`, which is derived from `git describe` by versioninfo.py;
+      * the custom build commands -- `build_py` is overridden so that every
+        wheel and sdist runs an `npm ci` + Quasar production build and drops
+        the result in trawlarr/webserver/public. Without that the wheel
+        installs a webserver with no frontend to serve.
+
+    Nothing here declares the distribution name, the packages or the console
+    scripts any more; those are in pyproject.toml and pinned by
+    tests/unit/test_packaging_metadata.py.
 """
 import json
 import os
@@ -35,7 +50,7 @@ import shutil
 import subprocess
 import sys
 import glob
-from setuptools import setup, find_packages, Command, find_namespace_packages
+from setuptools import setup, Command
 import setuptools.command.build_py
 
 if sys.version_info[0] < 3:
@@ -45,32 +60,9 @@ if sys.version_info[0] < 3:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 import versioninfo
 
-project_root_dir = os.path.dirname(os.path.realpath(__file__))
 src_dir = 'trawlarr'
-# Fork addition: the legacy `unmanic` namespace alias shim
-# (see trawlarr/namespace_shim.py)
-alias_dir = 'unmanic'
 
 module_name = versioninfo.name()
-module_version = versioninfo.version()
-module_description = versioninfo.description()
-module_author = versioninfo.author()
-module_email = versioninfo.email()
-module_url = versioninfo.url()
-module_classifiers = [
-    versioninfo.dev_status(),
-    'Intended Audience :: End Users/Desktop',
-    'Intended Audience :: Developers',
-    'Programming Language :: Python :: 3.8',
-    'Programming Language :: Python :: 3.9',
-    'Programming Language :: Python :: 3.10',
-    'Programming Language :: Python :: 3.11',
-    'Programming Language :: Python :: 3.12',
-    'Operating System :: POSIX :: Linux',
-    'Operating System :: Unix',
-    'Topic :: Multimedia :: Video :: Conversion',
-    'Topic :: Internet :: WWW/HTTP',
-]
 
 
 class BuildPyCommand(setuptools.command.build_py.build_py):
@@ -161,7 +153,7 @@ class CleanCommand(Command):
 
 
 class FullVersionCommand(Command):
-    """Custom clean command to tidy up the project root."""
+    """Print the long form of the version string."""
     user_options = []
 
     def initialize_options(self):
@@ -183,50 +175,9 @@ cmd_class = {
     'fullversion':         FullVersionCommand,
 }
 
-
-def requirements():
-    with open(os.path.abspath(os.path.join(os.path.dirname(__file__), 'requirements.txt'))) as f:
-        return f.read().splitlines()
-
-
-def requirements_dev():
-    with open(os.path.abspath(os.path.join(os.path.dirname(__file__), 'requirements-dev.txt'))) as f:
-        return f.read().splitlines()
-
-
 setup(
-    name=module_name,
-    version=module_version,
-    license="GPL-3.0-only",
-    license_files=("LICENSE",),
-    author=module_author,
-    author_email=module_email,
-    maintainer=module_author,
-    maintainer_email=module_email,
-    description=module_description,
-    url=module_url,
-    classifiers=module_classifiers,
-    install_requires=requirements(),
-    extras_require={
-        'dev': requirements_dev()
-    },
-    # Fork addition: `alias_dir` is the legacy `unmanic` namespace shim
-    # (issue #49 step 2) -- a few lines that redirect into `src_dir`. It has
-    # to ship in the wheel or the alias only exists in a source checkout,
-    # and every installed community plugin imports through it.
-    packages=find_namespace_packages(include=[f"{src_dir}*", f"{alias_dir}*"]),
-    include_package_data=True,
-    entry_points={
-        'console_scripts': [
-            # Canonical console script, named for the real package.
-            '%s=%s.service:main' % (src_dir, src_dir),
-            # Legacy name, kept for the same reason the namespace alias is:
-            # existing installs, wrapper scripts and any operator muscle
-            # memory still invoke `unmanic`. Written against `alias_dir`
-            # rather than `module_name` so that renaming the distribution
-            # (step 4, done) could not silently delete it.
-            '%s=%s.service:main' % (alias_dir, src_dir),
-        ]
-    },
+    # Declared `dynamic` in pyproject.toml because it comes from git, not
+    # from a file that can be read at rest.
+    version=versioninfo.version(),
     cmdclass=cmd_class,
 )
