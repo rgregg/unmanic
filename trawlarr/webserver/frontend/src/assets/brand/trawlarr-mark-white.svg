@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Trawlarr">
   <title>Trawlarr</title>
-  <!-- White-on-transparent variant for placement on dark backgrounds -->
-  <rect x="224" y="128" width="64" height="248" rx="8" ry="8" fill="#ffffff"/>
-  <rect x="96" y="128" width="224" height="64" rx="6" ry="6" fill="#ffffff"/>
-  <!-- Play triangle in slightly muted white so it reads as a separate facet -->
-  <path d="M 320 116 L 440 160 L 320 204 Z" fill="#ffffff" fill-opacity="0.85"/>
+  <path d="M245 96h30v128h-30z" fill="#ffffff"/>
+  <path d="M275 103l78 27-78 28z" fill="#ffffff"/>
+  <path d="M124 184h264c12 0 22 10 22 22s-10 22-22 22H124c-12 0-22-10-22-22s10-22 22-22z" fill="#ffffff"/>
+  <path d="M143 228h226L256 416z" fill="#ffffff"/>
+  <path d="M176 279c35 18 61 26 80 26s45-8 80-26" fill="none" stroke="#002e5c" stroke-width="28" stroke-linecap="round"/>
+  <path d="M203 338c22 11 39 17 53 17s31-6 53-17" fill="none" stroke="#002e5c" stroke-width="24" stroke-linecap="round"/>
 </svg>

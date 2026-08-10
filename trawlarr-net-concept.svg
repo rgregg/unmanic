@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Trawlarr net concept">
+  <title>Trawlarr net concept</title>
+  <rect width="512" height="512" rx="88" ry="88" fill="#002e5c"/>
+
+  <defs>
+    <clipPath id="net-clip">
+      <path d="M126 226
+               C158 207 205 197 256 197
+               C307 197 354 207 386 226
+               L322 372
+               C302 413 277 438 256 452
+               C235 438 210 413 190 372
+               Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Mast and pennant from the selected concept-art direction. -->
+  <path d="M244 88h28v135h-28z" fill="#ffffff"/>
+  <path d="M272 101l77 29-77 29z" fill="#d6a642"/>
+
+  <!-- Soft curved tow beam, not a literal straight bar. -->
+  <path d="M112 214
+           C150 188 201 176 256 176
+           C311 176 362 188 400 214
+           C407 219 411 226 411 235
+           C411 247 401 257 389 257
+           C379 257 371 251 364 247
+           C334 231 296 223 256 223
+           C216 223 178 231 148 247
+           C141 251 133 257 123 257
+           C111 257 101 247 101 235
+           C101 226 105 219 112 214Z"
+        fill="#ffffff"/>
+
+  <!-- Compact stylized trawl net body. -->
+  <path d="M126 226
+           C158 207 205 197 256 197
+           C307 197 354 207 386 226
+           L322 372
+           C302 413 277 438 256 452
+           C235 438 210 413 190 372
+           Z"
+        fill="#009fdd"/>
+
+  <!-- Dark mouth opening, matching the concept-art icon feel. -->
+  <path d="M145 231
+           C177 216 214 208 256 208
+           C298 208 335 216 367 231
+           C338 252 300 263 256 263
+           C212 263 174 252 145 231Z"
+        fill="#002e5c"/>
+
+  <!-- Bold mesh cuts clipped inside the net, fewer and more graphic. -->
+  <g clip-path="url(#net-clip)" fill="none" stroke="#002e5c" stroke-linecap="round">
+    <path d="M166 288C195 306 225 315 256 315C287 315 317 306 346 288" stroke-width="28"/>
+    <path d="M198 355C219 368 239 375 256 375C273 375 293 368 314 355" stroke-width="24"/>
+    <path d="M179 249L238 433" stroke-width="22"/>
+    <path d="M333 249L274 433" stroke-width="22"/>
+    <path d="M230 222L252 442" stroke-width="18"/>
+    <path d="M282 222L260 442" stroke-width="18"/>
+  </g>
+
+  <!-- Reassert the lower net point so the clipped cuts do not make the base ragged. -->
+  <path d="M221 389
+           C232 414 246 434 256 444
+           C266 434 280 414 291 389
+           C278 397 266 401 256 401
+           C246 401 234 397 221 389Z"
+        fill="#009fdd"/>
+</svg>

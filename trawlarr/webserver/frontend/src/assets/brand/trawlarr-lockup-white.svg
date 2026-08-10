@@ -2,11 +2,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" role="img" aria-label="Trawlarr">
   <title>Trawlarr</title>
   <g transform="scale(0.625)">
-    <rect width="512" height="512" rx="88" ry="88" fill="#002e5c"/>
     <path d="M245 96h30v128h-30z" fill="#ffffff"/>
-    <path d="M275 103l78 27-78 28z" fill="#d6a642"/>
+    <path d="M275 103l78 27-78 28z" fill="#ffffff"/>
     <path d="M124 184h264c12 0 22 10 22 22s-10 22-22 22H124c-12 0-22-10-22-22s10-22 22-22z" fill="#ffffff"/>
-    <path d="M143 228h226L256 416z" fill="#009fdd"/>
+    <path d="M143 228h226L256 416z" fill="#ffffff"/>
     <path d="M176 279c35 18 61 26 80 26s45-8 80-26" fill="none" stroke="#002e5c" stroke-width="28" stroke-linecap="round"/>
     <path d="M203 338c22 11 39 17 53 17s31-6 53-17" fill="none" stroke="#002e5c" stroke-width="24" stroke-linecap="round"/>
   </g>
@@ -14,6 +13,6 @@
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
         font-weight="700"
         font-size="125"
-        fill="#002e5c"
+        fill="#ffffff"
         letter-spacing="0">Trawlarr</text>
 </svg>
