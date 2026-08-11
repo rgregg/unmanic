@@ -25,3 +25,6 @@ unmanic.egg-info/**
 /htmlcov/
 /coverage.xml
 /pytest-results.xml
+
+# Superpowers brainstorming scratch
+.superpowers/
