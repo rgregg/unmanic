@@ -1,2 +1,7 @@
 node_modules
-public
+public/*
+!public/
+!public/favicon.ico
+!public/icons/
+!public/icons/favicon-*.png
+!public/icons/icon-*.png
