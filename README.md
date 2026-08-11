@@ -1,3 +1,13 @@
+> **This repository is archived.** Trawlarr was rewritten from scratch and now
+> lives at **[rgregg/trawlarr](https://github.com/rgregg/trawlarr)** under the MIT
+> license, built around compatibility with Tdarr's flow plugin contract rather than
+> derived from Unmanic.
+>
+> What you see here is the earlier work: a GPL-3.0 fork of
+> [Unmanic](https://github.com/Unmanic/unmanic) by [Josh.5](https://github.com/Josh5).
+> It remains available, unchanged, under the license it was released under. The new
+> repository contains none of this code.
+
 # Trawlarr
 
 A self-hosted media library optimiser — fully free software, every
